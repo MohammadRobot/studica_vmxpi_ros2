@@ -43,6 +43,7 @@ meshes
 To launch the real robot:
 
 ```bash
+sudo su 
 ros2 launch vmxpi_ros2 diffbot_gazebo_classic.launch.py use_hardware:=true
 ```
 
