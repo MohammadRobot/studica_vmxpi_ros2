@@ -39,12 +39,17 @@ def generate_launch_description():
             default_value="false",
             description="Start robot with Gazebo Classic mirroring command to its states.",
         ),
+        DeclareLaunchArgument(
+            "use_sim_time",
+            default_value=LaunchConfiguration("use_gazebo_classic"),
+            description="Use simulation time (defaults to use_gazebo_classic).",
+        ),
     ]
 
     gui = LaunchConfiguration("gui")
     use_hardware = LaunchConfiguration("use_hardware")
     use_gazebo_classic = LaunchConfiguration("use_gazebo_classic")
-    use_sim_time = LaunchConfiguration('use_sim_time', default='false') # Default to false for hardware
+    use_sim_time = LaunchConfiguration("use_sim_time")
  
     world_file = PathJoinSubstitution([FindPackageShare("vmxpi_ros2"), "description/gazebo/worlds", "diff_drive_world.world"])
 
@@ -82,7 +87,7 @@ def generate_launch_description():
         launch_arguments={
             "verbose": "false",
             "world": world_file,
-            "use_sim_time": LaunchConfiguration('use_sim_time', default='true'), # Explicitly set to true for Gazebo
+            "use_sim_time": use_sim_time,
         }.items(),
         condition=IfCondition(use_gazebo_classic),
     )
@@ -159,7 +164,7 @@ def generate_launch_description():
         package='controller_manager', # Or the correct package name for your control_node executable
         executable='ros2_control_node', # Or the correct executable name
         namespace='',
-        parameters=[robot_description, robot_controllers], # robot_controllers is your PathJoinSubstitution to the YAML file
+        parameters=[robot_description, robot_controllers, {"use_sim_time": use_sim_time}], # robot_controllers is your PathJoinSubstitution to the YAML file
         output='screen',
         condition=UnlessCondition(use_gazebo_classic) # Launch only when not using Gazebo Classic
     )

@@ -22,12 +22,11 @@
   <depend>ros2_control</depend>
   <depend>gazebo_ros2_control</depend>
   <depend>joint_state_broadcaster</depend>
-  <depend>joint_trajectory_controller</depend>
-  <depend>velocity_controllers</depend>
+  <depend>diff_drive_controller</depend>
   <depend>gazebo_ros</depend>
   <depend>geometry_msgs</depend>
-  <depend>nav_msgs</depend>
   <depend>sensor_msgs</depend>
+  <depend>studica_drivers</depend>
 
 
 
@@ -38,19 +37,13 @@
   <depend>rclcpp_lifecycle</depend>
 
   <exec_depend>controller_manager</exec_depend>
-  <exec_depend>forward_command_controller</exec_depend>
   <exec_depend>joint_state_publisher_gui</exec_depend>
   <exec_depend>robot_state_publisher</exec_depend>
-  <exec_depend>ros2_control_demo_description</exec_depend>
-  <exec_depend>ros2_controllers_test_nodes</exec_depend>
   <exec_depend>ros2controlcli</exec_depend>
   <exec_depend>rviz2</exec_depend>
  
   <test_depend>ament_lint_auto</test_depend>
   <test_depend>ament_lint_common</test_depend>
-  <test_depend>ament_cmake_pytest</test_depend>
-  <test_depend>launch_testing_ros</test_depend>
-  <test_depend>liburdfdom-tools</test_depend>
 
   <export>
     <build_type>ament_cmake</build_type>

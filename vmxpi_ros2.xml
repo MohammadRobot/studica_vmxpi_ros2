@@ -1,11 +1,4 @@
 <library path="vmxpi_ros2">
-  <class name="vmxpi_ros2/RRBotSystemPositionOnlyHardware"
-         type="vmxpi_ros2::RRBotSystemPositionOnlyHardware"
-         base_class_type="hardware_interface::SystemInterface">
-    <description>
-      The ros2_control RRbot example using a system hardware interface-type.
-    </description>
-  </class>
   <class name="vmxpi_ros2/DiffBotSystemHardware"
          type="vmxpi_ros2::DiffBotSystemHardware"
          base_class_type="hardware_interface::SystemInterface">

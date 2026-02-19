@@ -4,23 +4,45 @@
   <xacro:macro name="diffbot_ros2_control" params="name prefix use_hardware use_gazebo_classic">
 
     <ros2_control name="${name}" type="system">
-      <xacro:unless value="${use_hardware}">
+      <xacro:if value="${use_gazebo_classic}">
         <hardware>
-          <plugin>vmxpi_ros2/DiffBotSystemHardware</plugin>
-          <param name="example_param_hw_start_duration_sec">0</param>
-          <param name="example_param_hw_stop_duration_sec">3.0</param>
+          <plugin>gazebo_ros2_control/GazeboSystem</plugin>
         </hardware>
-      </xacro:unless>
+      </xacro:if>
+      <xacro:unless value="${use_gazebo_classic}">
       <xacro:if value="${use_hardware}">
         <hardware>
           <plugin>vmxpi_ros2/TitanSystemHardware</plugin>
+          <param name="can_id">42</param>
+          <param name="motor_freq">15600</param>
+          <param name="ticks_per_rotation">1464</param>
+          <param name="wheel_radius">0.05</param>
+          <param name="speed_scale">0.5</param>
+
+          <param name="left_front_motor">2</param>
+          <param name="left_rear_motor">3</param>
+          <param name="right_front_motor">0</param>
+          <param name="right_rear_motor">1</param>
+
+          <param name="invert_left_front_motor">false</param>
+          <param name="invert_left_rear_motor">false</param>
+          <param name="invert_right_front_motor">true</param>
+          <param name="invert_right_rear_motor">true</param>
+
+          <param name="invert_left_front_encoder">false</param>
+          <param name="invert_left_rear_encoder">false</param>
+          <param name="invert_right_front_encoder">false</param>
+          <param name="invert_right_rear_encoder">false</param>
         </hardware>
       </xacro:if>
-      <xacro:if value="${use_gazebo_classic}">
+        <xacro:unless value="${use_hardware}">
           <hardware>
-              <plugin>gazebo_ros2_control/GazeboSystem</plugin>
+            <plugin>vmxpi_ros2/DiffBotSystemHardware</plugin>
+            <param name="example_param_hw_start_duration_sec">0</param>
+            <param name="example_param_hw_stop_duration_sec">3.0</param>
           </hardware>
-      </xacro:if>
+        </xacro:unless>
+      </xacro:unless>
       <joint name="${prefix}left_wheel_joint">
         <command_interface name="velocity"/>
         <state_interface name="position"/>

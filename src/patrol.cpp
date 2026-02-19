@@ -1,17 +1,10 @@
 #include "geometry_msgs/msg/twist.hpp"
 #include "geometry_msgs/msg/twist_stamped.hpp"
-#include "nav_msgs/msg/odometry.hpp"
-#include "rclcpp/logging.hpp"
-#include "sensor_msgs/msg/detail/laser_scan__struct.hpp"
 #include "sensor_msgs/msg/laser_scan.hpp"
 
 #include "rclcpp/rclcpp.hpp"
-#include <algorithm>
-#include <asm-generic/errno.h>
 #include <chrono>
-#include <cmath>
 #include <functional>
-#include <limits>
 #include <math.h>
 
 using namespace std::chrono_literals;
@@ -21,9 +14,6 @@ public:
   Patrol() : Node("robot_patrol_node") {
     publisher_ = this->create_publisher<geometry_msgs::msg::TwistStamped>(
         "diffbot_base_controller/cmd_vel", 10);
-    subscription_ = this->create_subscription<nav_msgs::msg::Odometry>(
-        "diffbot_base_controller/odom", 10,
-        std::bind(&Patrol::odom_callback, this, std::placeholders::_1));
     timer_ = this->create_wall_timer(200ms,
                                      std::bind(&Patrol::timer_callback, this));
     sub_laserScan_ = this->create_subscription<sensor_msgs::msg::LaserScan>(
@@ -32,8 +22,6 @@ public:
   }
 
 private:
-  float positionX;
-  float positiony;
   float direction_ = 0.0;
   float linearVelocityX = 0.0;
   float angularVelocityZ = 0.0;
@@ -57,11 +45,6 @@ private:
                 linearVelocityX, angularVelocityZ, direction_);
 
     publisher_->publish(twist_stamped_msg);
-  }
-
-  void odom_callback(const nav_msgs::msg::Odometry::SharedPtr msg) {
-    positionX = msg->pose.pose.position.x;
-    positiony = msg->pose.pose.position.y;
   }
 
   float normalize_angle(float angle) {
@@ -134,7 +117,6 @@ private:
 
   rclcpp::TimerBase::SharedPtr timer_;
   rclcpp::Publisher<geometry_msgs::msg::TwistStamped>::SharedPtr publisher_;
-  rclcpp::Subscription<nav_msgs::msg::Odometry>::SharedPtr subscription_;
   rclcpp::Subscription<sensor_msgs::msg::LaserScan>::SharedPtr sub_laserScan_;
 };
 

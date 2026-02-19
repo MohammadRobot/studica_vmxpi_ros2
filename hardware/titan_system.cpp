@@ -15,12 +15,14 @@
 #include "vmxpi_ros2/titan_system.hpp"
 
 #include <chrono>
+#include <cctype>
 #include <cmath>
 #include <cstddef>
 #include <iomanip>
 #include <limits>
 #include <memory>
 #include <sstream>
+#include <thread>
 #include <vector>
 #include <math.h>
 
@@ -40,20 +42,150 @@ hardware_interface::CallbackReturn TitanSystemHardware::on_init(
     return hardware_interface::CallbackReturn::ERROR;
   }
   logger_ = std::make_shared<rclcpp::Logger>(
-    rclcpp::get_logger("controller_manager.resource_manager.hardware_component.system.DiffBot"));
+    rclcpp::get_logger("controller_manager.resource_manager.hardware_component.system.Titan"));
   clock_ = std::make_shared<rclcpp::Clock>(rclcpp::Clock());
 
-  // *** Hardware initialization code here using your Titan driver ***
-  // Initialize Titan driver in on_init, as a member variable
+  auto get_int_param = [&](const std::string & name, int & out) -> bool {
+    auto it = info_.hardware_parameters.find(name);
+    if (it == info_.hardware_parameters.end()) {
+      RCLCPP_ERROR(get_logger(), "Missing hardware parameter '%s'", name.c_str());
+      return false;
+    }
+    try {
+      out = std::stoi(it->second);
+    } catch (const std::exception & ex) {
+      RCLCPP_ERROR(get_logger(), "Invalid int for '%s': %s", name.c_str(), ex.what());
+      return false;
+    }
+    return true;
+  };
+
+  auto get_double_param = [&](const std::string & name, double & out, bool required) -> bool {
+    auto it = info_.hardware_parameters.find(name);
+    if (it == info_.hardware_parameters.end()) {
+      if (required) {
+        RCLCPP_ERROR(get_logger(), "Missing hardware parameter '%s'", name.c_str());
+        return false;
+      }
+      return true;
+    }
+    try {
+      out = hardware_interface::stod(it->second);
+    } catch (const std::exception & ex) {
+      RCLCPP_ERROR(get_logger(), "Invalid double for '%s': %s", name.c_str(), ex.what());
+      return false;
+    }
+    return true;
+  };
+
+  auto get_bool_param = [&](const std::string & name, bool & out, bool required) -> bool {
+    auto it = info_.hardware_parameters.find(name);
+    if (it == info_.hardware_parameters.end()) {
+      if (required) {
+        RCLCPP_ERROR(get_logger(), "Missing hardware parameter '%s'", name.c_str());
+        return false;
+      }
+      return true;
+    }
+    std::string value = it->second;
+    for (auto & c : value) {
+      c = static_cast<char>(std::tolower(c));
+    }
+    if (value == "true" || value == "1") {
+      out = true;
+      return true;
+    }
+    if (value == "false" || value == "0") {
+      out = false;
+      return true;
+    }
+    RCLCPP_ERROR(get_logger(), "Invalid bool for '%s': %s", name.c_str(), it->second.c_str());
+    return false;
+  };
+
+  int can_id = 0;
+  int motor_freq = 0;
+  int ticks_per_rotation = 0;
+  double wheel_radius = 0.0;
+
+  if (
+    !get_int_param("can_id", can_id) ||
+    !get_int_param("motor_freq", motor_freq) ||
+    !get_int_param("ticks_per_rotation", ticks_per_rotation) ||
+    !get_double_param("wheel_radius", wheel_radius, true))
+  {
+    return hardware_interface::CallbackReturn::ERROR;
+  }
+
+  can_id_ = static_cast<uint8_t>(can_id);
+  motor_freq_ = static_cast<uint16_t>(motor_freq);
+  ticks_per_rotation_ = ticks_per_rotation;
+  wheel_radius_ = wheel_radius;
+
+  if (!get_double_param("speed_scale", speed_scale_, false)) {
+    return hardware_interface::CallbackReturn::ERROR;
+  }
+
+  if (!get_int_param("left_front_motor", left_front_motor_) ||
+      !get_int_param("left_rear_motor", left_rear_motor_) ||
+      !get_int_param("right_front_motor", right_front_motor_) ||
+      !get_int_param("right_rear_motor", right_rear_motor_))
+  {
+    return hardware_interface::CallbackReturn::ERROR;
+  }
+
+  if (!get_bool_param("invert_left_front_motor", invert_left_front_motor_, false) ||
+      !get_bool_param("invert_left_rear_motor", invert_left_rear_motor_, false) ||
+      !get_bool_param("invert_right_front_motor", invert_right_front_motor_, false) ||
+      !get_bool_param("invert_right_rear_motor", invert_right_rear_motor_, false) ||
+      !get_bool_param("invert_left_front_encoder", invert_left_front_encoder_, false) ||
+      !get_bool_param("invert_left_rear_encoder", invert_left_rear_encoder_, false) ||
+      !get_bool_param("invert_right_front_encoder", invert_right_front_encoder_, false) ||
+      !get_bool_param("invert_right_rear_encoder", invert_right_rear_encoder_, false))
+  {
+    return hardware_interface::CallbackReturn::ERROR;
+  }
+
+  auto validate_motor_index = [&](int motor, const std::string & name) -> bool {
+    if (motor < -1 || motor > 3) {
+      RCLCPP_ERROR(get_logger(), "Invalid %s index %d (valid: 0-3 or -1)", name.c_str(), motor);
+      return false;
+    }
+    return true;
+  };
+
+  if (!validate_motor_index(left_front_motor_, "left_front_motor") ||
+      !validate_motor_index(left_rear_motor_, "left_rear_motor") ||
+      !validate_motor_index(right_front_motor_, "right_front_motor") ||
+      !validate_motor_index(right_rear_motor_, "right_rear_motor"))
+  {
+    return hardware_interface::CallbackReturn::ERROR;
+  }
+
+  if (left_front_motor_ < 0 && left_rear_motor_ < 0) {
+    RCLCPP_ERROR(get_logger(), "At least one left motor index must be set.");
+    return hardware_interface::CallbackReturn::ERROR;
+  }
+  if (right_front_motor_ < 0 && right_rear_motor_ < 0) {
+    RCLCPP_ERROR(get_logger(), "At least one right motor index must be set.");
+    return hardware_interface::CallbackReturn::ERROR;
+  }
+
+  if (ticks_per_rotation_ <= 0 || wheel_radius_ <= 0.0) {
+    RCLCPP_ERROR(get_logger(), "ticks_per_rotation and wheel_radius must be positive.");
+    return hardware_interface::CallbackReturn::ERROR;
+  }
+
+  dist_per_tick_ = 2.0 * M_PI * wheel_radius_ / static_cast<double>(ticks_per_rotation_);
+
   try {
     titan_driver_ = std::make_unique<studica_driver::Titan>(
-        "titan_controller", 45, 15600, 0.0006830601, 0.8 // Example parameters, adjust as needed
-    );
-  } catch (const std::exception& ex) {
+      can_id_, motor_freq_, static_cast<float>(dist_per_tick_));
+  } catch (const std::exception & ex) {
     RCLCPP_ERROR(get_logger(), "Error initializing Titan driver: %s", ex.what());
     return hardware_interface::CallbackReturn::ERROR;
   }
-  RCLCPP_INFO(get_logger(), "Titan driver initialized in on_init"); // Add log message for clarity.
+  RCLCPP_INFO(get_logger(), "Titan driver initialized in on_init");
 
   // Initialize state and command vectors
   hw_positions_.resize(info_.joints.size(), std::numeric_limits<double>::quiet_NaN());
@@ -107,31 +239,44 @@ hardware_interface::CallbackReturn TitanSystemHardware::on_init(
     }
   }
 
-  titan_driver_->ConfigureEncoder(0, 0.0006830601); //1464 = 1 rotation
-  titan_driver_->ConfigureEncoder(1, 0.0006830601);
-  titan_driver_->ConfigureEncoder(2, 0.0006830601);
-  titan_driver_->ConfigureEncoder(3, 0.0006830601);
-  
-  titan_driver_->ResetEncoder(0);
-  titan_driver_->ResetEncoder(1);
-  titan_driver_->ResetEncoder(2);
-  titan_driver_->ResetEncoder(3);
+  auto configure_encoder = [&](int motor) {
+    if (motor < 0) {
+      return;
+    }
+    titan_driver_->ConfigureEncoder(static_cast<uint8_t>(motor), dist_per_tick_);
+    titan_driver_->ResetEncoder(static_cast<uint8_t>(motor));
+  };
 
-    // These are flags to be uncommented as needed
-  titan_driver_->InvertEncoderDirection(0);
-  titan_driver_->InvertEncoderDirection(1);
-  // titan_driver_->InvertEncoderDirection(2);
-  // titan_driver_->InvertEncoderDirection(3);
+  configure_encoder(left_front_motor_);
+  configure_encoder(left_rear_motor_);
+  configure_encoder(right_front_motor_);
+  configure_encoder(right_rear_motor_);
 
-  titan_driver_->InvertMotorDirection(0);
-  titan_driver_->InvertMotorDirection(1);
-  // titan_driver_->InvertMotorDirection(2);
-  // titan_driver_->InvertMotorDirection(3);
+  if (invert_left_front_encoder_ && left_front_motor_ >= 0) {
+    titan_driver_->InvertEncoderDirection(static_cast<uint8_t>(left_front_motor_));
+  }
+  if (invert_left_rear_encoder_ && left_rear_motor_ >= 0) {
+    titan_driver_->InvertEncoderDirection(static_cast<uint8_t>(left_rear_motor_));
+  }
+  if (invert_right_front_encoder_ && right_front_motor_ >= 0) {
+    titan_driver_->InvertEncoderDirection(static_cast<uint8_t>(right_front_motor_));
+  }
+  if (invert_right_rear_encoder_ && right_rear_motor_ >= 0) {
+    titan_driver_->InvertEncoderDirection(static_cast<uint8_t>(right_rear_motor_));
+  }
 
-  // titan_driver_->InvertMotorRPM(0);
-  // titan_driver_->InvertMotorRPM(1);
-  // titan_driver_->InvertMotorRPM(2);
-  // titan_driver_->InvertMotorRPM(3);
+  if (invert_left_front_motor_ && left_front_motor_ >= 0) {
+    titan_driver_->InvertMotor(static_cast<uint8_t>(left_front_motor_));
+  }
+  if (invert_left_rear_motor_ && left_rear_motor_ >= 0) {
+    titan_driver_->InvertMotor(static_cast<uint8_t>(left_rear_motor_));
+  }
+  if (invert_right_front_motor_ && right_front_motor_ >= 0) {
+    titan_driver_->InvertMotor(static_cast<uint8_t>(right_front_motor_));
+  }
+  if (invert_right_rear_motor_ && right_rear_motor_ >= 0) {
+    titan_driver_->InvertMotor(static_cast<uint8_t>(right_rear_motor_));
+  }
 
   return hardware_interface::CallbackReturn::SUCCESS;
 }
@@ -205,85 +350,95 @@ hardware_interface::CallbackReturn TitanSystemHardware::on_deactivate(
 hardware_interface::return_type TitanSystemHardware::read(
   const rclcpp::Time & /*time*/, const rclcpp::Duration & /*period*/)
 {
-  if (titan_driver_) {
-    // double period_seconds = period.seconds(); // Get the time in seconds since last read
-
-    // static int32_t last_encoder_count_left = 0;  // Static variables to store previous encoder counts
-    // static int32_t last_encoder_count_right = 0;
-
-    // double current_encoder_count_left = (titan_driver_->GetEncoderDistance(2)+titan_driver_->GetEncoderDistance(3))/2;
-    // double current_encoder_count_right = (titan_driver_->GetEncoderDistance(0)+titan_driver_->GetEncoderDistance(1))/2;
-
-    // --- Velocity Calculation (based on encoder count difference over time) ---
-    // ** IMPORTANT: You will likely need to adjust the scaling factor! **
-    // double encoder_ticks_per_revolution = 1464.0; // Example: Adjust to your encoder's ticks per revolution
-    double wheel_circumference = M_PI * 0.1; // Example: Wheel circumference in meters (adjust to your robot)
-
-    // double delta_encoder_count_left = current_encoder_count_left - last_encoder_count_left;
-    // double delta_encoder_count_right = current_encoder_count_right - last_encoder_count_right;
-
-    // Calculate distance traveled by each wheel in meters since last read:
-    // double distance_left = (delta_encoder_count_left / encoder_ticks_per_revolution) * wheel_circumference;
-    // double distance_right = (delta_encoder_count_right / encoder_ticks_per_revolution) * wheel_circumference;
-
-    // Calculate velocity in meters per second:
-    hw_velocities_[0] = (titan_driver_->GetRPM(2) + titan_driver_->GetRPM(3))/2 * wheel_circumference / 60;  // distance_left / period_seconds;  // Left wheel velocity (m/s)
-    hw_velocities_[1] = (titan_driver_->GetRPM(0) + titan_driver_->GetRPM(1))/2 * wheel_circumference / 60; //distance_right / period_seconds; // Right wheel velocity (m/s)
-
-    // --- Position Update (still using raw encoder counts for position state) ---
-    // hw_positions_[0] = static_cast<double>(current_encoder_count_left); // Raw encoder counts as position (for state)
-    // hw_positions_[1] = static_cast<double>(current_encoder_count_right);
-
-    hw_positions_[0] = (titan_driver_->GetEncoderDistance(2)+titan_driver_->GetEncoderDistance(3)) * M_PI; // convert rotation to raidian 
-    hw_positions_[1] = (titan_driver_->GetEncoderDistance(0)+titan_driver_->GetEncoderDistance(1)) * M_PI; // convert rotation to raidian 
-
-    // --- RPM Reading (still keeping RPM reading for velocity state - you can choose either velocity calculation OR RPM) ---
-    // If you want to use calculated velocity from encoder counts as the primary velocity state, you might remove or comment out these RPM readings.
-    // If you want to keep RPM as a separate velocity state, leave these lines in.
-    // hw_velocities_[0] = static_cast<double>(titan_driver_->GetRPM(0)); // RPM as velocity (you could comment this out if using calculated velocity)
-    // hw_velocities_[1] = static_cast<double>(titan_driver_->GetRPM(1)); // RPM as velocity (you could comment this out if using calculated velocity)
-
-    // --- Update 'last' encoder counts for the next read cycle ---
-    // last_encoder_count_left = current_encoder_count_left;
-    // last_encoder_count_right = current_encoder_count_right;
-
-    // RCLCPP_INFO_THROTTLE(get_logger(), *get_clock(), 1000, "Motor positions: Left: %f, Right: %f", // Less verbose logging
-    // hw_positions_[0], hw_positions_[1]);
-
-
-  } else {
+  if (!titan_driver_) {
     RCLCPP_ERROR(get_logger(), "Titan driver is not initialized in read()!");
     return hardware_interface::return_type::ERROR;
   }
+
+  auto motor_distance = [&](int motor) -> double {
+    if (motor < 0) {
+      return 0.0;
+    }
+    return titan_driver_->GetEncoderDistance(static_cast<uint8_t>(motor));
+  };
+
+  auto motor_rpm = [&](int motor) -> double {
+    if (motor < 0) {
+      return 0.0;
+    }
+    return static_cast<double>(titan_driver_->GetRPM(static_cast<uint8_t>(motor)));
+  };
+
+  auto average_pair = [&](int a, int b, const auto & getter) -> double {
+    if (a >= 0 && b >= 0) {
+      return (getter(a) + getter(b)) / 2.0;
+    }
+    if (a >= 0) {
+      return getter(a);
+    }
+    if (b >= 0) {
+      return getter(b);
+    }
+    return 0.0;
+  };
+
+  const double left_distance = average_pair(left_front_motor_, left_rear_motor_, motor_distance);
+  const double right_distance = average_pair(right_front_motor_, right_rear_motor_, motor_distance);
+
+  if (wheel_radius_ > 0.0 && hw_positions_.size() >= 2) {
+    hw_positions_[0] = left_distance / wheel_radius_;
+    hw_positions_[1] = right_distance / wheel_radius_;
+  }
+
+  const double left_rpm = average_pair(left_front_motor_, left_rear_motor_, motor_rpm);
+  const double right_rpm = average_pair(right_front_motor_, right_rear_motor_, motor_rpm);
+  const double rpm_to_rad_s = 2.0 * M_PI / 60.0;
+
+  if (hw_velocities_.size() >= 2) {
+    hw_velocities_[0] = left_rpm * rpm_to_rad_s;
+    hw_velocities_[1] = right_rpm * rpm_to_rad_s;
+  }
+
   return hardware_interface::return_type::OK;
 }
 
 hardware_interface::return_type vmxpi_ros2 ::TitanSystemHardware::write(
   const rclcpp::Time & /*time*/, const rclcpp::Duration & /*period*/)
 {
-  if (titan_driver_) {
-    for (std::size_t i = 0; i < hw_commands_.size(); i++)
-    {
-      double speedCfg = hw_commands_[i] * 0.5;
-      // For wheel_left_joint (motor 0), wheel_right_joint (motor 1) - **VERIFY JOINT-MOTOR MAPPING**
-      if (i == 0) { // Assuming joint index 0 is left wheel, motor 0
-        titan_driver_->SetSpeed(2, speedCfg); // Send commanded velocity to motor 0
-        titan_driver_->SetSpeed(3, speedCfg); // Send commanded velocity to motor 0
-      } else if (i == 1) { // Assuming joint index 1 is right wheel, motor 1
-        titan_driver_->SetSpeed(0, speedCfg); // Send commanded velocity to motor 0
-        titan_driver_->SetSpeed(1, speedCfg); // Send commanded velocity to motor 0
-      } else { // Handle cases if you have more joints - maybe log a warning or error if unexpected
-          RCLCPP_WARN(get_logger(), "Unexpected joint index %zu in write() - Assuming only 2 wheels for now.", i);
-      }
-    }
-    // RCLCPP_INFO(rclcpp::get_logger("MyRobotHardware"), "%s", ss_write.str().c_str()); // Use RCLCPP_DEBUG or RCLCPP_INFO_THROTTLE
-    // RCLCPP_INFO_THROTTLE(get_logger(), *get_clock(), 1000, "Motor Speeds: Left: %f, Right: %f", // Less verbose logging
-    //                      hw_commands_[0], hw_commands_[1]);
+  if (!titan_driver_) {
+    RCLCPP_ERROR(get_logger(), "Titan driver is not initialized in write()!");
+    return hardware_interface::return_type::ERROR;
+  }
 
-} else {
-    RCLCPP_ERROR(get_logger(), "Titan driver is not initialized in write()!"); // Important error log
-    return hardware_interface::return_type::ERROR; // Return error to signal issue
-}
+  if (hw_commands_.size() < 2) {
+    RCLCPP_ERROR(get_logger(), "Expected at least 2 command interfaces for diff drive.");
+    return hardware_interface::return_type::ERROR;
+  }
+
+  double left_cmd = hw_commands_[0];
+  double right_cmd = hw_commands_[1];
+
+  if (std::isnan(left_cmd)) {
+    left_cmd = 0.0;
+  }
+  if (std::isnan(right_cmd)) {
+    right_cmd = 0.0;
+  }
+
+  left_cmd *= speed_scale_;
+  right_cmd *= speed_scale_;
+
+  auto set_speed = [&](int motor, double value) {
+    if (motor < 0) {
+      return;
+    }
+    titan_driver_->SetSpeed(static_cast<uint8_t>(motor), value);
+  };
+
+  set_speed(left_front_motor_, left_cmd);
+  set_speed(left_rear_motor_, left_cmd);
+  set_speed(right_front_motor_, right_cmd);
+  set_speed(right_rear_motor_, right_cmd);
 
   return hardware_interface::return_type::OK;
 }
