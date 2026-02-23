@@ -63,6 +63,7 @@ find_package(backward_ros REQUIRED)
 find_package(ament_cmake REQUIRED)
 find_package(rclcpp REQUIRED)
 find_package(geometry_msgs REQUIRED)
+find_package(nav_msgs REQUIRED)
 find_package(sensor_msgs REQUIRED)
 foreach(Dependency IN ITEMS ${THIS_PACKAGE_INCLUDE_DEPENDS})
   find_package(${Dependency} REQUIRED)
@@ -126,8 +127,12 @@ install(
 add_executable(robot_patrol_node src/patrol.cpp)
 ament_target_dependencies(robot_patrol_node rclcpp sensor_msgs geometry_msgs)
 
+add_executable(nav2_topic_bridge_node src/nav2_topic_bridge.cpp)
+ament_target_dependencies(nav2_topic_bridge_node rclcpp geometry_msgs nav_msgs)
+
 install(TARGETS
    robot_patrol_node
+   nav2_topic_bridge_node
    DESTINATION lib/${PROJECT_NAME}
  )
 

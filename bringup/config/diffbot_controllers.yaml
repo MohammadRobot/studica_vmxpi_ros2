@@ -17,9 +17,9 @@ diffbot_base_controller:
     wheels_per_side: 1  # actually 2, but both are controlled by 1 signal
     wheel_radius: 0.05
 
-    wheel_separation_multiplier: 1.4
-    left_wheel_radius_multiplier: 0.95
-    right_wheel_radius_multiplier: 0.95
+    wheel_separation_multiplier: 1.0    # 1.4 is a hack to make the robot turn better, since the real wheel separation is larger than the nominal one
+    left_wheel_radius_multiplier: 1.0   # 0.95 is a hack to make the robot drive better, since the real wheel radius is smaller than the nominal one
+    right_wheel_radius_multiplier: 1.0  # 0.95 is a hack to make the robot drive better, since the real wheel radius is smaller than the nominal one
 
     publish_rate: 50.0
     odom_frame_id: odom

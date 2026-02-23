@@ -104,7 +104,7 @@ https://github.com/ros-simulation/gazebo_ros_demos/blob/kinetic-devel/rrbot_desc
           </ray>
           <always_on>true</always_on>
           <visualize>true</visualize>
-          <update_rate>100.0</update_rate>
+          <update_rate>20.0</update_rate>
           <plugin name="laser_scan_node" filename="libgazebo_ros_ray_sensor.so">
             <ros>
               <remapping>~/out:=scan</remapping>

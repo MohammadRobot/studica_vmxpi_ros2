@@ -1,40 +1,16 @@
-# Combined bringup: ros2_control (vmxpi_ros2) + optional studica sensors.
-
-import os
-
-from ament_index_python.packages import PackageNotFoundError, get_package_share_directory
 from launch import LaunchDescription
-from launch.actions import DeclareLaunchArgument, IncludeLaunchDescription, LogInfo, OpaqueFunction
+from launch.actions import DeclareLaunchArgument, IncludeLaunchDescription
 from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch.substitutions import LaunchConfiguration, PathJoinSubstitution
 from launch_ros.substitutions import FindPackageShare
-
-
-def _maybe_include_studica(context, *args, **kwargs):
-    use_studica = LaunchConfiguration("use_studica_sensors").perform(context).lower()
-    if use_studica not in ("true", "1", "yes"):
-        return []
-
-    try:
-        pkg_share = get_package_share_directory("studica_control")
-    except PackageNotFoundError:
-        return [LogInfo(msg="studica_control not found; skipping sensors_only launch.")]
-
-    return [
-        IncludeLaunchDescription(
-            PythonLaunchDescriptionSource(
-                os.path.join(pkg_share, "launch", "sensors_only.launch.py")
-            )
-        )
-    ]
 
 
 def generate_launch_description():
     declared_arguments = [
         DeclareLaunchArgument(
             "gui",
-            default_value="false",
-            description="Start RViz2 automatically with this launch file.",
+            default_value="true",
+            description="Start RViz2 from robot launch.",
         ),
         DeclareLaunchArgument(
             "use_hardware",
@@ -43,7 +19,7 @@ def generate_launch_description():
         ),
         DeclareLaunchArgument(
             "use_gazebo_classic",
-            default_value="false",
+            default_value="true",
             description="Start Gazebo Classic simulation.",
         ),
         DeclareLaunchArgument(
@@ -59,9 +35,16 @@ def generate_launch_description():
             description="Use simulation time (defaults to use_gazebo_classic).",
         ),
         DeclareLaunchArgument(
-            "use_studica_sensors",
-            default_value=LaunchConfiguration("use_hardware"),
-            description="Launch studica_control sensors_only node (defaults to use_hardware).",
+            "use_joystick",
+            default_value="false",
+            description="Launch joystick teleop from studica_control.",
+        ),
+        DeclareLaunchArgument(
+            "slam_params_file",
+            default_value=PathJoinSubstitution(
+                [FindPackageShare("vmxpi_ros2"), "config", "slam_toolbox_mapper_params.yaml"]
+            ),
+            description="SLAM Toolbox parameter file.",
         ),
     ]
 
@@ -70,8 +53,10 @@ def generate_launch_description():
     use_gazebo_classic = LaunchConfiguration("use_gazebo_classic")
     world = LaunchConfiguration("world")
     use_sim_time = LaunchConfiguration("use_sim_time")
+    use_joystick = LaunchConfiguration("use_joystick")
+    slam_params_file = LaunchConfiguration("slam_params_file")
 
-    vmxpi_launch = IncludeLaunchDescription(
+    robot = IncludeLaunchDescription(
         PythonLaunchDescriptionSource(
             PathJoinSubstitution(
                 [FindPackageShare("vmxpi_ros2"), "launch", "diffbot_gazebo_classic.launch.py"]
@@ -83,12 +68,18 @@ def generate_launch_description():
             "use_gazebo_classic": use_gazebo_classic,
             "world": world,
             "use_sim_time": use_sim_time,
+            "use_joystick": use_joystick,
         }.items(),
     )
 
-    nodes = [
-        vmxpi_launch,
-        OpaqueFunction(function=_maybe_include_studica),
-    ]
+    slam = IncludeLaunchDescription(
+        PythonLaunchDescriptionSource(
+            PathJoinSubstitution([FindPackageShare("slam_toolbox"), "launch", "online_async_launch.py"])
+        ),
+        launch_arguments={
+            "use_sim_time": use_sim_time,
+            "slam_params_file": slam_params_file,
+        }.items(),
+    )
 
-    return LaunchDescription(declared_arguments + nodes)
+    return LaunchDescription(declared_arguments + [robot, slam])

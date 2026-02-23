@@ -13,14 +13,38 @@
 # limitations under the License.
 import os
 from launch import LaunchDescription
-from launch.actions import DeclareLaunchArgument, IncludeLaunchDescription
+from launch.actions import DeclareLaunchArgument, IncludeLaunchDescription, LogInfo, OpaqueFunction
 from launch.conditions import IfCondition
 from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch.substitutions import Command, FindExecutable, PathJoinSubstitution, LaunchConfiguration
 from launch_ros.actions import Node
 from launch_ros.substitutions import FindPackageShare
 from launch.conditions import UnlessCondition
-from ament_index_python.packages import get_package_prefix, get_package_share_directory
+from ament_index_python.packages import PackageNotFoundError, get_package_prefix, get_package_share_directory
+
+
+def _maybe_include_gamepad(context, *args, **kwargs):
+    use_joystick = LaunchConfiguration("use_joystick").perform(context).lower()
+    if use_joystick not in ("true", "1", "yes"):
+        return []
+
+    try:
+        studica_pkg = get_package_share_directory("studica_control")
+    except PackageNotFoundError:
+        return [LogInfo(msg="studica_control not found; skipping joystick launch.")]
+
+    return [
+        IncludeLaunchDescription(
+            PythonLaunchDescriptionSource(
+                os.path.join(studica_pkg, "launch", "gamepad_launch.py")
+            ),
+            launch_arguments={
+                "use_sim_time": LaunchConfiguration("use_sim_time").perform(context),
+                "cmd_vel_topic": LaunchConfiguration("joystick_cmd_vel_topic").perform(context),
+                "publish_stamped": LaunchConfiguration("joystick_publish_stamped").perform(context),
+            }.items(),
+        )
+    ]
 
 def generate_launch_description():
     declared_arguments = [
@@ -44,14 +68,35 @@ def generate_launch_description():
             default_value=LaunchConfiguration("use_gazebo_classic"),
             description="Use simulation time (defaults to use_gazebo_classic).",
         ),
+        DeclareLaunchArgument(
+            "world",
+            default_value=PathJoinSubstitution(
+                [FindPackageShare("vmxpi_ros2"), "description/gazebo/worlds", "diff_drive_world.world"]
+            ),
+            description="Absolute path to Gazebo world file.",
+        ),
+        DeclareLaunchArgument(
+            "use_joystick",
+            default_value="false",
+            description="Launch joystick teleop from studica_control.",
+        ),
+        DeclareLaunchArgument(
+            "joystick_cmd_vel_topic",
+            default_value="/diffbot_base_controller/cmd_vel",
+            description="Joystick command velocity output topic.",
+        ),
+        DeclareLaunchArgument(
+            "joystick_publish_stamped",
+            default_value="true",
+            description="Publish TwistStamped joystick commands.",
+        ),
     ]
 
     gui = LaunchConfiguration("gui")
     use_hardware = LaunchConfiguration("use_hardware")
     use_gazebo_classic = LaunchConfiguration("use_gazebo_classic")
     use_sim_time = LaunchConfiguration("use_sim_time")
- 
-    world_file = PathJoinSubstitution([FindPackageShare("vmxpi_ros2"), "description/gazebo/worlds", "diff_drive_world.world"])
+    world = LaunchConfiguration("world")
 
 # Gazebo Configration 
     # pkg_gazebo_ros = get_package_share_directory('gazebo_ros')
@@ -86,12 +131,11 @@ def generate_launch_description():
         ),
         launch_arguments={
             "verbose": "false",
-            "world": world_file,
+            "world": world,
             "use_sim_time": use_sim_time,
         }.items(),
         condition=IfCondition(use_gazebo_classic),
     )
-
 
     robot_description_content = Command(
         [
@@ -109,7 +153,6 @@ def generate_launch_description():
     rviz_config_file = PathJoinSubstitution([FindPackageShare("vmxpi_ros2"), "description/diffbot/rviz", "diffbot.rviz"])
           
     robot_controllers = PathJoinSubstitution([FindPackageShare("vmxpi_ros2"), "config", "diffbot_controllers.yaml"])
-
     
 
     node_robot_state_publisher = Node(
@@ -178,7 +221,8 @@ def generate_launch_description():
         # controller_manager,
         joint_state_broadcaster_spawner,
         robot_controller_spawner,
-        rviz_node
+        rviz_node,
+        OpaqueFunction(function=_maybe_include_gamepad),
     ]
 
     return LaunchDescription(declared_arguments + nodes)
