@@ -203,6 +203,13 @@ def generate_launch_description():
         condition=IfCondition(gui),
     )
 
+    base_footprint_tf = Node(
+        package="tf2_ros",
+        executable="static_transform_publisher",
+        output="screen",
+        arguments=["0", "0", "0.10", "0", "0", "0", "base_footprint", "base_link"],
+    )
+
     control_node = Node(
         package='controller_manager', # Or the correct package name for your control_node executable
         executable='ros2_control_node', # Or the correct executable name
@@ -217,6 +224,7 @@ def generate_launch_description():
         gazebo,
         control_node,
         node_robot_state_publisher,
+        base_footprint_tf,
         spawn_entity,
         # controller_manager,
         joint_state_broadcaster_spawner,

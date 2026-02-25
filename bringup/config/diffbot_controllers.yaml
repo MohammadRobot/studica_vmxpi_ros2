@@ -1,6 +1,7 @@
 controller_manager:
   ros__parameters:
-    update_rate: 50  # Hz
+    # Higher update rate improves controller and odometry smoothness in simulation.
+    update_rate: 1000  # Hz
 
     joint_state_broadcaster:
       type: joint_state_broadcaster/JointStateBroadcaster
@@ -21,9 +22,9 @@ diffbot_base_controller:
     left_wheel_radius_multiplier: 1.0   # 0.95 is a hack to make the robot drive better, since the real wheel radius is smaller than the nominal one
     right_wheel_radius_multiplier: 1.0  # 0.95 is a hack to make the robot drive better, since the real wheel radius is smaller than the nominal one
 
-    publish_rate: 50.0
+    publish_rate: 100.0
     odom_frame_id: odom
-    base_frame_id: base_link
+    base_frame_id: base_footprint
     pose_covariance_diagonal : [0.001, 0.001, 0.001, 0.001, 0.001, 0.01]
     twist_covariance_diagonal: [0.001, 0.001, 0.001, 0.001, 0.001, 0.01]
 
@@ -32,7 +33,8 @@ diffbot_base_controller:
 
     cmd_vel_timeout: 0.5
     publish_limited_velocity: true
-    velocity_rolling_window_size: 10
+    # Larger rolling window gives smoother velocity estimation for odometry.
+    velocity_rolling_window_size: 30
 
     # Velocity and acceleration limits
     # Whenever a min_* is unspecified, default to -max_*

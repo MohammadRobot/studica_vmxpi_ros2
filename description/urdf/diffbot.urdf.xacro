@@ -4,6 +4,7 @@
   <xacro:arg name="prefix" default="" />
   <xacro:arg name="use_hardware" default="false" />
   <xacro:arg name="use_gazebo_classic" default="false" />
+  <xacro:arg name="use_gz_sim" default="false" />
 
   <xacro:include filename="$(find vmxpi_ros2)/description/diffbot/urdf/diffbot_description.urdf.xacro" />
 
@@ -19,12 +20,19 @@
     name="DiffBot"
     prefix="$(arg prefix)"
     use_hardware="$(arg use_hardware)"
-    use_gazebo_classic="$(arg use_gazebo_classic)"/>
+    use_gazebo_classic="$(arg use_gazebo_classic)"
+    use_gz_sim="$(arg use_gz_sim)"/>
 
   <xacro:if value="$(arg use_gazebo_classic)">
     <!-- Import Gazebo Classic definitions + plugin -->
     <xacro:include filename="$(find vmxpi_ros2)/description/gazebo/diffbot.gazebo.xacro" />
     <xacro:diffbot_gazebo prefix="$(arg prefix)"/>
+  </xacro:if>
+
+  <xacro:if value="$(arg use_gz_sim)">
+    <!-- Import Gazebo Sim definitions + plugin -->
+    <xacro:include filename="$(find vmxpi_ros2)/description/gz/diffbot.gz.xacro" />
+    <xacro:diffbot_gz prefix="$(arg prefix)"/>
   </xacro:if>
 
 </robot>

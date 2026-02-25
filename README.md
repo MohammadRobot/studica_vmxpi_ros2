@@ -1,6 +1,6 @@
 # vmxpi_ros2
 
-ROS 2 Humble package for Titan/VMX hardware and Gazebo Classic simulation of the DiffBot platform.
+ROS 2 Humble package for Titan/VMX hardware and Gazebo Sim (`gz sim`) simulation of the DiffBot platform.
 
 ## Dependencies
 
@@ -11,9 +11,9 @@ sudo apt install -y \
   ros-humble-ros2-control \
   ros-humble-ros2-controllers \
   ros-humble-diff-drive-controller \
-  ros-humble-gazebo-ros \
-  ros-humble-gazebo-ros2-control \
-  ros-humble-gazebo-plugins \
+  ros-humble-gz-ros2-control \
+  ros-humble-ros-gzharmonic-sim \
+  ros-humble-ros-gzharmonic-bridge \
   ros-humble-xacro \
   ros-humble-teleop-twist-keyboard \
   ros-humble-joy \
@@ -21,6 +21,23 @@ sudo apt install -y \
   ros-humble-nav2-bringup \
   ros-humble-slam-toolbox
 ```
+
+You can also install the Gazebo Harmonic meta package:
+
+```bash
+sudo apt install -y ros-humble-ros-gzharmonic
+```
+
+Legacy Gazebo Classic support (optional):
+
+```bash
+sudo apt install -y \
+  ros-humble-gazebo-ros \
+  ros-humble-gazebo-ros2-control \
+  ros-humble-gazebo-plugins
+```
+
+Note: Gazebo Classic packages conflict with the Harmonic `gz-*` stack on the same host. Keep Classic in a separate container/VM if needed.
 
 ## Build
 
@@ -32,24 +49,61 @@ source install/setup.bash
 
 If you use Conda, make sure `colcon` resolves to system Python, or install missing Python ROS deps in the active Conda env (for example `catkin_pkg`).
 
+## Humble + Harmonic
+
+On ROS 2 Humble, `gz_ros2_control` for Harmonic must be built from source overlay.
+
+```bash
+cd ~/ros2_ws/src
+git clone --branch humble --depth 1 https://github.com/ros-controls/gz_ros2_control.git
+
+cd ~/ros2_ws
+export GZ_VERSION=harmonic
+colcon build --packages-select gz_ros2_control --cmake-clean-cache --cmake-args -DPython3_EXECUTABLE=/usr/bin/python3
+source install/setup.bash
+```
+
+Verify overlay is active:
+
+```bash
+ros2 pkg prefix gz_ros2_control
+```
+
+Expected output should be inside your workspace, for example:
+`/home/<user>/ros2_ws/install/gz_ros2_control`
+
 ## Quick Start
 
 Simulation:
 
 ```bash
-ros2 launch vmxpi_ros2 diffbot_gazebo_classic.launch.py gui:=true use_gazebo_classic:=true
+ros2 launch vmxpi_ros2 diffbot_gz_sim.launch.py gui:=true use_gz_sim:=true
+```
+
+If the robot appears partially below ground, spawn it slightly above zero:
+
+```bash
+ros2 launch vmxpi_ros2 diffbot_gz_sim.launch.py gui:=true use_gz_sim:=true spawn_z:=0.10
 ```
 
 Simulation with joystick:
 
 ```bash
-ros2 launch vmxpi_ros2 diffbot_gazebo_classic.launch.py gui:=true use_gazebo_classic:=true use_joystick:=true
+ros2 launch vmxpi_ros2 diffbot_gz_sim.launch.py gui:=true use_gz_sim:=true use_joystick:=true
+```
+
+Simulation with office world:
+
+```bash
+ros2 launch vmxpi_ros2 diffbot_gz_sim.launch.py \
+  gui:=true use_gz_sim:=true use_joystick:=true \
+  world:=/home/mohammadrobot/ros2_ws/install/vmxpi_ros2/share/vmxpi_ros2/description/gz/worlds/office_map.sdf
 ```
 
 Real hardware:
 
 ```bash
-ros2 launch vmxpi_ros2 diffbot_gazebo_classic.launch.py use_hardware:=true
+ros2 launch vmxpi_ros2 diffbot_gz_sim.launch.py use_hardware:=true use_gz_sim:=false
 ```
 
 ## VMX Real Robot Setup
@@ -62,7 +116,7 @@ source /home/vmx/.bashrc
 source /opt/ros/humble/setup.bash
 source install/setup.bash
 export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/usr/local/lib/vmxpi
-ros2 launch vmxpi_ros2 diffbot_gazebo_classic.launch.py use_hardware:=true
+ros2 launch vmxpi_ros2 diffbot_gz_sim.launch.py use_hardware:=true use_gz_sim:=false
 ```
 
 If you must run as `root`, add equivalent exports/sourcing to `/root/.bashrc`:
@@ -86,6 +140,17 @@ ros2 launch vmxpi_ros2 robot_bringup.launch.py use_studica_sensors:=true
 
 `use_studica_sensors` defaults to `use_hardware`, so sensors auto-enable on hardware launches.
 
+## Gazebo Sim Notes
+
+- Gazebo Sim launch: `diffbot_gz_sim.launch.py`
+- Gazebo Sim Nav2 launches:
+  - `nav2_mapping_gz_sim.launch.py`
+  - `nav2_navigation_gz_sim.launch.py`
+- Gazebo Sim sensor topics:
+  - `/scan` (`sensor_msgs/LaserScan`)
+  - `/imu` (`sensor_msgs/Imu`)
+- Legacy Gazebo Classic launches are still available (`diffbot_gazebo_classic.launch.py`, `nav2_mapping.launch.py`, `nav2_navigation.launch.py`).
+
 ## Control
 
 Keyboard teleop:
@@ -105,13 +170,15 @@ Joystick teleop publishes to:
 Launch mapping:
 
 ```bash
-ros2 launch vmxpi_ros2 nav2_mapping.launch.py gui:=true use_gazebo_classic:=true use_joystick:=true
+ros2 launch vmxpi_ros2 nav2_mapping_gz_sim.launch.py gui:=true use_gz_sim:=true use_joystick:=true
 ```
 
 Launch mapping with a specific world:
 
 ```bash
-ros2 launch vmxpi_ros2 nav2_mapping.launch.py gui:=true use_gazebo_classic:=true use_joystick:=true world:=/home/mohammadrobot/ros2_ws/install/vmxpi_ros2/share/vmxpi_ros2/description/gazebo/worlds/office_map.world
+ros2 launch vmxpi_ros2 nav2_mapping_gz_sim.launch.py \
+  gui:=true use_gz_sim:=true use_joystick:=true \
+  world:=/home/mohammadrobot/ros2_ws/install/vmxpi_ros2/share/vmxpi_ros2/description/gz/worlds/office_map.sdf
 ```
 
 Save map:
@@ -126,7 +193,10 @@ ros2 service call /slam_toolbox/save_map slam_toolbox/srv/SaveMap "{name: {data:
 Launch navigation with a saved map:
 
 ```bash
-ros2 launch vmxpi_ros2 nav2_navigation.launch.py gui:=true use_gazebo_classic:=true use_joystick:=true world:=/home/mohammadrobot/ros2_ws/install/vmxpi_ros2/share/vmxpi_ros2/description/gazebo/worlds/office_map.world map:=/home/mohammadrobot/ros2_ws/src/vmxpi_ros2/maps/my_map.yaml
+ros2 launch vmxpi_ros2 nav2_navigation_gz_sim.launch.py \
+  gui:=true use_gz_sim:=true use_joystick:=true \
+  world:=/home/mohammadrobot/ros2_ws/install/vmxpi_ros2/share/vmxpi_ros2/description/gz/worlds/office_map.sdf \
+  map:=/home/mohammadrobot/ros2_ws/src/vmxpi_ros2/maps/my_map.yaml
 ```
 
 After launch in RViz:
@@ -159,3 +229,34 @@ Map is not visible in RViz:
 Map save fails with "Unable to open file":
 
 - Create target folder first with `mkdir -p`.
+
+Gazebo Sim launch fails with missing package errors:
+
+- Install Gazebo Sim dependencies:
+- `ros-humble-gz-ros2-control`
+- `ros-humble-ros-gzharmonic-sim`
+- `ros-humble-ros-gzharmonic-bridge`
+
+Gazebo Sim launch fails with `libgazebo_ros2_control.so` / `libgazebo_ros_*` plugin errors:
+
+- You launched a Gazebo Classic `.world` file in `gz sim`.
+- Use a Gazebo Sim `.sdf` world, for example:
+- `/home/mohammadrobot/ros2_ws/install/vmxpi_ros2/share/vmxpi_ros2/description/gz/worlds/office_map.sdf`
+
+Robot drives too slowly in simulation:
+
+- Check wheel joint velocity limits in `description/diffbot/urdf/diffbot_description.urdf.xacro`.
+- Low values (for example `velocity="1.0"`) strongly cap top speed.
+
+`/imu` topic exists but no visible data in `ros2 topic echo /imu`:
+
+- Use sensor QoS for echo:
+- `ros2 topic echo /imu --qos-profile sensor_data`
+
+Odometry is noisy / not smooth enough:
+
+- Increase controller update/publish rates and velocity rolling window in `bringup/config/diffbot_controllers.yaml`.
+- Current defaults are tuned for smoother sim odometry:
+  - `controller_manager.update_rate: 100`
+  - `diffbot_base_controller.publish_rate: 100.0`
+  - `diffbot_base_controller.velocity_rolling_window_size: 30`

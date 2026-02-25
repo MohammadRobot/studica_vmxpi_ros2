@@ -21,6 +21,7 @@
   <depend>xacro</depend>
   <depend>ros2_control</depend>
   <depend>gazebo_ros2_control</depend>
+  <depend>gz_ros2_control</depend>
   <depend>joint_state_broadcaster</depend>
   <depend>diff_drive_controller</depend>
   <depend>gazebo_ros</depend>
@@ -40,10 +41,13 @@
   <exec_depend>controller_manager</exec_depend>
   <exec_depend>joint_state_publisher_gui</exec_depend>
   <exec_depend>robot_state_publisher</exec_depend>
+  <exec_depend>tf2_ros</exec_depend>
   <exec_depend>ros2controlcli</exec_depend>
   <exec_depend>rviz2</exec_depend>
   <exec_depend>nav2_bringup</exec_depend>
   <exec_depend>slam_toolbox</exec_depend>
+  <exec_depend>ros_gz_sim</exec_depend>
+  <exec_depend>ros_gz_bridge</exec_depend>
  
   <test_depend>ament_lint_auto</test_depend>
   <test_depend>ament_lint_common</test_depend>
