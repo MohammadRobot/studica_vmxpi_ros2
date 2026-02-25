@@ -2,6 +2,12 @@
 
 ROS 2 Humble package for Titan/VMX hardware and Gazebo Sim (`gz sim`) simulation of the DiffBot platform.
 
+## Training Material
+
+Detailed ROS 2 training guide for this project:
+
+- `docs/ROS2_TRAINING.md`
+
 ## Dependencies
 
 ```bash
@@ -95,9 +101,10 @@ ros2 launch vmxpi_ros2 diffbot_gz_sim.launch.py gui:=true use_gz_sim:=true use_j
 Simulation with office world:
 
 ```bash
+WORLD_SDF="$(ros2 pkg prefix vmxpi_ros2)/share/vmxpi_ros2/description/gz/worlds/office_map.sdf"
 ros2 launch vmxpi_ros2 diffbot_gz_sim.launch.py \
   gui:=true use_gz_sim:=true use_joystick:=true \
-  world:=/home/mohammadrobot/ros2_ws/install/vmxpi_ros2/share/vmxpi_ros2/description/gz/worlds/office_map.sdf
+  world:="${WORLD_SDF}"
 ```
 
 Real hardware:
@@ -176,16 +183,17 @@ ros2 launch vmxpi_ros2 nav2_mapping_gz_sim.launch.py gui:=true use_gz_sim:=true 
 Launch mapping with a specific world:
 
 ```bash
+WORLD_SDF="$(ros2 pkg prefix vmxpi_ros2)/share/vmxpi_ros2/description/gz/worlds/office_map.sdf"
 ros2 launch vmxpi_ros2 nav2_mapping_gz_sim.launch.py \
   gui:=true use_gz_sim:=true use_joystick:=true \
-  world:=/home/mohammadrobot/ros2_ws/install/vmxpi_ros2/share/vmxpi_ros2/description/gz/worlds/office_map.sdf
+  world:="${WORLD_SDF}"
 ```
 
 Save map:
 
 ```bash
-mkdir -p /home/mohammadrobot/ros2_ws/src/vmxpi_ros2/maps
-ros2 service call /slam_toolbox/save_map slam_toolbox/srv/SaveMap "{name: {data: '/home/mohammadrobot/ros2_ws/src/vmxpi_ros2/maps/my_map'}}"
+mkdir -p "$HOME/ros2_ws/src/vmxpi_ros2/maps"
+ros2 service call /slam_toolbox/save_map slam_toolbox/srv/SaveMap "{name: {data: '$HOME/ros2_ws/src/vmxpi_ros2/maps/my_map'}}"
 ```
 
 ## Navigation (Nav2 + AMCL)
@@ -193,10 +201,11 @@ ros2 service call /slam_toolbox/save_map slam_toolbox/srv/SaveMap "{name: {data:
 Launch navigation with a saved map:
 
 ```bash
+WORLD_SDF="$(ros2 pkg prefix vmxpi_ros2)/share/vmxpi_ros2/description/gz/worlds/office_map.sdf"
 ros2 launch vmxpi_ros2 nav2_navigation_gz_sim.launch.py \
   gui:=true use_gz_sim:=true use_joystick:=true \
-  world:=/home/mohammadrobot/ros2_ws/install/vmxpi_ros2/share/vmxpi_ros2/description/gz/worlds/office_map.sdf \
-  map:=/home/mohammadrobot/ros2_ws/src/vmxpi_ros2/maps/my_map.yaml
+  world:="${WORLD_SDF}" \
+  map:="$HOME/ros2_ws/src/vmxpi_ros2/maps/my_map.yaml"
 ```
 
 After launch in RViz:
@@ -241,7 +250,7 @@ Gazebo Sim launch fails with `libgazebo_ros2_control.so` / `libgazebo_ros_*` plu
 
 - You launched a Gazebo Classic `.world` file in `gz sim`.
 - Use a Gazebo Sim `.sdf` world, for example:
-- `/home/mohammadrobot/ros2_ws/install/vmxpi_ros2/share/vmxpi_ros2/description/gz/worlds/office_map.sdf`
+- `$(ros2 pkg prefix vmxpi_ros2)/share/vmxpi_ros2/description/gz/worlds/office_map.sdf`
 
 Robot drives too slowly in simulation:
 
