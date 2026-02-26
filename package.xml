@@ -1,9 +1,9 @@
 <?xml version="1.0"?>
 <?xml-model href="http://download.ros.org/schema/package_format3.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
 <package format="3">
-  <name>vmxpi_ros2</name>
+  <name>studica_vmxpi_ros2</name>
   <version>0.0.0</version>
-  <description>Demo package of `vmxpi_ros2` simulation with Stdica Robot and VMXPI based on ros2_control.</description>
+  <description>Demo package of `studica_vmxpi_ros2` simulation with Stdica Robot and VMXPI based on ros2_control.</description>
 
   <maintainer email="denis.stogl@stoglrobotics.de">Dr.-Ing. Denis Štogl</maintainer>
   <maintainer email="bence.magyar.robotics@gmail.com">Bence Magyar</maintainer>

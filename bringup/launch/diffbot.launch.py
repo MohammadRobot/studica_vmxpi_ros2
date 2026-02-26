@@ -50,7 +50,7 @@ def generate_launch_description():
             PathJoinSubstitution([FindExecutable(name="xacro")]),
             " ",
             PathJoinSubstitution(
-                [FindPackageShare("vmxpi_ros2"), "description/urdf", "diffbot.urdf.xacro"]
+                [FindPackageShare("studica_vmxpi_ros2"), "description/urdf", "diffbot.urdf.xacro"]
             ),
             " ",
             "use_hardware:=",
@@ -61,7 +61,7 @@ def generate_launch_description():
 
     robot_controllers = PathJoinSubstitution(
         [
-            FindPackageShare("vmxpi_ros2"),
+            FindPackageShare("studica_vmxpi_ros2"),
             "config",
             "diffbot_controllers.yaml",
         ]

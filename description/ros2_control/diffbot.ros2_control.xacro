@@ -17,7 +17,7 @@
       <xacro:unless value="${use_gazebo_classic or use_gz_sim}">
       <xacro:if value="${use_hardware}">
         <hardware>
-          <plugin>vmxpi_ros2/TitanSystemHardware</plugin>
+          <plugin>studica_vmxpi_ros2/TitanSystemHardware</plugin>
           <param name="can_id">42</param>
           <param name="motor_freq">15600</param>
           <param name="ticks_per_rotation">1464</param>
@@ -42,7 +42,7 @@
       </xacro:if>
         <xacro:unless value="${use_hardware}">
           <hardware>
-            <plugin>vmxpi_ros2/DiffBotSystemHardware</plugin>
+            <plugin>studica_vmxpi_ros2/DiffBotSystemHardware</plugin>
             <param name="example_param_hw_start_duration_sec">0</param>
             <param name="example_param_hw_stop_duration_sec">3.0</param>
           </hardware>

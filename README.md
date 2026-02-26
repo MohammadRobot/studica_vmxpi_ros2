@@ -1,4 +1,4 @@
-# vmxpi_ros2
+# studica_vmxpi_ros2
 
 ROS 2 Humble package for Titan/VMX hardware and Gazebo Sim (`gz sim`) simulation of the DiffBot platform.
 
@@ -49,7 +49,7 @@ Note: Gazebo Classic packages conflict with the Harmonic `gz-*` stack on the sam
 
 ```bash
 cd ~/ros2_ws
-colcon build --packages-select vmxpi_ros2
+colcon build --packages-select studica_vmxpi_ros2
 source install/setup.bash
 ```
 
@@ -83,26 +83,26 @@ Expected output should be inside your workspace, for example:
 Simulation:
 
 ```bash
-ros2 launch vmxpi_ros2 diffbot_gz_sim.launch.py gui:=true use_gz_sim:=true
+ros2 launch studica_vmxpi_ros2 diffbot_gz_sim.launch.py gui:=true use_gz_sim:=true
 ```
 
 If the robot appears partially below ground, spawn it slightly above zero:
 
 ```bash
-ros2 launch vmxpi_ros2 diffbot_gz_sim.launch.py gui:=true use_gz_sim:=true spawn_z:=0.10
+ros2 launch studica_vmxpi_ros2 diffbot_gz_sim.launch.py gui:=true use_gz_sim:=true spawn_z:=0.10
 ```
 
 Simulation with joystick:
 
 ```bash
-ros2 launch vmxpi_ros2 diffbot_gz_sim.launch.py gui:=true use_gz_sim:=true use_joystick:=true
+ros2 launch studica_vmxpi_ros2 diffbot_gz_sim.launch.py gui:=true use_gz_sim:=true use_joystick:=true
 ```
 
 Simulation with office world:
 
 ```bash
-WORLD_SDF="$(ros2 pkg prefix vmxpi_ros2)/share/vmxpi_ros2/description/gz/worlds/office_map.sdf"
-ros2 launch vmxpi_ros2 diffbot_gz_sim.launch.py \
+WORLD_SDF="$(ros2 pkg prefix studica_vmxpi_ros2)/share/studica_vmxpi_ros2/description/gz/worlds/office_map.sdf"
+ros2 launch studica_vmxpi_ros2 diffbot_gz_sim.launch.py \
   gui:=true use_gz_sim:=true use_joystick:=true \
   world:="${WORLD_SDF}"
 ```
@@ -110,7 +110,7 @@ ros2 launch vmxpi_ros2 diffbot_gz_sim.launch.py \
 Real hardware:
 
 ```bash
-ros2 launch vmxpi_ros2 diffbot_gz_sim.launch.py use_hardware:=true use_gz_sim:=false
+ros2 launch studica_vmxpi_ros2 diffbot_gz_sim.launch.py use_hardware:=true use_gz_sim:=false
 ```
 
 ## VMX Real Robot Setup
@@ -123,7 +123,7 @@ source /home/vmx/.bashrc
 source /opt/ros/humble/setup.bash
 source install/setup.bash
 export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/usr/local/lib/vmxpi
-ros2 launch vmxpi_ros2 diffbot_gz_sim.launch.py use_hardware:=true use_gz_sim:=false
+ros2 launch studica_vmxpi_ros2 diffbot_gz_sim.launch.py use_hardware:=true use_gz_sim:=false
 ```
 
 If you must run as `root`, add equivalent exports/sourcing to `/root/.bashrc`:
@@ -142,7 +142,7 @@ export ROS_LOCALHOST_ONLY=0
 Start drive stack plus Studica sensors:
 
 ```bash
-ros2 launch vmxpi_ros2 robot_bringup.launch.py use_studica_sensors:=true
+ros2 launch studica_vmxpi_ros2 robot_bringup.launch.py use_studica_sensors:=true
 ```
 
 `use_studica_sensors` defaults to `use_hardware`, so sensors auto-enable on hardware launches.
@@ -177,14 +177,14 @@ Joystick teleop publishes to:
 Launch mapping:
 
 ```bash
-ros2 launch vmxpi_ros2 nav2_mapping_gz_sim.launch.py gui:=true use_gz_sim:=true use_joystick:=true
+ros2 launch studica_vmxpi_ros2 nav2_mapping_gz_sim.launch.py gui:=true use_gz_sim:=true use_joystick:=true
 ```
 
 Launch mapping with a specific world:
 
 ```bash
-WORLD_SDF="$(ros2 pkg prefix vmxpi_ros2)/share/vmxpi_ros2/description/gz/worlds/office_map.sdf"
-ros2 launch vmxpi_ros2 nav2_mapping_gz_sim.launch.py \
+WORLD_SDF="$(ros2 pkg prefix studica_vmxpi_ros2)/share/studica_vmxpi_ros2/description/gz/worlds/office_map.sdf"
+ros2 launch studica_vmxpi_ros2 nav2_mapping_gz_sim.launch.py \
   gui:=true use_gz_sim:=true use_joystick:=true \
   world:="${WORLD_SDF}"
 ```
@@ -192,8 +192,8 @@ ros2 launch vmxpi_ros2 nav2_mapping_gz_sim.launch.py \
 Save map:
 
 ```bash
-mkdir -p "$HOME/ros2_ws/src/vmxpi_ros2/maps"
-ros2 service call /slam_toolbox/save_map slam_toolbox/srv/SaveMap "{name: {data: '$HOME/ros2_ws/src/vmxpi_ros2/maps/my_map'}}"
+mkdir -p "$HOME/ros2_ws/src/studica_vmxpi_ros2/maps"
+ros2 service call /slam_toolbox/save_map slam_toolbox/srv/SaveMap "{name: {data: '$HOME/ros2_ws/src/studica_vmxpi_ros2/maps/my_map'}}"
 ```
 
 ## Navigation (Nav2 + AMCL)
@@ -201,11 +201,11 @@ ros2 service call /slam_toolbox/save_map slam_toolbox/srv/SaveMap "{name: {data:
 Launch navigation with a saved map:
 
 ```bash
-WORLD_SDF="$(ros2 pkg prefix vmxpi_ros2)/share/vmxpi_ros2/description/gz/worlds/office_map.sdf"
-ros2 launch vmxpi_ros2 nav2_navigation_gz_sim.launch.py \
+WORLD_SDF="$(ros2 pkg prefix studica_vmxpi_ros2)/share/studica_vmxpi_ros2/description/gz/worlds/office_map.sdf"
+ros2 launch studica_vmxpi_ros2 nav2_navigation_gz_sim.launch.py \
   gui:=true use_gz_sim:=true use_joystick:=true \
   world:="${WORLD_SDF}" \
-  map:="$HOME/ros2_ws/src/vmxpi_ros2/maps/my_map.yaml"
+  map:="$HOME/ros2_ws/src/studica_vmxpi_ros2/maps/my_map.yaml"
 ```
 
 After launch in RViz:
@@ -250,7 +250,7 @@ Gazebo Sim launch fails with `libgazebo_ros2_control.so` / `libgazebo_ros_*` plu
 
 - You launched a Gazebo Classic `.world` file in `gz sim`.
 - Use a Gazebo Sim `.sdf` world, for example:
-- `$(ros2 pkg prefix vmxpi_ros2)/share/vmxpi_ros2/description/gz/worlds/office_map.sdf`
+- `$(ros2 pkg prefix studica_vmxpi_ros2)/share/studica_vmxpi_ros2/description/gz/worlds/office_map.sdf`
 
 Robot drives too slowly in simulation:
 

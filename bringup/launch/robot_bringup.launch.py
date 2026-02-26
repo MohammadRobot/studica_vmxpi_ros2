@@ -1,4 +1,4 @@
-# Combined bringup: ros2_control (vmxpi_ros2) + optional studica sensors.
+# Combined bringup: ros2_control (studica_vmxpi_ros2) + optional studica sensors.
 
 import os
 
@@ -16,9 +16,9 @@ def _maybe_include_studica(context, *args, **kwargs):
         return []
 
     try:
-        pkg_share = get_package_share_directory("studica_control")
+        pkg_share = get_package_share_directory("studica_ros2_control")
     except PackageNotFoundError:
-        return [LogInfo(msg="studica_control not found; skipping sensors_only launch.")]
+        return [LogInfo(msg="studica_ros2_control not found; skipping sensors_only launch.")]
 
     return [
         IncludeLaunchDescription(
@@ -49,7 +49,7 @@ def generate_launch_description():
         DeclareLaunchArgument(
             "world",
             default_value=PathJoinSubstitution(
-                [FindPackageShare("vmxpi_ros2"), "description/gazebo/worlds", "diff_drive_world.world"]
+                [FindPackageShare("studica_vmxpi_ros2"), "description/gazebo/worlds", "diff_drive_world.world"]
             ),
             description="Absolute path to Gazebo world file.",
         ),
@@ -61,7 +61,7 @@ def generate_launch_description():
         DeclareLaunchArgument(
             "use_studica_sensors",
             default_value=LaunchConfiguration("use_hardware"),
-            description="Launch studica_control sensors_only node (defaults to use_hardware).",
+            description="Launch studica_ros2_control sensors_only node (defaults to use_hardware).",
         ),
     ]
 
@@ -74,7 +74,7 @@ def generate_launch_description():
     vmxpi_launch = IncludeLaunchDescription(
         PythonLaunchDescriptionSource(
             PathJoinSubstitution(
-                [FindPackageShare("vmxpi_ros2"), "launch", "diffbot_gazebo_classic.launch.py"]
+                [FindPackageShare("studica_vmxpi_ros2"), "launch", "diffbot_gazebo_classic.launch.py"]
             )
         ),
         launch_arguments={

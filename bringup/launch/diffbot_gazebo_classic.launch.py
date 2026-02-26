@@ -29,9 +29,9 @@ def _maybe_include_gamepad(context, *args, **kwargs):
         return []
 
     try:
-        studica_pkg = get_package_share_directory("studica_control")
+        studica_pkg = get_package_share_directory("studica_ros2_control")
     except PackageNotFoundError:
-        return [LogInfo(msg="studica_control not found; skipping joystick launch.")]
+        return [LogInfo(msg="studica_ros2_control not found; skipping joystick launch.")]
 
     return [
         IncludeLaunchDescription(
@@ -71,14 +71,14 @@ def generate_launch_description():
         DeclareLaunchArgument(
             "world",
             default_value=PathJoinSubstitution(
-                [FindPackageShare("vmxpi_ros2"), "description/gazebo/worlds", "diff_drive_world.world"]
+                [FindPackageShare("studica_vmxpi_ros2"), "description/gazebo/worlds", "diff_drive_world.world"]
             ),
             description="Absolute path to Gazebo world file.",
         ),
         DeclareLaunchArgument(
             "use_joystick",
             default_value="false",
-            description="Launch joystick teleop from studica_control.",
+            description="Launch joystick teleop from studica_ros2_control.",
         ),
         DeclareLaunchArgument(
             "joystick_cmd_vel_topic",
@@ -100,15 +100,15 @@ def generate_launch_description():
 
 # Gazebo Configration 
     # pkg_gazebo_ros = get_package_share_directory('gazebo_ros')
-    pkg_vmxpi_ros2_gazebo = get_package_share_directory('vmxpi_ros2')
+    pkg_studica_vmxpi_ros2_gazebo = get_package_share_directory('studica_vmxpi_ros2')
 
     # We get the whole install dir
     # We do this to avoid having to copy or softlink manually the packages so that gazebo can find them
-    description_package_name = "vmxpi_ros2"
+    description_package_name = "studica_vmxpi_ros2"
     install_dir = get_package_prefix(description_package_name)
 
     # Set the path to the WORLD model files. Is to find the models inside the models folder in my_box_bot_gazebo package
-    gazebo_models_path = os.path.join(pkg_vmxpi_ros2_gazebo, 'description/models')
+    gazebo_models_path = os.path.join(pkg_studica_vmxpi_ros2_gazebo, 'description/models')
     # os.environ["GAZEBO_MODEL_PATH"] = gazebo_models_path
 
     if 'GAZEBO_MODEL_PATH' in os.environ:
@@ -141,7 +141,7 @@ def generate_launch_description():
         [
             PathJoinSubstitution([FindExecutable(name="xacro")]),
             " ",
-            PathJoinSubstitution([FindPackageShare("vmxpi_ros2"), "description/urdf", "diffbot.urdf.xacro"]),
+            PathJoinSubstitution([FindPackageShare("studica_vmxpi_ros2"), "description/urdf", "diffbot.urdf.xacro"]),
             " ",
             "use_gazebo_classic:=", use_gazebo_classic,
             " ",
@@ -150,9 +150,9 @@ def generate_launch_description():
     )
     robot_description = {"robot_description": robot_description_content, "use_sim_time": use_sim_time} 
 
-    rviz_config_file = PathJoinSubstitution([FindPackageShare("vmxpi_ros2"), "description/diffbot/rviz", "diffbot.rviz"])
+    rviz_config_file = PathJoinSubstitution([FindPackageShare("studica_vmxpi_ros2"), "description/diffbot/rviz", "diffbot.rviz"])
           
-    robot_controllers = PathJoinSubstitution([FindPackageShare("vmxpi_ros2"), "config", "diffbot_controllers.yaml"])
+    robot_controllers = PathJoinSubstitution([FindPackageShare("studica_vmxpi_ros2"), "config", "diffbot_controllers.yaml"])
     
 
     node_robot_state_publisher = Node(
@@ -175,7 +175,7 @@ def generate_launch_description():
     #     executable="ros2_control_node",
     #     parameters=[
     #         robot_description,
-    #         PathJoinSubstitution([FindPackageShare("vmxpi_ros2"), "config", "diffbot_controllers.yaml"]),
+    #         PathJoinSubstitution([FindPackageShare("studica_vmxpi_ros2"), "config", "diffbot_controllers.yaml"]),
     #         {"use_sim_time": use_sim_time},
     #     ],
     #     output="screen",

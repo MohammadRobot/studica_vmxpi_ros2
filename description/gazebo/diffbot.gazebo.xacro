@@ -10,7 +10,7 @@ https://github.com/ros-simulation/gazebo_ros_demos/blob/kinetic-devel/rrbot_desc
     <!-- ros_control plugin -->
     <gazebo>
       <plugin filename="libgazebo_ros2_control.so" name="gazebo_ros2_control">
-        <parameters>$(find vmxpi_ros2)/config/diffbot_controllers.yaml</parameters>
+        <parameters>$(find studica_vmxpi_ros2)/config/diffbot_controllers.yaml</parameters>
       </plugin>
     </gazebo>
 

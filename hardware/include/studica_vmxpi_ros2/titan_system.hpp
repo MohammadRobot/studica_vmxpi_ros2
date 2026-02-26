@@ -12,9 +12,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef vmxpi_ros2__DIFFBOT_SYSTEM_HPP_
-#define vmxpi_ros2__DIFFBOT_SYSTEM_HPP_
+#ifndef VMXPI_ROS2_TITAN_HPP_
+#define VMXPI_ROS2_TITAN_HPP_
 
+#include <cstdint>
 #include <memory>
 #include <string>
 #include <vector>
@@ -31,16 +32,18 @@
 #include "rclcpp_lifecycle/node_interfaces/lifecycle_node_interface.hpp"
 #include "rclcpp_lifecycle/state.hpp"
 
-namespace vmxpi_ros2
+#include "titan.h"// Include Titan driver header
+
+namespace studica_vmxpi_ros2
 {
-class DiffBotSystemHardware : public hardware_interface::SystemInterface
+class TitanSystemHardware : public hardware_interface::SystemInterface
 {
 public:
-  RCLCPP_SHARED_PTR_DEFINITIONS(DiffBotSystemHardware)
+  RCLCPP_SHARED_PTR_DEFINITIONS(TitanSystemHardware)
 
   hardware_interface::CallbackReturn on_init(
     const hardware_interface::HardwareInfo & info) override;
-
+    
   std::vector<hardware_interface::StateInterface> export_state_interfaces() override;
 
   std::vector<hardware_interface::CommandInterface> export_command_interfaces() override;
@@ -70,20 +73,39 @@ public:
   rclcpp::Clock::SharedPtr get_clock() const { return clock_; }
 
 private:
-  // Parameters for the DiffBot simulation
-  double hw_start_sec_;
-  double hw_stop_sec_;
-
+ 
   // Objects for logging
   std::shared_ptr<rclcpp::Logger> logger_;
   rclcpp::Clock::SharedPtr clock_;
 
-  // Store the command for the simulated robot
-  std::vector<double> hw_commands_;
-  std::vector<double> hw_positions_;
-  std::vector<double> hw_velocities_;
+  std::unique_ptr<studica_driver::Titan> titan_driver_;
+  std::vector<double> hw_positions_; // Store current joint positions
+  std::vector<double> hw_velocities_; // Store current joint velocities
+  std::vector<double> hw_commands_; // Store commanded joint velocities
+
+  uint8_t can_id_{0};
+  uint16_t motor_freq_{0};
+  int ticks_per_rotation_{0};
+  double wheel_radius_{0.0};
+  double dist_per_tick_{0.0};
+  double speed_scale_{1.0};
+
+  int left_front_motor_{-1};
+  int left_rear_motor_{-1};
+  int right_front_motor_{-1};
+  int right_rear_motor_{-1};
+
+  bool invert_left_front_motor_{false};
+  bool invert_left_rear_motor_{false};
+  bool invert_right_front_motor_{false};
+  bool invert_right_rear_motor_{false};
+
+  bool invert_left_front_encoder_{false};
+  bool invert_left_rear_encoder_{false};
+  bool invert_right_front_encoder_{false};
+  bool invert_right_rear_encoder_{false};
 };
 
-}  // namespace vmxpi_ros2
+}  // namespace studica_vmxpi_ros2
 
-#endif  // vmxpi_ros2__DIFFBOT_SYSTEM_HPP_
+#endif  // VMXPI_ROS2_TITAN_HPP_

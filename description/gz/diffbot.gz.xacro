@@ -6,7 +6,7 @@
     <!-- ros2_control plugin for Gazebo Sim -->
     <gazebo>
       <plugin filename="gz_ros2_control-system" name="gz_ros2_control::GazeboSimROS2ControlPlugin">
-        <parameters>$(find vmxpi_ros2)/config/diffbot_controllers.yaml</parameters>
+        <parameters>$(find studica_vmxpi_ros2)/config/diffbot_controllers.yaml</parameters>
       </plugin>
     </gazebo>
 

@@ -1,4 +1,4 @@
-# ROS 2 Training Material (Using `vmxpi_ros2`)
+# ROS 2 Training Material (Using `studica_vmxpi_ros2`)
 
 This document is a practical ROS 2 training guide using this project as the reference robot stack.
 
@@ -18,7 +18,7 @@ Platform:
 
 By the end of this training, you should be able to:
 - Explain ROS 2 graph concepts: nodes, topics, services, actions, parameters, TF.
-- Build and run the `vmxpi_ros2` package.
+- Build and run the `studica_vmxpi_ros2` package.
 - Operate the robot in Gazebo Sim using keyboard and joystick.
 - Understand `ros2_control` and controller lifecycle in this project.
 - Build a map with SLAM Toolbox and run Nav2 localization/navigation.
@@ -166,15 +166,15 @@ ros2 topic echo /imu --qos-profile sensor_data
 
 ```bash
 cd ~/ros2_ws
-colcon build --packages-select vmxpi_ros2
+colcon build --packages-select studica_vmxpi_ros2
 source install/setup.bash
 ```
 
 Check package visibility:
 
 ```bash
-ros2 pkg list | grep vmxpi_ros2
-ros2 pkg prefix vmxpi_ros2
+ros2 pkg list | grep studica_vmxpi_ros2
+ros2 pkg prefix studica_vmxpi_ros2
 ```
 
 ---
@@ -184,7 +184,7 @@ ros2 pkg prefix vmxpi_ros2
 Start simulation:
 
 ```bash
-ros2 launch vmxpi_ros2 diffbot_gz_sim.launch.py gui:=true use_gz_sim:=true
+ros2 launch studica_vmxpi_ros2 diffbot_gz_sim.launch.py gui:=true use_gz_sim:=true
 ```
 
 Inspect:
@@ -214,7 +214,7 @@ ros2 run teleop_twist_keyboard teleop_twist_keyboard --ros-args -p stamped:=True
 Joystick (from launch):
 
 ```bash
-ros2 launch vmxpi_ros2 diffbot_gz_sim.launch.py gui:=true use_gz_sim:=true use_joystick:=true
+ros2 launch studica_vmxpi_ros2 diffbot_gz_sim.launch.py gui:=true use_gz_sim:=true use_joystick:=true
 ```
 
 Monitor command and output:
@@ -235,14 +235,14 @@ What to learn:
 Start mapping:
 
 ```bash
-ros2 launch vmxpi_ros2 nav2_mapping_gz_sim.launch.py gui:=true use_gz_sim:=true use_joystick:=true
+ros2 launch studica_vmxpi_ros2 nav2_mapping_gz_sim.launch.py gui:=true use_gz_sim:=true use_joystick:=true
 ```
 
 Drive robot to cover the map area, then save:
 
 ```bash
-mkdir -p ~/ros2_ws/src/vmxpi_ros2/maps
-ros2 service call /slam_toolbox/save_map slam_toolbox/srv/SaveMap "{name: {data: '$HOME/ros2_ws/src/vmxpi_ros2/maps/my_map'}}"
+mkdir -p ~/ros2_ws/src/studica_vmxpi_ros2/maps
+ros2 service call /slam_toolbox/save_map slam_toolbox/srv/SaveMap "{name: {data: '$HOME/ros2_ws/src/studica_vmxpi_ros2/maps/my_map'}}"
 ```
 
 What to learn:
@@ -256,9 +256,9 @@ What to learn:
 Run navigation with saved map:
 
 ```bash
-ros2 launch vmxpi_ros2 nav2_navigation_gz_sim.launch.py \
+ros2 launch studica_vmxpi_ros2 nav2_navigation_gz_sim.launch.py \
   gui:=true use_gz_sim:=true use_joystick:=true \
-  map:=$HOME/ros2_ws/src/vmxpi_ros2/maps/my_map.yaml
+  map:=$HOME/ros2_ws/src/studica_vmxpi_ros2/maps/my_map.yaml
 ```
 
 In RViz:
@@ -301,7 +301,7 @@ Expected active controllers:
 Launch without simulation:
 
 ```bash
-ros2 launch vmxpi_ros2 diffbot_gz_sim.launch.py use_hardware:=true use_gz_sim:=false
+ros2 launch studica_vmxpi_ros2 diffbot_gz_sim.launch.py use_hardware:=true use_gz_sim:=false
 ```
 
 Key point:
@@ -358,16 +358,16 @@ Session 4 (1-2 hours):
 
 ```bash
 # Build
-cd ~/ros2_ws && colcon build --packages-select vmxpi_ros2 && source install/setup.bash
+cd ~/ros2_ws && colcon build --packages-select studica_vmxpi_ros2 && source install/setup.bash
 
 # Sim
-ros2 launch vmxpi_ros2 diffbot_gz_sim.launch.py gui:=true use_gz_sim:=true use_joystick:=true
+ros2 launch studica_vmxpi_ros2 diffbot_gz_sim.launch.py gui:=true use_gz_sim:=true use_joystick:=true
 
 # Mapping
-ros2 launch vmxpi_ros2 nav2_mapping_gz_sim.launch.py gui:=true use_gz_sim:=true use_joystick:=true
+ros2 launch studica_vmxpi_ros2 nav2_mapping_gz_sim.launch.py gui:=true use_gz_sim:=true use_joystick:=true
 
 # Navigation
-ros2 launch vmxpi_ros2 nav2_navigation_gz_sim.launch.py gui:=true use_gz_sim:=true use_joystick:=true map:=$HOME/ros2_ws/src/vmxpi_ros2/maps/my_map.yaml
+ros2 launch studica_vmxpi_ros2 nav2_navigation_gz_sim.launch.py gui:=true use_gz_sim:=true use_joystick:=true map:=$HOME/ros2_ws/src/studica_vmxpi_ros2/maps/my_map.yaml
 
 # Debug
 ros2 control list_controllers

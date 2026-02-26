@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "vmxpi_ros2/titan_system.hpp"
+#include "studica_vmxpi_ros2/titan_system.hpp"
 
 #include <chrono>
 #include <cctype>
@@ -30,7 +30,7 @@
 #include "hardware_interface/types/hardware_interface_type_values.hpp"
 #include "rclcpp/rclcpp.hpp"
 
-namespace vmxpi_ros2
+namespace studica_vmxpi_ros2
 {
 hardware_interface::CallbackReturn TitanSystemHardware::on_init(
   const hardware_interface::HardwareInfo & info)
@@ -402,7 +402,7 @@ hardware_interface::return_type TitanSystemHardware::read(
   return hardware_interface::return_type::OK;
 }
 
-hardware_interface::return_type vmxpi_ros2 ::TitanSystemHardware::write(
+hardware_interface::return_type studica_vmxpi_ros2 ::TitanSystemHardware::write(
   const rclcpp::Time & /*time*/, const rclcpp::Duration & /*period*/)
 {
   if (!titan_driver_) {
@@ -443,8 +443,8 @@ hardware_interface::return_type vmxpi_ros2 ::TitanSystemHardware::write(
   return hardware_interface::return_type::OK;
 }
 
-}// namespace vmxpi_ros2
+}// namespace studica_vmxpi_ros2
 
 #include "pluginlib/class_list_macros.hpp"
 PLUGINLIB_EXPORT_CLASS(
-  vmxpi_ros2::TitanSystemHardware, hardware_interface::SystemInterface)
+  studica_vmxpi_ros2::TitanSystemHardware, hardware_interface::SystemInterface)

@@ -21,9 +21,9 @@ def _maybe_include_gamepad(context, *args, **kwargs):
         return []
 
     try:
-        studica_pkg = get_package_share_directory("studica_control")
+        studica_pkg = get_package_share_directory("studica_ros2_control")
     except PackageNotFoundError:
-        return [LogInfo(msg="studica_control not found; skipping joystick launch.")]
+        return [LogInfo(msg="studica_ros2_control not found; skipping joystick launch.")]
 
     return [
         IncludeLaunchDescription(
@@ -112,7 +112,7 @@ def _maybe_add_gz_sim_runtime_nodes(context, *args, **kwargs):
 
     actions.append(
         Node(
-            package="vmxpi_ros2",
+            package="studica_vmxpi_ros2",
             executable="scan_frame_relay_node",
             output="screen",
             parameters=[
@@ -183,7 +183,7 @@ def generate_launch_description():
         DeclareLaunchArgument(
             "world",
             default_value=PathJoinSubstitution(
-                [FindPackageShare("vmxpi_ros2"), "description/gz/worlds", "diff_drive_world.sdf"]
+                [FindPackageShare("studica_vmxpi_ros2"), "description/gz/worlds", "diff_drive_world.sdf"]
             ),
             description="Absolute path to Gazebo Sim world file.",
         ),
@@ -220,7 +220,7 @@ def generate_launch_description():
         DeclareLaunchArgument(
             "use_joystick",
             default_value="false",
-            description="Launch joystick teleop from studica_control.",
+            description="Launch joystick teleop from studica_ros2_control.",
         ),
         DeclareLaunchArgument(
             "joystick_cmd_vel_topic",
@@ -239,9 +239,9 @@ def generate_launch_description():
     use_gz_sim = LaunchConfiguration("use_gz_sim")
     use_sim_time = LaunchConfiguration("use_sim_time")
 
-    pkg_vmxpi_ros2 = get_package_share_directory("vmxpi_ros2")
-    install_dir = get_package_prefix("vmxpi_ros2")
-    gz_models_path = os.path.join(pkg_vmxpi_ros2, "description", "models")
+    pkg_studica_vmxpi_ros2 = get_package_share_directory("studica_vmxpi_ros2")
+    install_dir = get_package_prefix("studica_vmxpi_ros2")
+    gz_models_path = os.path.join(pkg_studica_vmxpi_ros2, "description", "models")
 
     if "GZ_SIM_RESOURCE_PATH" in os.environ:
         os.environ["GZ_SIM_RESOURCE_PATH"] = (
@@ -262,7 +262,7 @@ def generate_launch_description():
         [
             PathJoinSubstitution([FindExecutable(name="xacro")]),
             " ",
-            PathJoinSubstitution([FindPackageShare("vmxpi_ros2"), "description/urdf", "diffbot.urdf.xacro"]),
+            PathJoinSubstitution([FindPackageShare("studica_vmxpi_ros2"), "description/urdf", "diffbot.urdf.xacro"]),
             " ",
             "use_gazebo_classic:=false",
             " ",
@@ -277,9 +277,9 @@ def generate_launch_description():
     }
 
     rviz_config_file = PathJoinSubstitution(
-        [FindPackageShare("vmxpi_ros2"), "description/diffbot/rviz", "diffbot.rviz"]
+        [FindPackageShare("studica_vmxpi_ros2"), "description/diffbot/rviz", "diffbot.rviz"]
     )
-    robot_controllers = PathJoinSubstitution([FindPackageShare("vmxpi_ros2"), "config", "diffbot_controllers.yaml"])
+    robot_controllers = PathJoinSubstitution([FindPackageShare("studica_vmxpi_ros2"), "config", "diffbot_controllers.yaml"])
 
     node_robot_state_publisher = Node(
         package="robot_state_publisher",

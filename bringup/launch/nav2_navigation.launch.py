@@ -59,7 +59,7 @@ def generate_launch_description():
         DeclareLaunchArgument(
             "world",
             default_value=PathJoinSubstitution(
-                [FindPackageShare("vmxpi_ros2"), "description/gazebo/worlds", "diff_drive_world.world"]
+                [FindPackageShare("studica_vmxpi_ros2"), "description/gazebo/worlds", "diff_drive_world.world"]
             ),
             description="Absolute path to Gazebo world file.",
         ),
@@ -71,7 +71,7 @@ def generate_launch_description():
         DeclareLaunchArgument(
             "use_joystick",
             default_value="false",
-            description="Launch joystick teleop from studica_control.",
+            description="Launch joystick teleop from studica_ros2_control.",
         ),
         DeclareLaunchArgument(
             "map",
@@ -100,7 +100,7 @@ def generate_launch_description():
     robot = IncludeLaunchDescription(
         PythonLaunchDescriptionSource(
             PathJoinSubstitution(
-                [FindPackageShare("vmxpi_ros2"), "launch", "diffbot_gazebo_classic.launch.py"]
+                [FindPackageShare("studica_vmxpi_ros2"), "launch", "diffbot_gazebo_classic.launch.py"]
             )
         ),
         launch_arguments={
@@ -114,7 +114,7 @@ def generate_launch_description():
     )
 
     bridge = Node(
-        package="vmxpi_ros2",
+        package="studica_vmxpi_ros2",
         executable="nav2_topic_bridge_node",
         output="screen",
         parameters=[

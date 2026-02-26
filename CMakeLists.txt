@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.16)
-project(vmxpi_ros2 LANGUAGES CXX)
+project(studica_vmxpi_ros2 LANGUAGES CXX)
 
 if(CMAKE_CXX_COMPILER_ID MATCHES "(GNU|Clang)")
   add_compile_options(-Wall -Wextra)
@@ -71,7 +71,7 @@ endforeach()
 
 ## COMPILE
 add_library(
-  vmxpi_ros2
+  studica_vmxpi_ros2
   SHARED
   hardware/diffbot_system.cpp
 )
@@ -83,12 +83,12 @@ if(VMXPI_FOUND)
     /usr/local/include/vmxpi
   )
 
-  target_sources(vmxpi_ros2
+  target_sources(studica_vmxpi_ros2
     PRIVATE
     hardware/titan_system.cpp
   )
 
-  target_link_libraries(vmxpi_ros2
+  target_link_libraries(studica_vmxpi_ros2
     PUBLIC
     ${VMXPI_LIBRARIES}
   )
@@ -97,31 +97,31 @@ else()
   message(WARNING "Skipping compilation of hardware interface code.")
 endif()
 
-target_compile_features(vmxpi_ros2 PUBLIC cxx_std_17)
-target_include_directories(vmxpi_ros2 PUBLIC
+target_compile_features(studica_vmxpi_ros2 PUBLIC cxx_std_17)
+target_include_directories(studica_vmxpi_ros2 PUBLIC
   $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/hardware/include>
-  $<INSTALL_INTERFACE:include/vmxpi_ros2>
+  $<INSTALL_INTERFACE:include/studica_vmxpi_ros2>
 )
 ament_target_dependencies(
-  vmxpi_ros2 PUBLIC
+  studica_vmxpi_ros2 PUBLIC
   ${THIS_PACKAGE_INCLUDE_DEPENDS}
 )
 
 # Export hardware plugins
-pluginlib_export_plugin_description_file(hardware_interface vmxpi_ros2.xml)
+pluginlib_export_plugin_description_file(hardware_interface studica_vmxpi_ros2.xml)
 
 # INSTALL
 install(
   DIRECTORY hardware/include/
-  DESTINATION include/vmxpi_ros2
+  DESTINATION include/studica_vmxpi_ros2
 )
 install(
   DIRECTORY description
-  DESTINATION share/vmxpi_ros2
+  DESTINATION share/studica_vmxpi_ros2
 )
 install(
   DIRECTORY bringup/launch bringup/config
-  DESTINATION share/vmxpi_ros2
+  DESTINATION share/studica_vmxpi_ros2
 )
 
 add_executable(robot_patrol_node src/patrol.cpp)
@@ -140,14 +140,14 @@ install(TARGETS
    DESTINATION lib/${PROJECT_NAME}
  )
 
-install(TARGETS vmxpi_ros2
-  EXPORT export_vmxpi_ros2
+install(TARGETS studica_vmxpi_ros2
+  EXPORT export_studica_vmxpi_ros2
   ARCHIVE DESTINATION lib
   LIBRARY DESTINATION lib
   RUNTIME DESTINATION bin
 )
 
 ## EXPORTS
-ament_export_targets(export_vmxpi_ros2 HAS_LIBRARY_TARGET)
+ament_export_targets(export_studica_vmxpi_ros2 HAS_LIBRARY_TARGET)
 ament_export_dependencies(${THIS_PACKAGE_INCLUDE_DEPENDS})
 ament_package()

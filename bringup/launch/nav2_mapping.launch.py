@@ -25,7 +25,7 @@ def generate_launch_description():
         DeclareLaunchArgument(
             "world",
             default_value=PathJoinSubstitution(
-                [FindPackageShare("vmxpi_ros2"), "description/gazebo/worlds", "diff_drive_world.world"]
+                [FindPackageShare("studica_vmxpi_ros2"), "description/gazebo/worlds", "diff_drive_world.world"]
             ),
             description="Absolute path to Gazebo world file.",
         ),
@@ -37,12 +37,12 @@ def generate_launch_description():
         DeclareLaunchArgument(
             "use_joystick",
             default_value="false",
-            description="Launch joystick teleop from studica_control.",
+            description="Launch joystick teleop from studica_ros2_control.",
         ),
         DeclareLaunchArgument(
             "slam_params_file",
             default_value=PathJoinSubstitution(
-                [FindPackageShare("vmxpi_ros2"), "config", "slam_toolbox_mapper_params.yaml"]
+                [FindPackageShare("studica_vmxpi_ros2"), "config", "slam_toolbox_mapper_params.yaml"]
             ),
             description="SLAM Toolbox parameter file.",
         ),
@@ -59,7 +59,7 @@ def generate_launch_description():
     robot = IncludeLaunchDescription(
         PythonLaunchDescriptionSource(
             PathJoinSubstitution(
-                [FindPackageShare("vmxpi_ros2"), "launch", "diffbot_gazebo_classic.launch.py"]
+                [FindPackageShare("studica_vmxpi_ros2"), "launch", "diffbot_gazebo_classic.launch.py"]
             )
         ),
         launch_arguments={

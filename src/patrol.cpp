@@ -12,13 +12,22 @@ using namespace std::chrono_literals;
 class Patrol : public rclcpp::Node {
 public:
   Patrol() : Node("robot_patrol_node") {
+    const auto cmd_vel_topic = this->declare_parameter<std::string>(
+        "cmd_vel_topic", "/diffbot_base_controller/cmd_vel");
+    const auto scan_topic =
+        this->declare_parameter<std::string>("scan_topic", "/scan");
+
     publisher_ = this->create_publisher<geometry_msgs::msg::TwistStamped>(
-        "diffbot_base_controller/cmd_vel", 10);
+        cmd_vel_topic, 10);
     timer_ = this->create_wall_timer(200ms,
                                      std::bind(&Patrol::timer_callback, this));
     sub_laserScan_ = this->create_subscription<sensor_msgs::msg::LaserScan>(
-        "scan", 10,
+        scan_topic, rclcpp::SensorDataQoS(),
         std::bind(&Patrol::scan_callback, this, std::placeholders::_1));
+
+    RCLCPP_INFO(this->get_logger(), "Patrol using scan topic '%s' and cmd_vel "
+                                    "topic '%s'",
+                scan_topic.c_str(), cmd_vel_topic.c_str());
   }
 
 private:
@@ -67,6 +76,10 @@ private:
 
   void
   scan_callback(const sensor_msgs::msg::LaserScan::ConstSharedPtr scan_msg) {
+    if (scan_msg->ranges.empty()) {
+      return;
+    }
+
     float frontMinDistance = scan_msg->range_max;
     float frontMinDistanceAngle = 0.0;
     float maxDistance = 0.0;
