@@ -126,6 +126,24 @@ export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/usr/local/lib/vmxpi
 ros2 launch studica_vmxpi_ros2 diffbot_gz_sim.launch.py use_hardware:=true use_gz_sim:=false
 ```
 
+Known-good hardware bringup (single command, runs as root):
+
+```bash
+sudo -E bash -lc '
+cd /home/vmx/ros2_ws
+source /opt/ros/humble/setup.bash
+source install/setup.bash
+export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/usr/local/lib/vmxpi
+ros2 launch studica_vmxpi_ros2 diffbot_gz_sim.launch.py use_hardware:=true use_gz_sim:=false
+'
+```
+
+Why `sudo` is required for hardware mode:
+
+- `use_hardware:=true` loads VMX/Titan hardware drivers (pigpio + SPI/CAN access).
+- These low-level interfaces require root privileges on the current VMX HAL setup.
+- Simulation mode (`use_gz_sim:=true`) does not require `sudo`.
+
 If you must run as `root`, add equivalent exports/sourcing to `/root/.bashrc`:
 
 ```bash
@@ -219,6 +237,84 @@ After launch in RViz:
 - `/cmd_vel` (`Twist`) -> `/diffbot_base_controller/cmd_vel` (`TwistStamped`)
 - `/diffbot_base_controller/odom` -> `/odom`
 
+## Raspberry Pi 4 Performance Tuning (ROS 2 Robot)
+
+For lower control-loop jitter and better runtime stability on real hardware:
+
+1. Switch to headless boot target:
+
+```bash
+sudo systemctl set-default multi-user.target
+```
+
+2. Disable desktop/auxiliary services not needed on a robot:
+
+```bash
+sudo systemctl disable --now gdm cups cups-browsed avahi-daemon bluetooth hciuart ModemManager
+```
+
+3. Set CPU governor to `performance`:
+
+```bash
+echo performance | sudo tee /sys/devices/system/cpu/cpu*/cpufreq/scaling_governor
+```
+
+4. Reduce swap aggressiveness:
+
+```bash
+echo 'vm.swappiness=10' | sudo tee /etc/sysctl.d/99-robot-performance.conf
+sudo sysctl -p /etc/sysctl.d/99-robot-performance.conf
+```
+
+5. Use Cyclone DDS for ROS 2 middleware:
+
+```bash
+echo 'export RMW_IMPLEMENTATION=rmw_cyclonedds_cpp' >> ~/.bashrc
+```
+
+6. Optional: disable Snap background services on dedicated robot images:
+
+```bash
+sudo systemctl stop snapd.service snapd.socket snapd.seeded.service
+sudo systemctl disable snapd.service snapd.socket snapd.seeded.service snapd.refresh.timer snapd.snap-repair.timer
+sudo systemctl mask snapd.service snapd.socket snapd.seeded.service
+```
+
+Verify after reboot:
+
+```bash
+systemctl get-default
+for c in /sys/devices/system/cpu/cpu[0-9]*; do echo "$(basename "$c"): $(cat "$c/cpufreq/scaling_governor")"; done
+uptime
+free -h
+journalctl -k --no-pager | rg -i "under-?voltage|throttl|oom|thermal"
+vcgencmd get_throttled   # expected healthy value: throttled=0x0
+```
+
+## Motor Smoke Test (Drivers + ROS 2 Control + ros2_control)
+
+Use the repeatable smoke test script to validate motor control across:
+
+- `studica_drivers` (direct Titan API)
+- `studica_ros2_control` (`manual_composition` + `titan_cmd`)
+- `studica_vmxpi_ros2` (`ros2_control` + `diffbot_base_controller`)
+
+Safety: put the robot on blocks so wheels can spin freely.
+
+Run:
+
+```bash
+sudo /home/vmx/ros2_ws/src/studica_vmxpi_ros2/scripts/motor_smoke_test.sh
+```
+
+Optional: rebuild the 3 packages before testing:
+
+```bash
+sudo /home/vmx/ros2_ws/src/studica_vmxpi_ros2/scripts/motor_smoke_test.sh --build
+```
+
+Logs are written to `/tmp/studica_motor_smoke_YYYYMMDD_HHMMSS/`.
+
 ## Troubleshooting
 
 `diffbot_base_controller` fails with `expected [double] got [integer]`:
@@ -238,6 +334,28 @@ Map is not visible in RViz:
 Map save fails with "Unable to open file":
 
 - Create target folder first with `mkdir -p`.
+
+VMX crashes or reboots during `colcon build`:
+
+- Use a low-load build command:
+
+```bash
+colcon build --executor sequential --parallel-workers 1 --cmake-args -DCMAKE_BUILD_PARALLEL_LEVEL=1
+```
+
+- Use a stable power source (official Raspberry Pi 5.1V/3A PSU recommended) and a good USB-C cable.
+- Disconnect high-current USB peripherals during build (for example depth cameras), or use a powered USB hub.
+- Increase swap to 4G on low-memory systems:
+
+```bash
+sudo swapoff /swapfile
+sudo fallocate -l 4G /swapfile
+sudo chmod 600 /swapfile
+sudo mkswap /swapfile
+sudo swapon /swapfile
+```
+
+- Add active cooling (fan/heatsink) to prevent thermal issues during long builds.
 
 Gazebo Sim launch fails with missing package errors:
 
