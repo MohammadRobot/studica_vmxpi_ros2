@@ -181,7 +181,13 @@ ros2 launch studica_vmxpi_ros2 robot_bringup.launch.py use_studica_sensors:=true
 Keyboard teleop:
 
 ```bash
-ros2 run teleop_twist_keyboard teleop_twist_keyboard --ros-args -p stamped:=True --remap cmd_vel:=/diffbot_base_controller/cmd_vel
+ros2 run teleop_twist_keyboard teleop_twist_keyboard --ros-args -p stamped:=true -p frame_id:=base_link --remap cmd_vel:=/diffbot_base_controller/cmd_vel
+```
+
+If the hardware stack was launched with `sudo`, run teleop from the same `sudo` context:
+
+```bash
+sudo -E bash -lc 'source /opt/ros/humble/setup.bash; source /home/vmx/ros2_ws/install/setup.bash; ros2 run teleop_twist_keyboard teleop_twist_keyboard --ros-args -p stamped:=true -p frame_id:=base_link --remap cmd_vel:=/diffbot_base_controller/cmd_vel'
 ```
 
 Joystick teleop publishes to:
@@ -266,9 +272,16 @@ echo 'vm.swappiness=10' | sudo tee /etc/sysctl.d/99-robot-performance.conf
 sudo sysctl -p /etc/sysctl.d/99-robot-performance.conf
 ```
 
-5. Use Cyclone DDS for ROS 2 middleware:
+5. Use one ROS 2 middleware implementation consistently in every shell (normal user and `sudo`):
 
 ```bash
+echo 'export RMW_IMPLEMENTATION=rmw_fastrtps_cpp' >> ~/.bashrc
+```
+
+Optional (Cyclone DDS):
+
+```bash
+sudo apt install ros-humble-rmw-cyclonedds-cpp
 echo 'export RMW_IMPLEMENTATION=rmw_cyclonedds_cpp' >> ~/.bashrc
 ```
 
@@ -316,6 +329,13 @@ sudo /home/vmx/ros2_ws/src/studica_vmxpi_ros2/scripts/motor_smoke_test.sh --buil
 Logs are written to `/tmp/studica_motor_smoke_YYYYMMDD_HHMMSS/`.
 
 ## Troubleshooting
+
+Teleop command runs but robot does not move:
+
+- If launch is running as `root` and teleop runs as normal user, local DDS discovery may work but topic/service data can fail between users.
+- Avoid `sudo su` for launch. Prefer `sudo -E` so ROS environment is preserved.
+- Short-term workaround: run teleop as `sudo -E` (same user context as launch command).
+- Long-term fix: run bringup without `sudo` by granting required VMX/SPI/CAN permissions to the `vmx` user.
 
 `diffbot_base_controller` fails with `expected [double] got [integer]`:
 

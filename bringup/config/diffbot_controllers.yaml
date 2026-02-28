@@ -1,7 +1,7 @@
 controller_manager:
   ros__parameters:
-    # Higher update rate improves controller and odometry smoothness in simulation.
-    update_rate: 1000  # Hz
+    # Use a conservative rate on Raspberry Pi hardware to avoid controller starvation.
+    update_rate: 100  # Hz
 
     joint_state_broadcaster:
       type: joint_state_broadcaster/JointStateBroadcaster
