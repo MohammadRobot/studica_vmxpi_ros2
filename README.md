@@ -52,13 +52,14 @@ Source dependencies (clone into the same workspace):
 cd ~/ros2_ws/src
 git clone https://github.com/MohammadRobot/studica_drivers.git
 git clone https://github.com/MohammadRobot/studica_ros2_control.git
+git clone https://github.com/MohammadRobot/ydlidar_ros2_driver.git
 ```
 
 ## Build
 
 ```bash
 cd ~/ros2_ws
-colcon build --packages-select studica_drivers studica_ros2_control studica_vmxpi_ros2
+colcon build --packages-select ydlidar_ros2_driver studica_drivers studica_ros2_control studica_vmxpi_ros2
 source install/setup.bash
 ```
 
@@ -128,29 +129,52 @@ ros2 launch studica_vmxpi_ros2 diffbot_gz_sim.launch.py use_hardware:=true use_g
 '
 ```
 
+In this real-hardware mode, LiDAR now starts automatically by default (`use_lidar:=true` when `use_hardware:=true`).
+
+Disable LiDAR auto-start if needed:
+
+```bash
+ros2 launch studica_vmxpi_ros2 diffbot_gz_sim.launch.py use_hardware:=true use_gz_sim:=false use_lidar:=false
+```
+
+Use a custom YDLIDAR params file from the main bringup:
+
+```bash
+ros2 launch studica_vmxpi_ros2 diffbot_gz_sim.launch.py \
+  use_hardware:=true use_gz_sim:=false \
+  ydlidar_params_file:=/path/to/ydlidar.yaml
+```
+
 ## VMX Real Robot Setup
 
-On the VMX source the workspace and VMX runtime path before launch:
+With ROS environment values in `~/.bashrc`, source your shell config plus workspace/runtime before launch:
 
 ```bash
 cd /home/vmx/ros2_ws
 source /home/vmx/.bashrc
-source /opt/ros/humble/setup.bash
 source install/setup.bash
 export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/usr/local/lib/vmxpi
 ros2 launch studica_vmxpi_ros2 diffbot_gz_sim.launch.py use_hardware:=true use_gz_sim:=false
 ```
 
-Recommended `~/.bashrc` setup (user shell):
+Recommended `~/.bashrc` setup (both robot host and PC host):
 
 ```bash
 source /opt/ros/humble/setup.bash
-source /home/vmx/ros2_ws/install/setup.bash
-export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/usr/local/lib/vmxpi
 export ROS_DOMAIN_ID=1
 export ROS_LOCALHOST_ONLY=0
 export RMW_IMPLEMENTATION=rmw_cyclonedds_cpp
 ```
+
+Optional robot-host additions in `~/.bashrc`:
+
+```bash
+source /home/vmx/ros2_ws/install/setup.bash
+export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/usr/local/lib/vmxpi
+```
+
+After updating `.bashrc`, run `source ~/.bashrc` once (or open a new terminal).  
+From then on, you do not need to re-run the ROS export lines in every terminal.
 
 Known-good hardware bringup (single command, runs as root):
 
@@ -170,16 +194,20 @@ Why `sudo` is required for hardware mode:
 - These low-level interfaces require root privileges on the current VMX HAL setup.
 - Simulation mode (`use_gz_sim:=true`) does not require `sudo`.
 
-If you must run as `root`, add equivalent exports/sourcing to `/root/.bashrc`:
+If you must run as `root`, add equivalent ROS environment to `/root/.bashrc`:
 
 ```bash
-source /home/vmx/.bashrc
 source /opt/ros/humble/setup.bash
-source /home/vmx/ros2_ws/install/setup.bash
-export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/usr/local/lib/vmxpi
 export ROS_DOMAIN_ID=1
 export ROS_LOCALHOST_ONLY=0
 export RMW_IMPLEMENTATION=rmw_cyclonedds_cpp
+```
+
+Optional robot-host additions for `/root/.bashrc`:
+
+```bash
+source /home/vmx/ros2_ws/install/setup.bash
+export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/usr/local/lib/vmxpi
 ```
 
 ## Optional Bringup
@@ -192,6 +220,58 @@ ros2 launch studica_vmxpi_ros2 robot_bringup.launch.py use_studica_sensors:=true
 
 `use_studica_sensors` defaults to `use_hardware`, so sensors auto-enable on hardware launches.
 
+## LiDAR (YDLIDAR)
+
+Recommended approach: keep `ydlidar_ros2_driver` as the LiDAR hardware driver, and keep `studica_ros2_control` for integration/bringup.
+
+Main hardware launch auto-starts LiDAR:
+
+```bash
+ros2 launch studica_vmxpi_ros2 diffbot_gz_sim.launch.py use_hardware:=true use_gz_sim:=false
+```
+
+Standalone driver test (known-good command):
+
+```bash
+ros2 launch ydlidar_ros2_driver ydlidar_launch.py
+```
+
+Integrated launch from Studica stack:
+
+```bash
+ros2 launch studica_ros2_control lidar_launch.py
+```
+
+Use a custom YDLIDAR parameter file when needed:
+
+```bash
+ros2 launch studica_ros2_control lidar_launch.py ydlidar_params_file:=/path/to/ydlidar.yaml
+```
+
+Show LiDAR in RViz2:
+
+```bash
+# Terminal 1 (VMX)
+ros2 launch studica_ros2_control lidar_launch.py
+```
+
+```bash
+# Terminal 2 (Remote PC)
+rviz2
+```
+
+In RViz2:
+
+- Set `Fixed Frame` to `laser_frame` (or `base_link`).
+- Add display type `LaserScan`.
+- Set topic to `/scan`.
+
+One-command RViz launch from driver package (optional):
+
+```bash
+ros2 launch ydlidar_ros2_driver ydlidar_launch_view.py
+```
+
 ## Gazebo Sim Notes
 
 - Gazebo Sim launch: `diffbot_gz_sim.launch.py`
@@ -200,20 +280,52 @@ ros2 launch studica_vmxpi_ros2 robot_bringup.launch.py use_studica_sensors:=true
   - `nav2_navigation_gz_sim.launch.py`
 - Gazebo Sim sensor topics:
   - `/scan` (`sensor_msgs/LaserScan`)
-  - `/imu` (`sensor_msgs/Imu`)
+- `/imu` (`sensor_msgs/Imu`)
 - Legacy Gazebo Classic launches are still available (`diffbot_gazebo_classic.launch.py`, `nav2_mapping.launch.py`, `nav2_navigation.launch.py`).
+
+## System Architecture (Best Performance)
+
+Recommended deployment is split across two machines:
+
+- VMX robot host: run hardware-critical nodes only (VMX/Titan drivers, ros2_control, motor controllers, hardware sensor drivers like LiDAR).
+- Remote PC host: run operator and high-CPU nodes (RViz2, teleop, Nav2 tools, SLAM tools, debugging/visualization tools).
+
+Why this split works better:
+
+- Motor/sensor timing stays local to hardware on the robot.
+- VMX CPU load is lower, so control loops are more stable.
+- UI and planning workloads run on a stronger PC without impacting robot control.
+
+Recommended runtime pattern:
+
+- On robot host: launch hardware stack and sensor drivers.
+- On PC host: launch remote control, RViz2, and any heavy analysis nodes.
+- Use the same ROS 2 networking settings on both hosts (`ROS_DOMAIN_ID`, `ROS_LOCALHOST_ONLY`, `RMW_IMPLEMENTATION`).
+
+Node placement reference:
+
+| Component / Node Group | Run Host | Why |
+|---|---|---|
+| `studica_drivers` + VMX/Titan hardware interfaces | Robot (VMX) | Direct hardware access (SPI/CAN/GPIO), lowest control latency. |
+| `controller_manager` + drive controllers (`diff_drive_controller`) | Robot (VMX) | Keeps motor control loop local and stable. |
+| `studica_ros2_control` hardware-facing nodes | Robot (VMX) | Sensor and actuator timing stays close to hardware. |
+| `ydlidar_ros2_driver` | Robot (VMX) | Serial LiDAR data capture should stay local to `/dev/ttyUSB*`. |
+| TF publishers tied to physical sensors | Robot (VMX) | Keeps robot frame tree synchronized with real sensors. |
+| Teleop nodes (`teleop_twist_keyboard`, gamepad client) | Remote PC | Operator input/UI runs offboard to reduce VMX load. |
+| `rviz2` | Remote PC | Visualization is GPU/CPU heavy and not control-critical. |
+| Nav2 planning/BT tools (recommended) | Remote PC | Planning is CPU-heavy; offloading improves VMX performance. |
+| SLAM (`slam_toolbox`) (recommended) | Remote PC | Mapping can be heavy; offloading preserves control responsiveness. |
+| Debug/record tools (`rqt`, `ros2 bag`, diagnostics UI) | Remote PC | Prevents debug workloads from stealing robot compute. |
+
 
 ## Control (From Another PC)
 
 This section is for teleop from a second PC on the same network, while the robot stack runs on the robot host.
 
-On the remote PC, open a terminal and set ROS networking first:
+On the remote PC, open a terminal and load your ROS networking setup from `~/.bashrc`:
 
 ```bash
-source /opt/ros/humble/setup.bash
-export ROS_DOMAIN_ID=1
-export ROS_LOCALHOST_ONLY=0
-export RMW_IMPLEMENTATION=rmw_cyclonedds_cpp
+source ~/.bashrc
 ```
 
 Optional connectivity check:

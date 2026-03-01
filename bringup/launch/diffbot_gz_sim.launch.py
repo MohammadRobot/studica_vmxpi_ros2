@@ -39,6 +39,42 @@ def _maybe_include_gamepad(context, *args, **kwargs):
     ]
 
 
+def _maybe_include_lidar(context, *args, **kwargs):
+    use_lidar = LaunchConfiguration("use_lidar").perform(context)
+    use_hardware = LaunchConfiguration("use_hardware").perform(context)
+    use_gz_sim = LaunchConfiguration("use_gz_sim").perform(context)
+    if not _is_true(use_lidar):
+        return []
+    if not _is_true(use_hardware):
+        return [LogInfo(msg="use_lidar enabled but use_hardware is false; skipping LiDAR launch.")]
+    if _is_true(use_gz_sim):
+        return [LogInfo(msg="use_lidar enabled but use_gz_sim is true; skipping real LiDAR launch.")]
+
+    try:
+        studica_pkg = get_package_share_directory("studica_ros2_control")
+    except PackageNotFoundError:
+        return [LogInfo(msg="studica_ros2_control not found; skipping LiDAR launch.")]
+
+    ydlidar_params_file = LaunchConfiguration("ydlidar_params_file").perform(context).strip()
+    if not ydlidar_params_file:
+        try:
+            ydlidar_pkg = get_package_share_directory("ydlidar_ros2_driver")
+            ydlidar_params_file = os.path.join(ydlidar_pkg, "params", "X2.yaml")
+        except PackageNotFoundError:
+            return [LogInfo(msg="ydlidar_ros2_driver not found; skipping LiDAR launch.")]
+
+    return [
+        IncludeLaunchDescription(
+            PythonLaunchDescriptionSource(
+                os.path.join(studica_pkg, "launch", "lidar_launch.py")
+            ),
+            launch_arguments={
+                "ydlidar_params_file": ydlidar_params_file,
+            }.items(),
+        )
+    ]
+
+
 def _maybe_include_gz_sim(context, *args, **kwargs):
     use_gz_sim = LaunchConfiguration("use_gz_sim").perform(context)
     if not _is_true(use_gz_sim):
@@ -223,6 +259,16 @@ def generate_launch_description():
             description="Launch joystick teleop from studica_ros2_control.",
         ),
         DeclareLaunchArgument(
+            "use_lidar",
+            default_value=LaunchConfiguration("use_hardware"),
+            description="Launch YDLIDAR in real hardware mode (defaults to use_hardware).",
+        ),
+        DeclareLaunchArgument(
+            "ydlidar_params_file",
+            default_value="",
+            description="Optional YDLIDAR params YAML. Empty uses ydlidar_ros2_driver/params/X2.yaml.",
+        ),
+        DeclareLaunchArgument(
             "joystick_cmd_vel_topic",
             default_value="/diffbot_base_controller/cmd_vel",
             description="Joystick command velocity output topic.",
@@ -337,6 +383,7 @@ def generate_launch_description():
         robot_controller_spawner,
         rviz_node,
         OpaqueFunction(function=_maybe_include_gamepad),
+        OpaqueFunction(function=_maybe_include_lidar),
     ]
 
     return LaunchDescription(declared_arguments + nodes)
