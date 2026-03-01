@@ -25,7 +25,8 @@ sudo apt install -y \
   ros-humble-joy \
   ros-humble-navigation2 \
   ros-humble-nav2-bringup \
-  ros-humble-slam-toolbox
+  ros-humble-slam-toolbox \
+  ros-humble-rmw-cyclonedds-cpp
 ```
 
 You can also install the Gazebo Harmonic meta package:
@@ -45,11 +46,19 @@ sudo apt install -y \
 
 Note: Gazebo Classic packages conflict with the Harmonic `gz-*` stack on the same host. Keep Classic in a separate container/VM if needed.
 
+Source dependencies (clone into the same workspace):
+
+```bash
+cd ~/ros2_ws/src
+git clone https://github.com/MohammadRobot/studica_drivers.git
+git clone https://github.com/MohammadRobot/studica_ros2_control.git
+```
+
 ## Build
 
 ```bash
 cd ~/ros2_ws
-colcon build --packages-select studica_vmxpi_ros2
+colcon build --packages-select studica_drivers studica_ros2_control studica_vmxpi_ros2
 source install/setup.bash
 ```
 
@@ -107,15 +116,21 @@ ros2 launch studica_vmxpi_ros2 diffbot_gz_sim.launch.py \
   world:="${WORLD_SDF}"
 ```
 
-Real hardware:
+Real hardware (current VMX setup requires root; see full setup in `VMX Real Robot Setup` below):
 
 ```bash
+sudo -E bash -lc '
+cd /home/vmx/ros2_ws
+source /opt/ros/humble/setup.bash
+source install/setup.bash
+export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/usr/local/lib/vmxpi
 ros2 launch studica_vmxpi_ros2 diffbot_gz_sim.launch.py use_hardware:=true use_gz_sim:=false
+'
 ```
 
 ## VMX Real Robot Setup
 
-On the VMX/Titan robot, source the workspace and VMX runtime path before launch:
+On the VMX source the workspace and VMX runtime path before launch:
 
 ```bash
 cd /home/vmx/ros2_ws
@@ -124,6 +139,17 @@ source /opt/ros/humble/setup.bash
 source install/setup.bash
 export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/usr/local/lib/vmxpi
 ros2 launch studica_vmxpi_ros2 diffbot_gz_sim.launch.py use_hardware:=true use_gz_sim:=false
+```
+
+Recommended `~/.bashrc` setup (user shell):
+
+```bash
+source /opt/ros/humble/setup.bash
+source /home/vmx/ros2_ws/install/setup.bash
+export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/usr/local/lib/vmxpi
+export ROS_DOMAIN_ID=1
+export ROS_LOCALHOST_ONLY=0
+export RMW_IMPLEMENTATION=rmw_cyclonedds_cpp
 ```
 
 Known-good hardware bringup (single command, runs as root):
@@ -153,6 +179,7 @@ source /home/vmx/ros2_ws/install/setup.bash
 export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/usr/local/lib/vmxpi
 export ROS_DOMAIN_ID=1
 export ROS_LOCALHOST_ONLY=0
+export RMW_IMPLEMENTATION=rmw_cyclonedds_cpp
 ```
 
 ## Optional Bringup
@@ -176,25 +203,68 @@ ros2 launch studica_vmxpi_ros2 robot_bringup.launch.py use_studica_sensors:=true
   - `/imu` (`sensor_msgs/Imu`)
 - Legacy Gazebo Classic launches are still available (`diffbot_gazebo_classic.launch.py`, `nav2_mapping.launch.py`, `nav2_navigation.launch.py`).
 
-## Control
+## Control (From Another PC)
 
-Keyboard teleop:
+This section is for teleop from a second PC on the same network, while the robot stack runs on the robot host.
+
+On the remote PC, open a terminal and set ROS networking first:
+
+```bash
+source /opt/ros/humble/setup.bash
+export ROS_DOMAIN_ID=1
+export ROS_LOCALHOST_ONLY=0
+export RMW_IMPLEMENTATION=rmw_cyclonedds_cpp
+```
+
+Optional connectivity check:
+
+```bash
+ros2 topic list | grep -E "cmd_vel|odom|diffbot_base_controller"
+```
+
+Keyboard teleop (remote PC -> robot):
 
 ```bash
 ros2 run teleop_twist_keyboard teleop_twist_keyboard --ros-args -p stamped:=true -p frame_id:=base_link --remap cmd_vel:=/diffbot_base_controller/cmd_vel
 ```
 
-If the hardware stack was launched with `sudo`, run teleop from the same `sudo` context:
+Joystick teleop (remote PC -> robot):
 
 ```bash
-sudo -E bash -lc 'source /opt/ros/humble/setup.bash; source /home/vmx/ros2_ws/install/setup.bash; ros2 run teleop_twist_keyboard teleop_twist_keyboard --ros-args -p stamped:=true -p frame_id:=base_link --remap cmd_vel:=/diffbot_base_controller/cmd_vel'
+# Required for gamepad_launch.py on the remote PC:
+source ~/ros2_ws/install/setup.bash
+ros2 launch studica_ros2_control gamepad_launch.py \
+  cmd_vel_topic:=/diffbot_base_controller/cmd_vel \
+  publish_stamped:=true
 ```
 
-Joystick teleop publishes to:
+If the real robot is too fast, use lower joystick scales:
 
-```text
-/diffbot_base_controller/cmd_vel
+```bash
+# Required for gamepad_launch.py on the remote PC:
+source ~/ros2_ws/install/setup.bash
+ros2 launch studica_ros2_control gamepad_launch.py \
+  cmd_vel_topic:=/diffbot_base_controller/cmd_vel \
+  publish_stamped:=true \
+  linear_scale:=0.20 \
+  angular_scale:=0.60 \
+  turbo_multiplier:=1.0 \
+  button_turbo:=-1
 ```
+
+Joystick tuning parameters:
+
+- `linear_scale` (m/s at full stick)
+- `angular_scale` (rad/s at full stick)
+- `deadzone`
+- `turbo_multiplier`
+- `button_turbo` (`-1` disables turbo)
+
+Notes:
+
+- When launching `diffbot_gz_sim.launch.py` or `nav2_*_gz_sim.launch.py`, keep `use_joystick:=false` (default) if you drive from another PC, or you may have two joystick publishers.
+- `robot_bringup.launch.py` does not include a `use_joystick` argument.
+- If you launch `diffbot.launch.py` (instead of `diffbot_gz_sim.launch.py`), use `/cmd_vel` as the command topic.
 
 ## Mapping (SLAM Toolbox)
 
@@ -243,7 +313,7 @@ After launch in RViz:
 - `/cmd_vel` (`Twist`) -> `/diffbot_base_controller/cmd_vel` (`TwistStamped`)
 - `/diffbot_base_controller/odom` -> `/odom`
 
-## Raspberry Pi 4 Performance Tuning (ROS 2 Robot)
+## Raspberry Pi 4 Performance Tuning (VMX)
 
 For lower control-loop jitter and better runtime stability on real hardware:
 
@@ -272,17 +342,12 @@ echo 'vm.swappiness=10' | sudo tee /etc/sysctl.d/99-robot-performance.conf
 sudo sysctl -p /etc/sysctl.d/99-robot-performance.conf
 ```
 
-5. Use one ROS 2 middleware implementation consistently in every shell (normal user and `sudo`):
-
-```bash
-echo 'export RMW_IMPLEMENTATION=rmw_fastrtps_cpp' >> ~/.bashrc
-```
-
-Optional (Cyclone DDS):
+5. Use Cyclone DDS consistently in every shell (normal user and `sudo`):
 
 ```bash
 sudo apt install ros-humble-rmw-cyclonedds-cpp
 echo 'export RMW_IMPLEMENTATION=rmw_cyclonedds_cpp' >> ~/.bashrc
+source ~/.bashrc
 ```
 
 6. Optional: disable Snap background services on dedicated robot images:
@@ -300,7 +365,7 @@ systemctl get-default
 for c in /sys/devices/system/cpu/cpu[0-9]*; do echo "$(basename "$c"): $(cat "$c/cpufreq/scaling_governor")"; done
 uptime
 free -h
-journalctl -k --no-pager | rg -i "under-?voltage|throttl|oom|thermal"
+journalctl -k --no-pager | grep -Ei "under-?voltage|throttl|oom|thermal"
 vcgencmd get_throttled   # expected healthy value: throttled=0x0
 ```
 
@@ -336,6 +401,11 @@ Teleop command runs but robot does not move:
 - Avoid `sudo su` for launch. Prefer `sudo -E` so ROS environment is preserved.
 - Short-term workaround: run teleop as `sudo -E` (same user context as launch command).
 - Long-term fix: run bringup without `sudo` by granting required VMX/SPI/CAN permissions to the `vmx` user.
+
+`librmw_cyclonedds_cpp.so` not found:
+
+- Install Cyclone DDS middleware: `sudo apt install ros-humble-rmw-cyclonedds-cpp`
+- Ensure both shells use the same RMW: `echo $RMW_IMPLEMENTATION` and `sudo -E bash -lc 'echo $RMW_IMPLEMENTATION'`
 
 `diffbot_base_controller` fails with `expected [double] got [integer]`:
 
