@@ -85,6 +85,11 @@ https://github.com/ros-simulation/gazebo_ros_demos/blob/kinetic-devel/rrbot_desc
       <material>Gazebo/White</material>
     </gazebo>
 
+    <!-- Lidar mesh color override (mesh can appear white in Gazebo if Collada materials are not resolved). -->
+    <gazebo reference="${prefix}laser_model_link">
+      <material>Gazebo/Grey</material>
+    </gazebo>
+
     <gazebo reference="${prefix}laser_scan_frame">
       <sensor name="sensor_ray" type="ray">
           <pose>0 0 0 0 0 0</pose>

@@ -85,7 +85,7 @@ if(VMXPI_FOUND)
 
   target_sources(studica_vmxpi_ros2
     PRIVATE
-    hardware/titan_system.cpp
+    hardware/vmx_system.cpp
   )
 
   target_link_libraries(studica_vmxpi_ros2
@@ -127,20 +127,12 @@ install(
 add_executable(robot_patrol_node src/patrol.cpp)
 ament_target_dependencies(robot_patrol_node rclcpp sensor_msgs geometry_msgs)
 
-add_executable(nav2_topic_bridge_node src/nav2_topic_bridge.cpp)
-ament_target_dependencies(nav2_topic_bridge_node rclcpp geometry_msgs nav_msgs)
-
-add_executable(scan_frame_relay_node src/scan_frame_relay.cpp)
-ament_target_dependencies(scan_frame_relay_node rclcpp sensor_msgs)
-
-add_executable(imu_topic_relay_node src/imu_topic_relay.cpp)
-ament_target_dependencies(imu_topic_relay_node rclcpp sensor_msgs)
+add_executable(topic_adapter_node src/topic_adapter_node.cpp)
+ament_target_dependencies(topic_adapter_node rclcpp geometry_msgs nav_msgs sensor_msgs)
 
 install(TARGETS
    robot_patrol_node
-   nav2_topic_bridge_node
-   scan_frame_relay_node
-   imu_topic_relay_node
+   topic_adapter_node
    DESTINATION lib/${PROJECT_NAME}
  )
 

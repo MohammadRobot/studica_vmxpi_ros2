@@ -108,6 +108,9 @@ Simulation with joystick:
 ros2 launch studica_vmxpi_ros2 diffbot_gz_sim.launch.py gui:=true use_gz_sim:=true use_joystick:=true
 ```
 
+This launch publishes joystick commands as `TwistStamped` on `/diffbot_base_controller/cmd_vel`
+to match the real-hardware control path.
+
 Simulation with office world:
 
 ```bash
@@ -366,6 +369,8 @@ Node placement reference:
 ## Control (From Another PC)
 
 This section is for teleop from a second PC on the same network, while the robot stack runs on the robot host.
+The same controller command interface is used in hardware and simulation:
+`/diffbot_base_controller/cmd_vel` (`geometry_msgs/msg/TwistStamped`).
 
 On the remote PC, open a terminal and load your ROS networking setup from `~/.bashrc`:
 
@@ -472,7 +477,7 @@ After launch in RViz:
 2. Click `2D Pose Estimate` once to initialize AMCL.
 3. Use `Nav2 Goal` to send goals.
 
-`nav2_topic_bridge_node` is started automatically for Nav2 launches:
+`topic_adapter_node` is started automatically for Nav2 launches with `enable_nav2_bridge:=true`:
 
 - `/cmd_vel` (`Twist`) -> `/diffbot_base_controller/cmd_vel` (`TwistStamped`)
 - `/diffbot_base_controller/odom` -> `/odom`
@@ -566,6 +571,16 @@ Teleop command runs but robot does not move:
 - Short-term workaround: run teleop as `sudo -E` (same user context as launch command).
 - Long-term fix: run bringup without `sudo` by granting required VMX/SPI/CAN permissions to the `vmx` user.
 
+Robot appears in Gazebo Sim, joystick is detected, but robot does not move:
+
+- Confirm joystick topic has non-zero values: `ros2 topic echo /joy --once`
+- Confirm controller input topic has both publisher and subscriber:
+  `ros2 topic info /diffbot_base_controller/cmd_vel`
+- Confirm command is accepted by controller:
+  `ros2 topic echo /diffbot_base_controller/cmd_vel_out --qos-durability transient_local --once`
+- If using a custom joystick launcher in sim, ensure stamped commands use a valid timestamp
+  (for example gamepad node `use_sim_time:=false` or non-zero header stamp).
+
 `librmw_cyclonedds_cpp.so` not found:
 
 - Install Cyclone DDS middleware: `sudo apt install ros-humble-rmw-cyclonedds-cpp`
@@ -618,6 +633,12 @@ Gazebo Sim launch fails with missing package errors:
 - `ros-humble-ros-gzharmonic-sim`
 - `ros-humble-ros-gzharmonic-bridge`
 
+`/scan` is empty and bridge logs `Unknown message type [8]` / `[9]`:
+
+- Cause: mixed Gazebo bridge packages (legacy `ros-humble-ros-gz-*` using ignition transport with Harmonic `gz sim` runtime).
+- Fix: use only Harmonic bridge packages (`ros-humble-ros-gzharmonic-*`) and remove conflicting `ros-humble-ros-gz-*` bridge packages.
+- Verify: `ldd /opt/ros/humble/lib/ros_gz_bridge/parameter_bridge | grep transport` should show `libgz-transport13`, not `libignition-transport11`.
+
 Gazebo Sim launch fails with `libgazebo_ros2_control.so` / `libgazebo_ros_*` plugin errors:
 
 - You launched a Gazebo Classic `.world` file in `gz sim`.
@@ -633,7 +654,7 @@ IMU topic exists but no visible data in echo:
 
 - Use sensor QoS for echo:
 - Hardware mode (aliased from `imu_sensor_broadcaster`): `ros2 topic echo /imu --qos-profile sensor_data`
-- Gazebo Sim bridge: `ros2 topic echo /imu --qos-profile sensor_data`
+- Gazebo Sim mode (relayed from `imu_sensor_broadcaster`): `ros2 topic echo /imu --qos-profile sensor_data`
 
 Odometry is noisy / not smooth enough:
 

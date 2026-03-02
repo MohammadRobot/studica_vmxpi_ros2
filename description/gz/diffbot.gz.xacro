@@ -1,14 +1,35 @@
 <?xml version="1.0"?>
 <robot xmlns:xacro="http://ros.org/wiki/xacro">
 
-  <xacro:macro name="diffbot_gz" params="prefix">
+  <xacro:macro name="diffbot_gz" params="prefix gz_version">
 
     <!-- ros2_control plugin for Gazebo Sim -->
-    <gazebo>
-      <plugin filename="gz_ros2_control-system" name="gz_ros2_control::GazeboSimROS2ControlPlugin">
-        <parameters>$(find studica_vmxpi_ros2)/config/diffbot_controllers.yaml</parameters>
-      </plugin>
-    </gazebo>
+    <xacro:if value="${int(gz_version) &lt; 7}">
+      <gazebo>
+        <plugin filename="ign_ros2_control-system" name="gz_ros2_control::GazeboSimROS2ControlPlugin">
+          <controller_manager_name>controller_manager</controller_manager_name>
+          <robot_param>robot_description</robot_param>
+          <robot_param_node>robot_state_publisher</robot_param_node>
+          <ros>
+            <namespace>/</namespace>
+          </ros>
+          <parameters>$(find studica_vmxpi_ros2)/config/diffbot_controllers.yaml</parameters>
+        </plugin>
+      </gazebo>
+    </xacro:if>
+    <xacro:if value="${int(gz_version) &gt;= 7}">
+      <gazebo>
+        <plugin filename="gz_ros2_control-system" name="gz_ros2_control::GazeboSimROS2ControlPlugin">
+          <controller_manager_name>controller_manager</controller_manager_name>
+          <robot_param>robot_description</robot_param>
+          <robot_param_node>robot_state_publisher</robot_param_node>
+          <ros>
+            <namespace>/</namespace>
+          </ros>
+          <parameters>$(find studica_vmxpi_ros2)/config/diffbot_controllers.yaml</parameters>
+        </plugin>
+      </gazebo>
+    </xacro:if>
 
     <!-- Base Link -->
     <gazebo reference="${prefix}chassis_link">
@@ -51,6 +72,11 @@
       <mu1>0.001</mu1>
       <mu2>0.001</mu2>
       <material>Gazebo/White</material>
+    </gazebo>
+
+    <!-- Lidar mesh color override (mesh can appear white in Gazebo if Collada materials are not resolved). -->
+    <gazebo reference="${prefix}laser_model_link">
+      <material>Gazebo/Grey</material>
     </gazebo>
 
     <!-- Lidar publishes on Gazebo topic /scan; ros_gz_bridge forwards to ROS /scan -->

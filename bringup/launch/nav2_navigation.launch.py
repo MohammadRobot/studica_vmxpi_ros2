@@ -115,11 +115,13 @@ def generate_launch_description():
 
     bridge = Node(
         package="studica_vmxpi_ros2",
-        executable="nav2_topic_bridge_node",
+        executable="topic_adapter_node",
+        name="nav2_topic_bridge",
         output="screen",
         parameters=[
             {
                 "use_sim_time": use_sim_time,
+                "enable_nav2_bridge": True,
                 "input_cmd_vel_topic": "/cmd_vel",
                 "output_cmd_vel_topic": "/diffbot_base_controller/cmd_vel",
                 "input_odom_topic": "/diffbot_base_controller/odom",

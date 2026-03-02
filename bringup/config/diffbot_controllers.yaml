@@ -14,6 +14,7 @@ controller_manager:
 
 diffbot_base_controller:
   ros__parameters:
+    use_stamped_vel: true
     left_wheel_names: ["left_wheel_joint"]
     right_wheel_names: ["right_wheel_joint"]
 

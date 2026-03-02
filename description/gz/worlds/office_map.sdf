@@ -9,6 +9,14 @@
     </plugin>
 
     <gravity>0 0 -9.8</gravity>
+    
+    <gui fullscreen="0">
+      <camera name="user_camera">
+        <pose>0.1075 6.1474 11.2356 0 -1.0854 -1.5712</pose>
+        <view_controller>orbit</view_controller>
+        <projection_type>perspective</projection_type>
+      </camera>
+    </gui>
 
     <scene>
       <ambient>0.6 0.6 0.6 1.0</ambient>

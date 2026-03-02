@@ -42,8 +42,9 @@ High-level data flow in this repo:
 - `gz_ros2_control` + `controller_manager` run drive controllers.
 
 3. Control:
-- Teleop sends velocity commands to `/diffbot_base_controller/cmd_vel`.
+- Teleop sends `geometry_msgs/msg/TwistStamped` commands to `/diffbot_base_controller/cmd_vel`.
 - `diff_drive_controller` generates odom and wheel state.
+- IMU is exposed by `imu_sensor_broadcaster` and relayed to `/imu`.
 
 4. Navigation stack:
 - SLAM Toolbox for mapping (`nav2_mapping_gz_sim.launch.py`).
@@ -61,7 +62,7 @@ Examples in this project:
 - `controller_manager`
 - `joint_state_broadcaster`
 - `diffbot_base_controller`
-- `scan_frame_relay_node`
+- `topic_adapter_node` (scan/imu/nav2 bridging modes)
 - `ros_gz_bridge` (`parameter_bridge`)
 - `joy_node`, `gamepad_teleop`
 
@@ -79,7 +80,7 @@ Important topics:
 - `/scan`, `/scan_raw` (`sensor_msgs/LaserScan`)
 - `/imu` (`sensor_msgs/Imu`)
 - `/tf`, `/tf_static`
-- `/diffbot_base_controller/cmd_vel`
+- `/diffbot_base_controller/cmd_vel` (`geometry_msgs/TwistStamped`)
 - `/diffbot_base_controller/odom`
 - `/clock`
 
@@ -208,7 +209,7 @@ What to learn:
 Keyboard:
 
 ```bash
-ros2 run teleop_twist_keyboard teleop_twist_keyboard --ros-args -p stamped:=True --remap cmd_vel:=/diffbot_base_controller/cmd_vel
+ros2 run teleop_twist_keyboard teleop_twist_keyboard --ros-args -p stamped:=true -p frame_id:=base_link --remap cmd_vel:=/diffbot_base_controller/cmd_vel
 ```
 
 Joystick (from launch):
@@ -216,6 +217,10 @@ Joystick (from launch):
 ```bash
 ros2 launch studica_vmxpi_ros2 diffbot_gz_sim.launch.py gui:=true use_gz_sim:=true use_joystick:=true
 ```
+
+Note:
+- In Gazebo Sim mode, joystick commands are stamped and published to `/diffbot_base_controller/cmd_vel`
+  to match hardware.
 
 Monitor command and output:
 
@@ -315,6 +320,8 @@ Key point:
 ### 11.1 No movement
 - Check controller status: `ros2 control list_controllers`
 - Check command topic: `ros2 topic echo /diffbot_base_controller/cmd_vel`
+- Check command subscription/publisher counts: `ros2 topic info /diffbot_base_controller/cmd_vel`
+- Check controller output acceptance: `ros2 topic echo /diffbot_base_controller/cmd_vel_out --qos-durability transient_local --once`
 
 ### 11.2 TF issues
 - Check TF stream: `ros2 topic echo /tf --once`

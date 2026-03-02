@@ -5,6 +5,7 @@
   <xacro:arg name="use_hardware" default="false" />
   <xacro:arg name="use_gazebo_classic" default="false" />
   <xacro:arg name="use_gz_sim" default="false" />
+  <xacro:arg name="gz_version" default="8" />
 
   <xacro:include filename="$(find studica_vmxpi_ros2)/description/diffbot/urdf/diffbot_description.urdf.xacro" />
 
@@ -32,7 +33,7 @@
   <xacro:if value="$(arg use_gz_sim)">
     <!-- Import Gazebo Sim definitions + plugin -->
     <xacro:include filename="$(find studica_vmxpi_ros2)/description/gz/diffbot.gz.xacro" />
-    <xacro:diffbot_gz prefix="$(arg prefix)"/>
+    <xacro:diffbot_gz prefix="$(arg prefix)" gz_version="$(arg gz_version)"/>
   </xacro:if>
 
 </robot>
