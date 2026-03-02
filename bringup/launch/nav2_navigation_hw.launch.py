@@ -58,12 +58,12 @@ def generate_launch_description():
         DeclareLaunchArgument(
             "use_lidar",
             default_value="true",
-            description="Launch YDLIDAR from studica_ros2_control/lidar_launch.py.",
+            description="Launch YDLIDAR from studica_vmxpi_ros2 hardware LiDAR launch.",
         ),
         DeclareLaunchArgument(
             "ydlidar_params_file",
             default_value="",
-            description="Optional YDLIDAR params YAML. Empty uses ydlidar_ros2_driver/params/X2.yaml.",
+            description="Optional YDLIDAR params YAML. Empty uses studica_vmxpi_ros2/config/ydlidar_x2_hw.yaml.",
         ),
         DeclareLaunchArgument(
             "joystick_cmd_vel_topic",

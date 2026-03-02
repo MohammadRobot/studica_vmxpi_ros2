@@ -37,10 +37,10 @@
 
 namespace studica_vmxpi_ros2
 {
-class TitanSystemHardware : public hardware_interface::SystemInterface
+class VmxSystemHardware : public hardware_interface::SystemInterface
 {
 public:
-  RCLCPP_SHARED_PTR_DEFINITIONS(TitanSystemHardware)
+  RCLCPP_SHARED_PTR_DEFINITIONS(VmxSystemHardware)
 
   hardware_interface::CallbackReturn on_init(
     const hardware_interface::HardwareInfo & info) override;

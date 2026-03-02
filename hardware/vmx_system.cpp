@@ -32,7 +32,7 @@
 
 namespace studica_vmxpi_ros2
 {
-hardware_interface::CallbackReturn TitanSystemHardware::on_init(
+hardware_interface::CallbackReturn VmxSystemHardware::on_init(
   const hardware_interface::HardwareInfo & info)
 {
   if (
@@ -238,13 +238,13 @@ hardware_interface::CallbackReturn TitanSystemHardware::on_init(
     imu_enabled_ = false;
     RCLCPP_WARN(
       get_logger(),
-      "No sensor interfaces configured for TitanSystemHardware; IMU publisher will stay disabled.");
+      "No sensor interfaces configured for VmxSystemHardware; IMU publisher will stay disabled.");
   }
 
   try {
     vmx_ = std::make_shared<VMXPi>(true, 50);
     if (!vmx_ || !vmx_->IsOpen()) {
-      RCLCPP_ERROR(get_logger(), "Unable to open VMXPi device for TitanSystemHardware.");
+      RCLCPP_ERROR(get_logger(), "Unable to open VMXPi device for VmxSystemHardware.");
       return hardware_interface::CallbackReturn::ERROR;
     }
     titan_driver_ = std::make_unique<studica_driver::Titan>(
@@ -253,10 +253,10 @@ hardware_interface::CallbackReturn TitanSystemHardware::on_init(
       imu_driver_ = std::make_unique<studica_driver::Imu>(vmx_);
     }
   } catch (const std::exception & ex) {
-    RCLCPP_ERROR(get_logger(), "Error initializing TitanSystemHardware drivers: %s", ex.what());
+    RCLCPP_ERROR(get_logger(), "Error initializing VmxSystemHardware drivers: %s", ex.what());
     return hardware_interface::CallbackReturn::ERROR;
   }
-  RCLCPP_INFO(get_logger(), "TitanSystemHardware drivers initialized in on_init");
+  RCLCPP_INFO(get_logger(), "VmxSystemHardware drivers initialized in on_init");
 
   // Initialize state and command vectors
   hw_positions_.resize(info_.joints.size(), std::numeric_limits<double>::quiet_NaN());
@@ -352,7 +352,7 @@ hardware_interface::CallbackReturn TitanSystemHardware::on_init(
   return hardware_interface::CallbackReturn::SUCCESS;
 }
 
-std::vector<hardware_interface::StateInterface> TitanSystemHardware::export_state_interfaces()
+std::vector<hardware_interface::StateInterface> VmxSystemHardware::export_state_interfaces()
 {
   std::vector<hardware_interface::StateInterface> state_interfaces;
   for (auto i = 0u; i < info_.joints.size(); i++)
@@ -389,7 +389,7 @@ std::vector<hardware_interface::StateInterface> TitanSystemHardware::export_stat
   return state_interfaces;
 }
 
-std::vector<hardware_interface::CommandInterface> TitanSystemHardware::export_command_interfaces()
+std::vector<hardware_interface::CommandInterface> VmxSystemHardware::export_command_interfaces()
 {
   std::vector<hardware_interface::CommandInterface> command_interfaces;
   for (auto i = 0u; i < info_.joints.size(); i++)
@@ -401,7 +401,7 @@ std::vector<hardware_interface::CommandInterface> TitanSystemHardware::export_co
   return command_interfaces;
 }
 
-hardware_interface::CallbackReturn TitanSystemHardware::on_activate(
+hardware_interface::CallbackReturn VmxSystemHardware::on_activate(
   const rclcpp_lifecycle::State & /*previous_state*/)
 {
   if (!titan_driver_) { // Safety check - should not happen if on_init is successful
@@ -434,7 +434,7 @@ hardware_interface::CallbackReturn TitanSystemHardware::on_activate(
   return hardware_interface::CallbackReturn::SUCCESS;
 }
 
-hardware_interface::CallbackReturn TitanSystemHardware::on_deactivate(
+hardware_interface::CallbackReturn VmxSystemHardware::on_deactivate(
   const rclcpp_lifecycle::State & /*previous_state*/)
 {
   if (titan_driver_) { // Check if titan_driver_ is valid before using
@@ -448,7 +448,7 @@ hardware_interface::CallbackReturn TitanSystemHardware::on_deactivate(
   return hardware_interface::CallbackReturn::SUCCESS;
 }
 
-hardware_interface::return_type TitanSystemHardware::read(
+hardware_interface::return_type VmxSystemHardware::read(
   const rclcpp::Time & /*time*/, const rclcpp::Duration & /*period*/)
 {
   if (!titan_driver_) {
@@ -521,7 +521,7 @@ hardware_interface::return_type TitanSystemHardware::read(
   return hardware_interface::return_type::OK;
 }
 
-hardware_interface::return_type studica_vmxpi_ros2 ::TitanSystemHardware::write(
+hardware_interface::return_type studica_vmxpi_ros2 ::VmxSystemHardware::write(
   const rclcpp::Time & /*time*/, const rclcpp::Duration & /*period*/)
 {
   if (!titan_driver_) {
@@ -580,4 +580,4 @@ hardware_interface::return_type studica_vmxpi_ros2 ::TitanSystemHardware::write(
 
 #include "pluginlib/class_list_macros.hpp"
 PLUGINLIB_EXPORT_CLASS(
-  studica_vmxpi_ros2::TitanSystemHardware, hardware_interface::SystemInterface)
+  studica_vmxpi_ros2::VmxSystemHardware, hardware_interface::SystemInterface)

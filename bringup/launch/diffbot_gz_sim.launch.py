@@ -67,25 +67,34 @@ def _maybe_include_lidar(context, *args, **kwargs):
         return [LogInfo(msg="use_lidar enabled but use_gz_sim is true; skipping real LiDAR launch.")]
 
     try:
-        studica_pkg = get_package_share_directory("studica_ros2_control")
+        studica_pkg = get_package_share_directory("studica_vmxpi_ros2")
     except PackageNotFoundError:
-        return [LogInfo(msg="studica_ros2_control not found; skipping LiDAR launch.")]
+        return [LogInfo(msg="studica_vmxpi_ros2 not found; skipping LiDAR launch.")]
+    try:
+        get_package_share_directory("ydlidar_ros2_driver")
+    except PackageNotFoundError:
+        return [LogInfo(msg="ydlidar_ros2_driver not found; skipping LiDAR launch.")]
 
     ydlidar_params_file = LaunchConfiguration("ydlidar_params_file").perform(context).strip()
     if not ydlidar_params_file:
-        try:
-            ydlidar_pkg = get_package_share_directory("ydlidar_ros2_driver")
-            ydlidar_params_file = os.path.join(ydlidar_pkg, "params", "X2.yaml")
-        except PackageNotFoundError:
-            return [LogInfo(msg="ydlidar_ros2_driver not found; skipping LiDAR launch.")]
+        ydlidar_params_file = os.path.join(studica_pkg, "config", "ydlidar_x2_hw.yaml")
 
     return [
         IncludeLaunchDescription(
             PythonLaunchDescriptionSource(
-                os.path.join(studica_pkg, "launch", "lidar_launch.py")
+                os.path.join(studica_pkg, "launch", "lidar_hw.launch.py")
             ),
             launch_arguments={
                 "ydlidar_params_file": ydlidar_params_file,
+                "lidar_parent_frame": LaunchConfiguration("lidar_parent_frame").perform(context),
+                "lidar_child_frame": LaunchConfiguration("lidar_child_frame").perform(context),
+                "lidar_tf_x": LaunchConfiguration("lidar_tf_x").perform(context),
+                "lidar_tf_y": LaunchConfiguration("lidar_tf_y").perform(context),
+                "lidar_tf_z": LaunchConfiguration("lidar_tf_z").perform(context),
+                "lidar_tf_qx": LaunchConfiguration("lidar_tf_qx").perform(context),
+                "lidar_tf_qy": LaunchConfiguration("lidar_tf_qy").perform(context),
+                "lidar_tf_qz": LaunchConfiguration("lidar_tf_qz").perform(context),
+                "lidar_tf_qw": LaunchConfiguration("lidar_tf_qw").perform(context),
             }.items(),
         )
     ]
@@ -348,7 +357,52 @@ def generate_launch_description():
         DeclareLaunchArgument(
             "ydlidar_params_file",
             default_value="",
-            description="Optional YDLIDAR params YAML. Empty uses ydlidar_ros2_driver/params/X2.yaml.",
+            description="Optional YDLIDAR params YAML. Empty uses studica_vmxpi_ros2/config/ydlidar_x2_hw.yaml.",
+        ),
+        DeclareLaunchArgument(
+            "lidar_parent_frame",
+            default_value="base_link",
+            description="Parent frame for LiDAR static transform.",
+        ),
+        DeclareLaunchArgument(
+            "lidar_child_frame",
+            default_value="laser_frame",
+            description="Child frame for LiDAR static transform.",
+        ),
+        DeclareLaunchArgument(
+            "lidar_tf_x",
+            default_value="0.0",
+            description="LiDAR static TF translation X (meters).",
+        ),
+        DeclareLaunchArgument(
+            "lidar_tf_y",
+            default_value="0.0",
+            description="LiDAR static TF translation Y (meters).",
+        ),
+        DeclareLaunchArgument(
+            "lidar_tf_z",
+            default_value="0.02",
+            description="LiDAR static TF translation Z (meters).",
+        ),
+        DeclareLaunchArgument(
+            "lidar_tf_qx",
+            default_value="0.0",
+            description="LiDAR static TF quaternion X.",
+        ),
+        DeclareLaunchArgument(
+            "lidar_tf_qy",
+            default_value="0.0",
+            description="LiDAR static TF quaternion Y.",
+        ),
+        DeclareLaunchArgument(
+            "lidar_tf_qz",
+            default_value="1.0",
+            description="LiDAR static TF quaternion Z (default rotates hardware LiDAR 180 degrees yaw).",
+        ),
+        DeclareLaunchArgument(
+            "lidar_tf_qw",
+            default_value="0.0",
+            description="LiDAR static TF quaternion W.",
         ),
         DeclareLaunchArgument(
             "joystick_cmd_vel_topic",
