@@ -133,10 +133,14 @@ ament_target_dependencies(nav2_topic_bridge_node rclcpp geometry_msgs nav_msgs)
 add_executable(scan_frame_relay_node src/scan_frame_relay.cpp)
 ament_target_dependencies(scan_frame_relay_node rclcpp sensor_msgs)
 
+add_executable(imu_topic_relay_node src/imu_topic_relay.cpp)
+ament_target_dependencies(imu_topic_relay_node rclcpp sensor_msgs)
+
 install(TARGETS
    robot_patrol_node
    nav2_topic_bridge_node
    scan_frame_relay_node
+   imu_topic_relay_node
    DESTINATION lib/${PROJECT_NAME}
  )
 

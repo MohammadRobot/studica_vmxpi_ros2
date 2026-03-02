@@ -24,6 +24,7 @@
   <depend>gz_ros2_control</depend>
   <depend>joint_state_broadcaster</depend>
   <depend>diff_drive_controller</depend>
+  <depend>imu_sensor_broadcaster</depend>
   <depend>gazebo_ros</depend>
   <depend>geometry_msgs</depend>
   <depend>nav_msgs</depend>
@@ -48,6 +49,8 @@
   <exec_depend>slam_toolbox</exec_depend>
   <exec_depend>ros_gz_sim</exec_depend>
   <exec_depend>ros_gz_bridge</exec_depend>
+  <exec_depend>studica_ros2_control</exec_depend>
+  <exec_depend>ydlidar_ros2_driver</exec_depend>
  
   <test_depend>ament_lint_auto</test_depend>
   <test_depend>ament_lint_common</test_depend>

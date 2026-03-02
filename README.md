@@ -129,12 +129,19 @@ ros2 launch studica_vmxpi_ros2 diffbot_gz_sim.launch.py use_hardware:=true use_g
 '
 ```
 
-In this real-hardware mode, LiDAR now starts automatically by default (`use_lidar:=true` when `use_hardware:=true`).
+In this real-hardware mode, LiDAR starts automatically by default (`use_lidar:=true` when `use_hardware:=true`).
+IMU is published by `imu_sensor_broadcaster` in the same `ros2_control` stack (single VMX hardware owner), and relayed to `/imu` for compatibility.
 
 Disable LiDAR auto-start if needed:
 
 ```bash
 ros2 launch studica_vmxpi_ros2 diffbot_gz_sim.launch.py use_hardware:=true use_gz_sim:=false use_lidar:=false
+```
+
+Check IMU data (published from `ros2_control`):
+
+```bash
+ros2 topic echo /imu --qos-profile sensor_data --once
 ```
 
 Use a custom YDLIDAR params file from the main bringup:
@@ -144,6 +151,42 @@ ros2 launch studica_vmxpi_ros2 diffbot_gz_sim.launch.py \
   use_hardware:=true use_gz_sim:=false \
   ydlidar_params_file:=/path/to/ydlidar.yaml
 ```
+
+IMU broadcaster settings are configured in `bringup/config/diffbot_controllers.yaml` (`imu_sensor_broadcaster` block).
+
+## Production Health Check
+
+After launching hardware mode, run these checks:
+
+```bash
+ros2 topic list | grep -E "^/cmd_vel$|^/odom$|^/imu$|^/scan$"
+```
+
+Expected: public API topics are present (`/cmd_vel`, `/odom`, `/imu`, `/scan`).
+
+```bash
+ros2 control list_controllers
+```
+
+Expected: `joint_state_broadcaster`, `diffbot_base_controller`, and `imu_sensor_broadcaster` are `active`.
+
+```bash
+ros2 topic hz /imu
+```
+
+Expected: stable IMU publish rate (non-zero, continuous output).
+
+```bash
+ros2 topic echo /imu --qos-profile sensor_data --once
+```
+
+Expected: one `sensor_msgs/msg/Imu` message with orientation, angular velocity, and linear acceleration fields.
+
+```bash
+ros2 topic echo /odom --once
+```
+
+Expected: one `nav_msgs/msg/Odometry` message on `/odom` (aliased from `/diffbot_base_controller/odom`).
 
 ## VMX Real Robot Setup
 
@@ -212,13 +255,14 @@ export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/usr/local/lib/vmxpi
 
 ## Optional Bringup
 
-Start drive stack plus Studica sensors:
+Legacy combined bringup (not recommended for production single-runtime mode):
 
 ```bash
 ros2 launch studica_vmxpi_ros2 robot_bringup.launch.py use_studica_sensors:=true
 ```
 
-`use_studica_sensors` defaults to `use_hardware`, so sensors auto-enable on hardware launches.
+Use this only for compatibility testing.  
+Production hardware mode should use `diffbot_gz_sim.launch.py use_hardware:=true use_gz_sim:=false`, where IMU is already inside `ros2_control`.
 
 ## LiDAR (YDLIDAR)
 
@@ -277,7 +321,8 @@ ros2 launch ydlidar_ros2_driver ydlidar_launch_view.py
 - Gazebo Sim launch: `diffbot_gz_sim.launch.py`
 - Gazebo Sim Nav2 launches:
   - `nav2_mapping_gz_sim.launch.py`
-  - `nav2_navigation_gz_sim.launch.py`
+  - `nav2_navigation_gz_sim.launch.py` (simulation only)
+- Real robot Nav2 launch: `nav2_navigation_hw.launch.py`
 - Gazebo Sim sensor topics:
   - `/scan` (`sensor_msgs/LaserScan`)
 - `/imu` (`sensor_msgs/Imu`)
@@ -307,8 +352,8 @@ Node placement reference:
 | Component / Node Group | Run Host | Why |
 |---|---|---|
 | `studica_drivers` + VMX/Titan hardware interfaces | Robot (VMX) | Direct hardware access (SPI/CAN/GPIO), lowest control latency. |
-| `controller_manager` + drive controllers (`diff_drive_controller`) | Robot (VMX) | Keeps motor control loop local and stable. |
-| `studica_ros2_control` hardware-facing nodes | Robot (VMX) | Sensor and actuator timing stays close to hardware. |
+| `controller_manager` + controllers (`diff_drive_controller`, `imu_sensor_broadcaster`) | Robot (VMX) | Keeps motor + IMU control loop local and stable. |
+| `studica_ros2_control` teleop/utilities (optional) | Robot or Remote PC | Use for optional tools (for example joystick helper), not primary hardware runtime. |
 | `ydlidar_ros2_driver` | Robot (VMX) | Serial LiDAR data capture should stay local to `/dev/ttyUSB*`. |
 | TF publishers tied to physical sensors | Robot (VMX) | Keeps robot frame tree synchronized with real sensors. |
 | Teleop nodes (`teleop_twist_keyboard`, gamepad client) | Remote PC | Operator input/UI runs offboard to reduce VMX load. |
@@ -376,7 +421,6 @@ Notes:
 
 - When launching `diffbot_gz_sim.launch.py` or `nav2_*_gz_sim.launch.py`, keep `use_joystick:=false` (default) if you drive from another PC, or you may have two joystick publishers.
 - `robot_bringup.launch.py` does not include a `use_joystick` argument.
-- If you launch `diffbot.launch.py` (instead of `diffbot_gz_sim.launch.py`), use `/cmd_vel` as the command topic.
 
 ## Mapping (SLAM Toolbox)
 
@@ -404,13 +448,21 @@ ros2 service call /slam_toolbox/save_map slam_toolbox/srv/SaveMap "{name: {data:
 
 ## Navigation (Nav2 + AMCL)
 
-Launch navigation with a saved map:
+Launch navigation in simulation with a saved map:
 
 ```bash
 WORLD_SDF="$(ros2 pkg prefix studica_vmxpi_ros2)/share/studica_vmxpi_ros2/description/gz/worlds/office_map.sdf"
 ros2 launch studica_vmxpi_ros2 nav2_navigation_gz_sim.launch.py \
-  gui:=true use_gz_sim:=true use_joystick:=true \
+  gui:=true use_joystick:=true \
   world:="${WORLD_SDF}" \
+  map:="$HOME/ros2_ws/src/studica_vmxpi_ros2/maps/my_map.yaml"
+```
+
+Launch navigation on the real robot with a saved map:
+
+```bash
+ros2 launch studica_vmxpi_ros2 nav2_navigation_hw.launch.py \
+  gui:=true \
   map:="$HOME/ros2_ws/src/studica_vmxpi_ros2/maps/my_map.yaml"
 ```
 
@@ -577,10 +629,11 @@ Robot drives too slowly in simulation:
 - Check wheel joint velocity limits in `description/diffbot/urdf/diffbot_description.urdf.xacro`.
 - Low values (for example `velocity="1.0"`) strongly cap top speed.
 
-`/imu` topic exists but no visible data in `ros2 topic echo /imu`:
+IMU topic exists but no visible data in echo:
 
 - Use sensor QoS for echo:
-- `ros2 topic echo /imu --qos-profile sensor_data`
+- Hardware mode (aliased from `imu_sensor_broadcaster`): `ros2 topic echo /imu --qos-profile sensor_data`
+- Gazebo Sim bridge: `ros2 topic echo /imu --qos-profile sensor_data`
 
 Odometry is noisy / not smooth enough:
 

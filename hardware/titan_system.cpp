@@ -14,6 +14,7 @@
 
 #include "studica_vmxpi_ros2/titan_system.hpp"
 
+#include <algorithm>
 #include <chrono>
 #include <cctype>
 #include <cmath>
@@ -22,7 +23,6 @@
 #include <limits>
 #include <memory>
 #include <sstream>
-#include <thread>
 #include <vector>
 #include <math.h>
 
@@ -117,12 +117,36 @@ hardware_interface::CallbackReturn TitanSystemHardware::on_init(
     return hardware_interface::CallbackReturn::ERROR;
   }
 
+  if (can_id < 0 || can_id > static_cast<int>(std::numeric_limits<uint8_t>::max())) {
+    RCLCPP_ERROR(
+      get_logger(), "can_id=%d is out of range [0, %u].", can_id,
+      static_cast<unsigned>(std::numeric_limits<uint8_t>::max()));
+    return hardware_interface::CallbackReturn::ERROR;
+  }
+  if (motor_freq <= 0 || motor_freq > static_cast<int>(std::numeric_limits<uint16_t>::max())) {
+    RCLCPP_ERROR(
+      get_logger(), "motor_freq=%d is out of range [1, %u].", motor_freq,
+      static_cast<unsigned>(std::numeric_limits<uint16_t>::max()));
+    return hardware_interface::CallbackReturn::ERROR;
+  }
+
   can_id_ = static_cast<uint8_t>(can_id);
   motor_freq_ = static_cast<uint16_t>(motor_freq);
   ticks_per_rotation_ = ticks_per_rotation;
   wheel_radius_ = wheel_radius;
 
   if (!get_double_param("speed_scale", speed_scale_, false)) {
+    return hardware_interface::CallbackReturn::ERROR;
+  }
+  if (!get_double_param("max_wheel_angular_velocity_rad_s", max_wheel_angular_velocity_rad_s_, false)) {
+    return hardware_interface::CallbackReturn::ERROR;
+  }
+  if (speed_scale_ < 0.0) {
+    RCLCPP_ERROR(get_logger(), "speed_scale must be >= 0.0.");
+    return hardware_interface::CallbackReturn::ERROR;
+  }
+  if (max_wheel_angular_velocity_rad_s_ <= 0.0) {
+    RCLCPP_ERROR(get_logger(), "max_wheel_angular_velocity_rad_s must be > 0.0.");
     return hardware_interface::CallbackReturn::ERROR;
   }
 
@@ -178,14 +202,61 @@ hardware_interface::CallbackReturn TitanSystemHardware::on_init(
 
   dist_per_tick_ = 2.0 * M_PI * wheel_radius_ / static_cast<double>(ticks_per_rotation_);
 
+  if (!info_.sensors.empty()) {
+    if (info_.sensors.size() > 1) {
+      RCLCPP_WARN(
+        get_logger(),
+        "Multiple sensors defined; using first sensor '%s' for IMU interfaces.",
+        info_.sensors.front().name.c_str());
+    }
+    const auto & imu_sensor = info_.sensors.front();
+    imu_enabled_ = true;
+    imu_sensor_name_ = imu_sensor.name;
+
+    const std::vector<std::string> required_imu_interfaces = {
+      "orientation.x", "orientation.y", "orientation.z", "orientation.w",
+      "angular_velocity.x", "angular_velocity.y", "angular_velocity.z",
+      "linear_acceleration.x", "linear_acceleration.y", "linear_acceleration.z"};
+
+    for (const auto & interface_name : required_imu_interfaces) {
+      const bool has_interface = std::any_of(
+        imu_sensor.state_interfaces.begin(),
+        imu_sensor.state_interfaces.end(),
+        [&](const auto & state_interface) {
+          return state_interface.name == interface_name;
+        });
+      if (!has_interface) {
+        RCLCPP_ERROR(
+          get_logger(),
+          "Sensor '%s' is missing required IMU state interface '%s'.",
+          imu_sensor.name.c_str(),
+          interface_name.c_str());
+        return hardware_interface::CallbackReturn::ERROR;
+      }
+    }
+  } else {
+    imu_enabled_ = false;
+    RCLCPP_WARN(
+      get_logger(),
+      "No sensor interfaces configured for TitanSystemHardware; IMU publisher will stay disabled.");
+  }
+
   try {
+    vmx_ = std::make_shared<VMXPi>(true, 50);
+    if (!vmx_ || !vmx_->IsOpen()) {
+      RCLCPP_ERROR(get_logger(), "Unable to open VMXPi device for TitanSystemHardware.");
+      return hardware_interface::CallbackReturn::ERROR;
+    }
     titan_driver_ = std::make_unique<studica_driver::Titan>(
-      can_id_, motor_freq_, static_cast<float>(dist_per_tick_));
+      can_id_, motor_freq_, static_cast<float>(dist_per_tick_), vmx_);
+    if (imu_enabled_) {
+      imu_driver_ = std::make_unique<studica_driver::Imu>(vmx_);
+    }
   } catch (const std::exception & ex) {
-    RCLCPP_ERROR(get_logger(), "Error initializing Titan driver: %s", ex.what());
+    RCLCPP_ERROR(get_logger(), "Error initializing TitanSystemHardware drivers: %s", ex.what());
     return hardware_interface::CallbackReturn::ERROR;
   }
-  RCLCPP_INFO(get_logger(), "Titan driver initialized in on_init");
+  RCLCPP_INFO(get_logger(), "TitanSystemHardware drivers initialized in on_init");
 
   // Initialize state and command vectors
   hw_positions_.resize(info_.joints.size(), std::numeric_limits<double>::quiet_NaN());
@@ -292,6 +363,29 @@ std::vector<hardware_interface::StateInterface> TitanSystemHardware::export_stat
       info_.joints[i].name, hardware_interface::HW_IF_VELOCITY, &hw_velocities_[i]));
   }
 
+  if (imu_enabled_) {
+    state_interfaces.emplace_back(
+      imu_sensor_name_, "orientation.x", &imu_orientation_x_);
+    state_interfaces.emplace_back(
+      imu_sensor_name_, "orientation.y", &imu_orientation_y_);
+    state_interfaces.emplace_back(
+      imu_sensor_name_, "orientation.z", &imu_orientation_z_);
+    state_interfaces.emplace_back(
+      imu_sensor_name_, "orientation.w", &imu_orientation_w_);
+    state_interfaces.emplace_back(
+      imu_sensor_name_, "angular_velocity.x", &imu_angular_velocity_x_);
+    state_interfaces.emplace_back(
+      imu_sensor_name_, "angular_velocity.y", &imu_angular_velocity_y_);
+    state_interfaces.emplace_back(
+      imu_sensor_name_, "angular_velocity.z", &imu_angular_velocity_z_);
+    state_interfaces.emplace_back(
+      imu_sensor_name_, "linear_acceleration.x", &imu_linear_acceleration_x_);
+    state_interfaces.emplace_back(
+      imu_sensor_name_, "linear_acceleration.y", &imu_linear_acceleration_y_);
+    state_interfaces.emplace_back(
+      imu_sensor_name_, "linear_acceleration.z", &imu_linear_acceleration_z_);
+  }
+
   return state_interfaces;
 }
 
@@ -314,6 +408,10 @@ hardware_interface::CallbackReturn TitanSystemHardware::on_activate(
     RCLCPP_ERROR(get_logger(), "Titan driver is not initialized in on_activate!");
     return hardware_interface::CallbackReturn::ERROR;
   }
+  if (imu_enabled_ && !imu_driver_) {
+    RCLCPP_ERROR(get_logger(), "IMU driver is not initialized in on_activate!");
+    return hardware_interface::CallbackReturn::ERROR;
+  }
   // set some default values
   for (auto i = 0u; i < hw_positions_.size(); i++)
   {
@@ -323,6 +421,10 @@ hardware_interface::CallbackReturn TitanSystemHardware::on_activate(
       hw_velocities_[i] = 0;
       hw_commands_[i] = 0;
     }
+  }
+
+  if (imu_enabled_) {
+    imu_driver_->ZeroYaw();
   }
 
   titan_driver_->Enable(true);
@@ -337,7 +439,6 @@ hardware_interface::CallbackReturn TitanSystemHardware::on_deactivate(
 {
   if (titan_driver_) { // Check if titan_driver_ is valid before using
     titan_driver_->Enable(false);
-    std::this_thread::sleep_for(std::chrono::milliseconds((int64_t)(5.0 * 1000))); //This Delay is just to check if the Titan does disable
   } else {
     RCLCPP_WARN(get_logger(), "Titan driver is not initialized in on_deactivate, nothing to disable.");
   }
@@ -399,6 +500,24 @@ hardware_interface::return_type TitanSystemHardware::read(
     hw_velocities_[1] = right_rpm * rpm_to_rad_s;
   }
 
+  if (imu_enabled_ && imu_driver_) {
+    constexpr double kDegToRad = M_PI / 180.0;
+    constexpr double kGToMetersPerSecondSquared = 9.80665;
+
+    imu_orientation_x_ = imu_driver_->GetQuaternionX();
+    imu_orientation_y_ = imu_driver_->GetQuaternionY();
+    imu_orientation_z_ = imu_driver_->GetQuaternionZ();
+    imu_orientation_w_ = imu_driver_->GetQuaternionW();
+
+    imu_angular_velocity_x_ = imu_driver_->GetRawGyroX() * kDegToRad;
+    imu_angular_velocity_y_ = imu_driver_->GetRawGyroY() * kDegToRad;
+    imu_angular_velocity_z_ = imu_driver_->GetRawGyroZ() * kDegToRad;
+
+    imu_linear_acceleration_x_ = imu_driver_->GetWorldLinearAccelX() * kGToMetersPerSecondSquared;
+    imu_linear_acceleration_y_ = imu_driver_->GetWorldLinearAccelY() * kGToMetersPerSecondSquared;
+    imu_linear_acceleration_z_ = imu_driver_->GetWorldLinearAccelZ() * kGToMetersPerSecondSquared;
+  }
+
   return hardware_interface::return_type::OK;
 }
 
@@ -415,18 +534,32 @@ hardware_interface::return_type studica_vmxpi_ros2 ::TitanSystemHardware::write(
     return hardware_interface::return_type::ERROR;
   }
 
-  double left_cmd = hw_commands_[0];
-  double right_cmd = hw_commands_[1];
+  double left_cmd_rad_s = hw_commands_[0];
+  double right_cmd_rad_s = hw_commands_[1];
 
-  if (std::isnan(left_cmd)) {
-    left_cmd = 0.0;
+  if (std::isnan(left_cmd_rad_s)) {
+    left_cmd_rad_s = 0.0;
   }
-  if (std::isnan(right_cmd)) {
-    right_cmd = 0.0;
+  if (std::isnan(right_cmd_rad_s)) {
+    right_cmd_rad_s = 0.0;
   }
 
-  left_cmd *= speed_scale_;
-  right_cmd *= speed_scale_;
+  const double left_cmd_scaled =
+    (left_cmd_rad_s / max_wheel_angular_velocity_rad_s_) * speed_scale_;
+  const double right_cmd_scaled =
+    (right_cmd_rad_s / max_wheel_angular_velocity_rad_s_) * speed_scale_;
+
+  const double left_cmd = std::clamp(left_cmd_scaled, -1.0, 1.0);
+  const double right_cmd = std::clamp(right_cmd_scaled, -1.0, 1.0);
+
+  if (std::abs(left_cmd_scaled - left_cmd) > 1e-9 || std::abs(right_cmd_scaled - right_cmd) > 1e-9) {
+    RCLCPP_WARN_THROTTLE(
+      get_logger(), *get_clock(), 2000,
+      "Wheel command saturated to Titan range [-1, 1]: raw(rad/s) left=%.3f right=%.3f, "
+      "scaled left=%.3f right=%.3f, max_wheel_angular_velocity_rad_s=%.3f, speed_scale=%.3f",
+      left_cmd_rad_s, right_cmd_rad_s, left_cmd_scaled, right_cmd_scaled,
+      max_wheel_angular_velocity_rad_s_, speed_scale_);
+  }
 
   auto set_speed = [&](int motor, double value) {
     if (motor < 0) {

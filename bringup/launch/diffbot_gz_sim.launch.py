@@ -5,7 +5,7 @@ from launch import LaunchDescription
 from launch.actions import DeclareLaunchArgument, IncludeLaunchDescription, LogInfo, OpaqueFunction, TimerAction
 from launch.conditions import IfCondition, UnlessCondition
 from launch.launch_description_sources import PythonLaunchDescriptionSource
-from launch.substitutions import Command, FindExecutable, LaunchConfiguration, PathJoinSubstitution
+from launch.substitutions import Command, FindExecutable, LaunchConfiguration, PathJoinSubstitution, PythonExpression
 from launch_ros.actions import Node
 from launch_ros.parameter_descriptions import ParameterValue
 from launch_ros.substitutions import FindPackageShare
@@ -340,6 +340,74 @@ def generate_launch_description():
         arguments=["joint_state_broadcaster", "--controller-manager", "/controller_manager"],
     )
 
+    imu_sensor_broadcaster_spawner = Node(
+        package="controller_manager",
+        executable="spawner",
+        arguments=["imu_sensor_broadcaster", "--controller-manager", "/controller_manager"],
+        condition=IfCondition(
+            PythonExpression(
+                [
+                    "('",
+                    use_hardware,
+                    "').lower() in ['true','1','yes','on'] and ('",
+                    use_gz_sim,
+                    "').lower() in ['false','0','no','off']",
+                ]
+            )
+        ),
+    )
+
+    imu_alias_relay_node = Node(
+        package="studica_vmxpi_ros2",
+        executable="imu_topic_relay_node",
+        output="screen",
+        parameters=[
+            {
+                "use_sim_time": use_sim_time,
+                "input_topic": "/imu_sensor_broadcaster/imu",
+                "output_topic": "/imu",
+            }
+        ],
+        condition=IfCondition(
+            PythonExpression(
+                [
+                    "('",
+                    use_hardware,
+                    "').lower() in ['true','1','yes','on'] and ('",
+                    use_gz_sim,
+                    "').lower() in ['false','0','no','off']",
+                ]
+            )
+        ),
+    )
+
+    control_api_bridge_node = Node(
+        package="studica_vmxpi_ros2",
+        executable="nav2_topic_bridge_node",
+        output="screen",
+        parameters=[
+            {
+                "use_sim_time": use_sim_time,
+                "input_cmd_vel_topic": "/cmd_vel",
+                "output_cmd_vel_topic": "/diffbot_base_controller/cmd_vel",
+                "input_odom_topic": "/diffbot_base_controller/odom",
+                "output_odom_topic": "/odom",
+                "cmd_vel_frame_id": "base_link",
+            }
+        ],
+        condition=IfCondition(
+            PythonExpression(
+                [
+                    "('",
+                    use_hardware,
+                    "').lower() in ['true','1','yes','on'] and ('",
+                    use_gz_sim,
+                    "').lower() in ['false','0','no','off']",
+                ]
+            )
+        ),
+    )
+
     robot_controller_spawner = Node(
         package="controller_manager",
         executable="spawner",
@@ -380,6 +448,9 @@ def generate_launch_description():
         node_robot_state_publisher,
         base_footprint_tf,
         joint_state_broadcaster_spawner,
+        imu_sensor_broadcaster_spawner,
+        imu_alias_relay_node,
+        control_api_bridge_node,
         robot_controller_spawner,
         rviz_node,
         OpaqueFunction(function=_maybe_include_gamepad),

@@ -232,6 +232,16 @@
         <child link="${prefix}laser_scan_frame"/>
       </joint>
 
+      <link name="${prefix}imu_link">
+        <origin rpy="0 0 0" xyz="0 0 0"/>
+      </link>
+
+      <joint name="${prefix}imu_link_joint" type="fixed">
+        <origin rpy="0 0 0" xyz="0 0 0"/>
+        <parent link="${prefix}chassis_link"/>
+        <child link="${prefix}imu_link"/>
+      </joint>
+
   </xacro:macro>
 
 </robot>

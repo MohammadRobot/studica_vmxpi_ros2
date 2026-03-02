@@ -1,4 +1,4 @@
-# Combined bringup: ros2_control (studica_vmxpi_ros2) + optional studica sensors.
+# Legacy combined bringup: ros2_control (studica_vmxpi_ros2) + optional studica sensors.
 
 import os
 
@@ -21,6 +21,9 @@ def _maybe_include_studica(context, *args, **kwargs):
         return [LogInfo(msg="studica_ros2_control not found; skipping sensors_only launch.")]
 
     return [
+        LogInfo(
+            msg="Launching legacy studica_ros2_control sensors_only alongside ros2_control (not recommended for production)."
+        ),
         IncludeLaunchDescription(
             PythonLaunchDescriptionSource(
                 os.path.join(pkg_share, "launch", "sensors_only.launch.py")
@@ -60,8 +63,8 @@ def generate_launch_description():
         ),
         DeclareLaunchArgument(
             "use_studica_sensors",
-            default_value=LaunchConfiguration("use_hardware"),
-            description="Launch studica_ros2_control sensors_only node (defaults to use_hardware).",
+            default_value="false",
+            description="Legacy mode: launch studica_ros2_control sensors_only node (disabled by default).",
         ),
     ]
 

@@ -32,7 +32,8 @@
 #include "rclcpp_lifecycle/node_interfaces/lifecycle_node_interface.hpp"
 #include "rclcpp_lifecycle/state.hpp"
 
-#include "titan.h"// Include Titan driver header
+#include "imu.h"
+#include "titan.h"
 
 namespace studica_vmxpi_ros2
 {
@@ -78,7 +79,9 @@ private:
   std::shared_ptr<rclcpp::Logger> logger_;
   rclcpp::Clock::SharedPtr clock_;
 
+  std::shared_ptr<VMXPi> vmx_;
   std::unique_ptr<studica_driver::Titan> titan_driver_;
+  std::unique_ptr<studica_driver::Imu> imu_driver_;
   std::vector<double> hw_positions_; // Store current joint positions
   std::vector<double> hw_velocities_; // Store current joint velocities
   std::vector<double> hw_commands_; // Store commanded joint velocities
@@ -89,6 +92,7 @@ private:
   double wheel_radius_{0.0};
   double dist_per_tick_{0.0};
   double speed_scale_{1.0};
+  double max_wheel_angular_velocity_rad_s_{20.0};
 
   int left_front_motor_{-1};
   int left_rear_motor_{-1};
@@ -104,6 +108,19 @@ private:
   bool invert_left_rear_encoder_{false};
   bool invert_right_front_encoder_{false};
   bool invert_right_rear_encoder_{false};
+
+  bool imu_enabled_{false};
+  std::string imu_sensor_name_{"imu_sensor"};
+  double imu_orientation_x_{0.0};
+  double imu_orientation_y_{0.0};
+  double imu_orientation_z_{0.0};
+  double imu_orientation_w_{1.0};
+  double imu_angular_velocity_x_{0.0};
+  double imu_angular_velocity_y_{0.0};
+  double imu_angular_velocity_z_{0.0};
+  double imu_linear_acceleration_x_{0.0};
+  double imu_linear_acceleration_y_{0.0};
+  double imu_linear_acceleration_z_{0.0};
 };
 
 }  // namespace studica_vmxpi_ros2

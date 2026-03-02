@@ -5,7 +5,6 @@ from launch import LaunchDescription
 from launch.actions import DeclareLaunchArgument, IncludeLaunchDescription, LogInfo, OpaqueFunction
 from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch.substitutions import LaunchConfiguration, PathJoinSubstitution
-from launch_ros.actions import Node
 from launch_ros.substitutions import FindPackageShare
 
 
@@ -47,46 +46,24 @@ def generate_launch_description():
             description="Start RViz2 from robot launch.",
         ),
         DeclareLaunchArgument(
-            "world",
-            default_value=PathJoinSubstitution(
-                [FindPackageShare("studica_vmxpi_ros2"), "description/gz/worlds", "diff_drive_world.sdf"]
-            ),
-            description="Absolute path to Gazebo Sim world file.",
-        ),
-        DeclareLaunchArgument(
-            "world_name",
-            default_value="default",
-            description="World name to spawn into.",
-        ),
-        DeclareLaunchArgument(
-            "spawn_x",
-            default_value="0.0",
-            description="Initial robot spawn x (meters).",
-        ),
-        DeclareLaunchArgument(
-            "spawn_y",
-            default_value="0.0",
-            description="Initial robot spawn y (meters).",
-        ),
-        DeclareLaunchArgument(
-            "spawn_z",
-            default_value="0.10",
-            description="Initial robot spawn z (meters).",
-        ),
-        DeclareLaunchArgument(
-            "spawn_yaw",
-            default_value="0.0",
-            description="Initial robot spawn yaw (radians).",
-        ),
-        DeclareLaunchArgument(
             "use_sim_time",
-            default_value="true",
+            default_value="false",
             description="Use simulation time.",
         ),
         DeclareLaunchArgument(
             "use_joystick",
             default_value="false",
             description="Launch joystick teleop from studica_ros2_control.",
+        ),
+        DeclareLaunchArgument(
+            "use_lidar",
+            default_value="true",
+            description="Launch YDLIDAR from studica_ros2_control/lidar_launch.py.",
+        ),
+        DeclareLaunchArgument(
+            "ydlidar_params_file",
+            default_value="",
+            description="Optional YDLIDAR params YAML. Empty uses ydlidar_ros2_driver/params/X2.yaml.",
         ),
         DeclareLaunchArgument(
             "joystick_cmd_vel_topic",
@@ -116,14 +93,10 @@ def generate_launch_description():
     ]
 
     gui = LaunchConfiguration("gui")
-    world = LaunchConfiguration("world")
-    world_name = LaunchConfiguration("world_name")
-    spawn_x = LaunchConfiguration("spawn_x")
-    spawn_y = LaunchConfiguration("spawn_y")
-    spawn_z = LaunchConfiguration("spawn_z")
-    spawn_yaw = LaunchConfiguration("spawn_yaw")
     use_sim_time = LaunchConfiguration("use_sim_time")
     use_joystick = LaunchConfiguration("use_joystick")
+    use_lidar = LaunchConfiguration("use_lidar")
+    ydlidar_params_file = LaunchConfiguration("ydlidar_params_file")
     joystick_cmd_vel_topic = LaunchConfiguration("joystick_cmd_vel_topic")
     joystick_publish_stamped = LaunchConfiguration("joystick_publish_stamped")
 
@@ -133,37 +106,17 @@ def generate_launch_description():
         ),
         launch_arguments={
             "gui": gui,
-            "use_hardware": "false",
-            "use_gz_sim": "true",
-            "world": world,
-            "world_name": world_name,
-            "spawn_x": spawn_x,
-            "spawn_y": spawn_y,
-            "spawn_z": spawn_z,
-            "spawn_yaw": spawn_yaw,
+            "use_hardware": "true",
+            "use_gz_sim": "false",
             "use_sim_time": use_sim_time,
             "use_joystick": use_joystick,
+            "use_lidar": use_lidar,
+            "ydlidar_params_file": ydlidar_params_file,
             "joystick_cmd_vel_topic": joystick_cmd_vel_topic,
             "joystick_publish_stamped": joystick_publish_stamped,
         }.items(),
     )
 
-    bridge = Node(
-        package="studica_vmxpi_ros2",
-        executable="nav2_topic_bridge_node",
-        output="screen",
-        parameters=[
-            {
-                "use_sim_time": use_sim_time,
-                "input_cmd_vel_topic": "/cmd_vel",
-                "output_cmd_vel_topic": "/diffbot_base_controller/cmd_vel",
-                "input_odom_topic": "/diffbot_base_controller/odom",
-                "output_odom_topic": "/odom",
-                "cmd_vel_frame_id": "base_link",
-            }
-        ],
-    )
-
     return LaunchDescription(
-        declared_arguments + [robot, bridge, OpaqueFunction(function=_maybe_include_nav2)]
+        declared_arguments + [robot, OpaqueFunction(function=_maybe_include_nav2)]
     )
