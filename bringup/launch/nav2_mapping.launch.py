@@ -1,7 +1,7 @@
 from launch import LaunchDescription
 from launch.actions import DeclareLaunchArgument, IncludeLaunchDescription
 from launch.launch_description_sources import PythonLaunchDescriptionSource
-from launch.substitutions import LaunchConfiguration, PathJoinSubstitution
+from launch.substitutions import LaunchConfiguration, PathJoinSubstitution, PythonExpression
 from launch_ros.substitutions import FindPackageShare
 
 
@@ -11,6 +11,11 @@ def generate_launch_description():
             "gui",
             default_value="true",
             description="Start RViz2 from robot launch.",
+        ),
+        DeclareLaunchArgument(
+            "robot_profile",
+            default_value="training_4wd",
+            description="Robot profile under config/profiles.",
         ),
         DeclareLaunchArgument(
             "use_hardware",
@@ -49,26 +54,37 @@ def generate_launch_description():
     ]
 
     gui = LaunchConfiguration("gui")
+    robot_profile = LaunchConfiguration("robot_profile")
     use_hardware = LaunchConfiguration("use_hardware")
     use_gazebo_classic = LaunchConfiguration("use_gazebo_classic")
     world = LaunchConfiguration("world")
     use_sim_time = LaunchConfiguration("use_sim_time")
     use_joystick = LaunchConfiguration("use_joystick")
     slam_params_file = LaunchConfiguration("slam_params_file")
+    mode = PythonExpression(
+        [
+            "'gazebo_classic' if ('",
+            use_gazebo_classic,
+            "').lower() in ['true','1','yes','on'] else "
+            "('hardware' if ('",
+            use_hardware,
+            "').lower() in ['true','1','yes','on'] else 'mock')",
+        ]
+    )
 
     robot = IncludeLaunchDescription(
         PythonLaunchDescriptionSource(
             PathJoinSubstitution(
-                [FindPackageShare("studica_vmxpi_ros2"), "launch", "diffbot_gazebo_classic.launch.py"]
+                [FindPackageShare("studica_vmxpi_ros2"), "launch", "bringup.launch.py"]
             )
         ),
         launch_arguments={
+            "mode": mode,
             "gui": gui,
-            "use_hardware": use_hardware,
-            "use_gazebo_classic": use_gazebo_classic,
             "world": world,
             "use_sim_time": use_sim_time,
             "use_joystick": use_joystick,
+            "robot_profile": robot_profile,
         }.items(),
     )
 

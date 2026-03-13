@@ -116,7 +116,7 @@ clear_stale_vmx_processes() {
   pkill -f "/opt/ros/humble/bin/ros2 run studica_ros2_control manual_composition" >/dev/null 2>&1 || true
   pkill -f "/install/studica_ros2_control/lib/studica_ros2_control/manual_composition" >/dev/null 2>&1 || true
   pkill -f "/opt/ros/humble/lib/controller_manager/ros2_control_node" >/dev/null 2>&1 || true
-  pkill -f "diffbot_gz_sim.launch.py use_hardware:=true use_gz_sim:=false" >/dev/null 2>&1 || true
+  pkill -f "robot_gz_sim.launch.py use_hardware:=true use_gz_sim:=false" >/dev/null 2>&1 || true
   sleep 1
 }
 
@@ -130,7 +130,7 @@ cleanup() {
   fi
 
   if [[ -n "${VMXPI_PID}" ]] && kill -0 "${VMXPI_PID}" 2>/dev/null; then
-    timeout 3s ros2 topic pub -1 /diffbot_base_controller/cmd_vel geometry_msgs/msg/TwistStamped \
+    timeout 3s ros2 topic pub -1 /robot_base_controller/cmd_vel geometry_msgs/msg/TwistStamped \
       "{header: {stamp: now, frame_id: base_link}, twist: {linear: {x: 0.0, y: 0.0, z: 0.0}, angular: {x: 0.0, y: 0.0, z: 0.0}}}" \
       >/dev/null 2>&1 || true
     kill -INT "${VMXPI_PID}" >/dev/null 2>&1 || true
@@ -199,7 +199,7 @@ stop_manual_composition() {
 
 stop_vmxpi_launch() {
   if [[ -n "${VMXPI_PID}" ]] && kill -0 "${VMXPI_PID}" 2>/dev/null; then
-    timeout 3s ros2 topic pub -1 /diffbot_base_controller/cmd_vel geometry_msgs/msg/TwistStamped \
+    timeout 3s ros2 topic pub -1 /robot_base_controller/cmd_vel geometry_msgs/msg/TwistStamped \
       "{header: {stamp: now, frame_id: base_link}, twist: {linear: {x: 0.0, y: 0.0, z: 0.0}, angular: {x: 0.0, y: 0.0, z: 0.0}}}" \
       >/dev/null 2>&1 || true
     kill -INT "${VMXPI_PID}" >/dev/null 2>&1 || true
@@ -369,7 +369,7 @@ test_studica_ros2_control() {
 
 test_studica_vmxpi_ros2() {
   echo "[test] studica_vmxpi_ros2 hardware ros2_control path"
-  ros2 launch studica_vmxpi_ros2 diffbot_gz_sim.launch.py \
+  ros2 launch studica_vmxpi_ros2 robot_gz_sim.launch.py \
     use_hardware:=true use_gz_sim:=false gui:=false \
     > "${LOG_DIR}/studica_vmxpi_ros2.log" 2>&1 &
   VMXPI_PID=$!
@@ -383,7 +383,7 @@ test_studica_vmxpi_ros2() {
   local controllers interfaces cmd_info cmd_pub_out cmd_out before after before_l before_r after_l after_r delta_l delta_r abs_l abs_r sub_count claimed_ok
   controllers=$(timeout 12s ros2 control list_controllers 2>&1) || true
   interfaces=$(timeout 12s ros2 control list_hardware_interfaces 2>&1) || true
-  cmd_info=$(timeout 6s ros2 topic info /diffbot_base_controller/cmd_vel 2>&1) || true
+  cmd_info=$(timeout 6s ros2 topic info /robot_base_controller/cmd_vel 2>&1) || true
   before=$(timeout 6s ros2 topic echo /joint_states --once 2>&1) || true
 
   {
@@ -397,16 +397,16 @@ test_studica_vmxpi_ros2() {
     echo "${before}"
   } >> "${LOG_DIR}/studica_vmxpi_ros2.log"
 
-  if ! echo "${controllers}" | grep -q "diffbot_base_controller.*active" || \
+  if ! echo "${controllers}" | grep -q "robot_base_controller.*active" || \
      ! echo "${controllers}" | grep -q "joint_state_broadcaster.*active"; then
     timeout 20s ros2 run controller_manager spawner joint_state_broadcaster --controller-manager /controller_manager \
       >> "${LOG_DIR}/studica_vmxpi_ros2.log" 2>&1 || true
-    timeout 20s ros2 run controller_manager spawner diffbot_base_controller --controller-manager /controller_manager \
+    timeout 20s ros2 run controller_manager spawner robot_base_controller --controller-manager /controller_manager \
       >> "${LOG_DIR}/studica_vmxpi_ros2.log" 2>&1 || true
 
     controllers=$(timeout 12s ros2 control list_controllers 2>&1) || true
     interfaces=$(timeout 12s ros2 control list_hardware_interfaces 2>&1) || true
-    cmd_info=$(timeout 6s ros2 topic info /diffbot_base_controller/cmd_vel 2>&1) || true
+    cmd_info=$(timeout 6s ros2 topic info /robot_base_controller/cmd_vel 2>&1) || true
     before=$(timeout 6s ros2 topic echo /joint_states --once 2>&1) || true
 
     {
@@ -421,8 +421,8 @@ test_studica_vmxpi_ros2() {
     } >> "${LOG_DIR}/studica_vmxpi_ros2.log"
   fi
 
-  if ! echo "${controllers}" | grep -q "diffbot_base_controller.*active"; then
-    echo "[test] studica_vmxpi_ros2 FAILED: diffbot_base_controller not active"
+  if ! echo "${controllers}" | grep -q "robot_base_controller.*active"; then
+    echo "[test] studica_vmxpi_ros2 FAILED: robot_base_controller not active"
     cat "${LOG_DIR}/studica_vmxpi_ros2.log"
     stop_vmxpi_launch
     return 1
@@ -440,10 +440,10 @@ test_studica_vmxpi_ros2() {
     claimed_ok=1
   fi
 
-  cmd_pub_out=$(timeout 6s ros2 topic pub -1 /diffbot_base_controller/cmd_vel geometry_msgs/msg/TwistStamped \
+  cmd_pub_out=$(timeout 6s ros2 topic pub -1 /robot_base_controller/cmd_vel geometry_msgs/msg/TwistStamped \
     "{header: {stamp: now, frame_id: base_link}, twist: {linear: {x: 0.12, y: 0.0, z: 0.0}, angular: {x: 0.0, y: 0.0, z: 0.0}}}" 2>&1) || true
-  cmd_out=$(timeout 4s ros2 topic echo /diffbot_base_controller/cmd_vel_out --once 2>&1) || true
-  timeout 3s ros2 topic pub -1 /diffbot_base_controller/cmd_vel geometry_msgs/msg/TwistStamped \
+  cmd_out=$(timeout 4s ros2 topic echo /robot_base_controller/cmd_vel_out --once 2>&1) || true
+  timeout 3s ros2 topic pub -1 /robot_base_controller/cmd_vel geometry_msgs/msg/TwistStamped \
     "{header: {stamp: now, frame_id: base_link}, twist: {linear: {x: 0.0, y: 0.0, z: 0.0}, angular: {x: 0.0, y: 0.0, z: 0.0}}}" \
     >/dev/null 2>&1 || true
 

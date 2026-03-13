@@ -1,7 +1,7 @@
 from launch import LaunchDescription
 from launch.actions import DeclareLaunchArgument, IncludeLaunchDescription
 from launch.launch_description_sources import PythonLaunchDescriptionSource
-from launch.substitutions import LaunchConfiguration, PathJoinSubstitution
+from launch.substitutions import LaunchConfiguration, PathJoinSubstitution, PythonExpression
 from launch_ros.substitutions import FindPackageShare
 
 
@@ -11,6 +11,11 @@ def generate_launch_description():
             "gui",
             default_value="true",
             description="Start RViz2 from robot launch.",
+        ),
+        DeclareLaunchArgument(
+            "robot_profile",
+            default_value="training_4wd",
+            description="Robot profile under config/profiles.",
         ),
         DeclareLaunchArgument(
             "use_hardware",
@@ -66,8 +71,8 @@ def generate_launch_description():
         ),
         DeclareLaunchArgument(
             "joystick_cmd_vel_topic",
-            default_value="/diffbot_base_controller/cmd_vel",
-            description="Joystick command velocity output topic.",
+            default_value="",
+            description="Joystick command velocity output topic (empty = auto from drive profile).",
         ),
         DeclareLaunchArgument(
             "joystick_publish_stamped",
@@ -84,6 +89,7 @@ def generate_launch_description():
     ]
 
     gui = LaunchConfiguration("gui")
+    robot_profile = LaunchConfiguration("robot_profile")
     use_hardware = LaunchConfiguration("use_hardware")
     use_gz_sim = LaunchConfiguration("use_gz_sim")
     world = LaunchConfiguration("world")
@@ -97,15 +103,24 @@ def generate_launch_description():
     joystick_cmd_vel_topic = LaunchConfiguration("joystick_cmd_vel_topic")
     joystick_publish_stamped = LaunchConfiguration("joystick_publish_stamped")
     slam_params_file = LaunchConfiguration("slam_params_file")
+    mode = PythonExpression(
+        [
+            "'gz_sim' if ('",
+            use_gz_sim,
+            "').lower() in ['true','1','yes','on'] else "
+            "('hardware' if ('",
+            use_hardware,
+            "').lower() in ['true','1','yes','on'] else 'mock')",
+        ]
+    )
 
     robot = IncludeLaunchDescription(
         PythonLaunchDescriptionSource(
-            PathJoinSubstitution([FindPackageShare("studica_vmxpi_ros2"), "launch", "diffbot_gz_sim.launch.py"])
+            PathJoinSubstitution([FindPackageShare("studica_vmxpi_ros2"), "launch", "bringup.launch.py"])
         ),
         launch_arguments={
+            "mode": mode,
             "gui": gui,
-            "use_hardware": use_hardware,
-            "use_gz_sim": use_gz_sim,
             "world": world,
             "world_name": world_name,
             "spawn_x": spawn_x,
@@ -116,6 +131,7 @@ def generate_launch_description():
             "use_joystick": use_joystick,
             "joystick_cmd_vel_topic": joystick_cmd_vel_topic,
             "joystick_publish_stamped": joystick_publish_stamped,
+            "robot_profile": robot_profile,
         }.items(),
     )
 

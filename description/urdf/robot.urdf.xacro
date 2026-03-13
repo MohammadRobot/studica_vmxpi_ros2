@@ -1,0 +1,68 @@
+<?xml version="1.0"?>
+<!-- Basic differential drive mobile base -->
+<robot xmlns:xacro="http://www.ros.org/wiki/xacro" name="diffdrive_robot">
+  <xacro:arg name="prefix" default="" />
+  <xacro:arg name="use_hardware" default="false" />
+  <xacro:arg name="use_gazebo_classic" default="false" />
+  <xacro:arg name="use_gz_sim" default="false" />
+  <xacro:arg name="gz_version" default="8" />
+  <xacro:arg name="profile_file" default="$(find studica_vmxpi_ros2)/config/profiles/training_4wd/robot_profile.yaml" />
+  <xacro:arg name="controllers_file" default="$(find studica_vmxpi_ros2)/config/profiles/training_4wd/robot_controllers.yaml" />
+
+  <xacro:include filename="$(find studica_vmxpi_ros2)/description/robot/urdf/robot_description.urdf.xacro" />
+
+  <!-- Import Rviz colors -->
+  <xacro:include filename="$(find studica_vmxpi_ros2)/description/robot/urdf/robot.materials.xacro" />
+
+  <!-- Import robot ros2_control description -->
+  <xacro:include filename="$(find studica_vmxpi_ros2)/description/ros2_control/robot.ros2_control.xacro" />
+
+  <xacro:property name="profile" value="${xacro.load_yaml('$(arg profile_file)')}"/>
+  <xacro:property name="geometry_cfg" value="${profile['xacro']}"/>
+  <xacro:property name="drive_cfg" value="${profile['drive'] if 'drive' in profile else dict()}"/>
+  <xacro:property name="wheel_layout" value="${str(drive_cfg.get('wheel_layout', 'diff')).lower()}"/>
+
+  <xacro:robot_description
+    prefix="$(arg prefix)"
+    base_mass="${geometry_cfg['base_mass']}"
+    base_width="${geometry_cfg['base_width']}"
+    base_length="${geometry_cfg['base_length']}"
+    base_height="${geometry_cfg['base_height']}"
+    wheel_mass="${geometry_cfg['wheel_mass']}"
+    wheel_len="${geometry_cfg['wheel_len']}"
+    wheel_radius="${geometry_cfg['wheel_radius']}"
+    caster_wheel_mass="${geometry_cfg['caster_wheel_mass']}"
+    caster_wheel_radius="${geometry_cfg['caster_wheel_radius']}"
+    laser_model_z="${geometry_cfg['laser_model_z']}"
+    laser_frame_z="${geometry_cfg['laser_frame_z']}"
+    wheel_layout="${wheel_layout}"/>
+
+  <xacro:robot_ros2_control
+    name="Robot"
+    prefix="$(arg prefix)"
+    use_hardware="$(arg use_hardware)"
+    use_gazebo_classic="$(arg use_gazebo_classic)"
+    use_gz_sim="$(arg use_gz_sim)"
+    profile_file="$(arg profile_file)"
+    wheel_layout="${wheel_layout}"/>
+
+  <xacro:if value="$(arg use_gazebo_classic)">
+    <!-- Import Gazebo Classic definitions + plugin -->
+    <xacro:include filename="$(find studica_vmxpi_ros2)/description/gazebo/robot.gazebo.xacro" />
+    <xacro:robot_gazebo
+      prefix="$(arg prefix)"
+      controllers_file="$(arg controllers_file)"
+      wheel_layout="${wheel_layout}"/>
+  </xacro:if>
+
+  <xacro:if value="$(arg use_gz_sim)">
+    <!-- Import Gazebo Sim definitions + plugin -->
+    <xacro:include filename="$(find studica_vmxpi_ros2)/description/gz/robot.gz.xacro" />
+    <xacro:robot_gz
+      prefix="$(arg prefix)"
+      gz_version="$(arg gz_version)"
+      controllers_file="$(arg controllers_file)"
+      wheel_layout="${wheel_layout}"/>
+  </xacro:if>
+
+</robot>

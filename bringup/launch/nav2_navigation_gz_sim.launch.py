@@ -7,6 +7,93 @@ from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch.substitutions import LaunchConfiguration, PathJoinSubstitution
 from launch_ros.actions import Node
 from launch_ros.substitutions import FindPackageShare
+import yaml
+
+
+DEFAULT_DRIVE_CONTROLLER_NAME = "robot_base_controller"
+DEFAULT_DRIVE_CONTROLLER_TYPE = "diff_drive_controller/DiffDriveController"
+MECANUM_DRIVE_CONTROLLER_TYPE = "mecanum_drive_controller/MecanumDriveController"
+
+
+def _is_true(value: str) -> bool:
+    return value.lower() in ("true", "1", "yes", "on")
+
+
+def _load_yaml(path: str):
+    with open(path, "r", encoding="utf-8") as stream:
+        data = yaml.safe_load(stream)
+    if not isinstance(data, dict):
+        raise RuntimeError(f"YAML root must be a mapping: {path}")
+    return data
+
+
+def _drive_topics(controller_name: str, controller_type: str):
+    if controller_type == MECANUM_DRIVE_CONTROLLER_TYPE:
+        return f"/{controller_name}/reference", f"/{controller_name}/odometry"
+    return f"/{controller_name}/cmd_vel", f"/{controller_name}/odom"
+
+
+def _resolve_profile_drive_topics(profile_name: str):
+    controller_name = DEFAULT_DRIVE_CONTROLLER_NAME
+    controller_type = DEFAULT_DRIVE_CONTROLLER_TYPE
+
+    pkg_share = get_package_share_directory("studica_vmxpi_ros2")
+    profile_file = os.path.join(pkg_share, "config", "profiles", profile_name, "robot_profile.yaml")
+    if not os.path.exists(profile_file):
+        return _drive_topics(controller_name, controller_type)
+
+    try:
+        profile = _load_yaml(profile_file)
+    except Exception:
+        return _drive_topics(controller_name, controller_type)
+
+    drive_cfg = profile.get("drive")
+    if isinstance(drive_cfg, dict):
+        profile_controller_name = str(
+            drive_cfg.get("controller_name", DEFAULT_DRIVE_CONTROLLER_NAME)
+        ).strip()
+        profile_controller_type = str(
+            drive_cfg.get("controller_type", DEFAULT_DRIVE_CONTROLLER_TYPE)
+        ).strip()
+        if profile_controller_name:
+            controller_name = profile_controller_name
+        if profile_controller_type:
+            controller_type = profile_controller_type
+
+    return _drive_topics(controller_name, controller_type)
+
+
+def _build_nav2_bridge(context, *args, **kwargs):
+    robot_profile = LaunchConfiguration("robot_profile").perform(context).strip() or "training_4wd"
+    drive_cmd_topic = LaunchConfiguration("bridge_drive_cmd_topic").perform(context).strip()
+    drive_odom_topic = LaunchConfiguration("bridge_drive_odom_topic").perform(context).strip()
+
+    if not drive_cmd_topic or not drive_odom_topic:
+        resolved_cmd_topic, resolved_odom_topic = _resolve_profile_drive_topics(robot_profile)
+        if not drive_cmd_topic:
+            drive_cmd_topic = resolved_cmd_topic
+        if not drive_odom_topic:
+            drive_odom_topic = resolved_odom_topic
+
+    return [
+        Node(
+            package="studica_vmxpi_ros2",
+            executable="topic_adapter_node",
+            name="nav2_topic_bridge",
+            output="screen",
+            parameters=[
+                {
+                    "use_sim_time": _is_true(LaunchConfiguration("use_sim_time").perform(context)),
+                    "enable_nav2_bridge": True,
+                    "input_cmd_vel_topic": "/cmd_vel",
+                    "output_cmd_vel_topic": drive_cmd_topic,
+                    "input_odom_topic": drive_odom_topic,
+                    "output_odom_topic": "/odom",
+                    "cmd_vel_frame_id": "base_link",
+                }
+            ],
+        )
+    ]
 
 
 def _maybe_include_nav2(context, *args, **kwargs):
@@ -45,6 +132,11 @@ def generate_launch_description():
             "gui",
             default_value="true",
             description="Start RViz2 from robot launch.",
+        ),
+        DeclareLaunchArgument(
+            "robot_profile",
+            default_value="training_4wd",
+            description="Robot profile under config/profiles.",
         ),
         DeclareLaunchArgument(
             "world",
@@ -90,13 +182,23 @@ def generate_launch_description():
         ),
         DeclareLaunchArgument(
             "joystick_cmd_vel_topic",
-            default_value="/diffbot_base_controller/cmd_vel",
-            description="Joystick command velocity output topic.",
+            default_value="",
+            description="Joystick command velocity output topic (empty = auto from drive profile).",
         ),
         DeclareLaunchArgument(
             "joystick_publish_stamped",
             default_value="true",
             description="Publish TwistStamped joystick commands.",
+        ),
+        DeclareLaunchArgument(
+            "bridge_drive_cmd_topic",
+            default_value="",
+            description="Override Nav2 bridge output command topic (empty = auto from drive profile).",
+        ),
+        DeclareLaunchArgument(
+            "bridge_drive_odom_topic",
+            default_value="",
+            description="Override Nav2 bridge input odom topic (empty = auto from drive profile).",
         ),
         DeclareLaunchArgument(
             "map",
@@ -116,6 +218,7 @@ def generate_launch_description():
     ]
 
     gui = LaunchConfiguration("gui")
+    robot_profile = LaunchConfiguration("robot_profile")
     world = LaunchConfiguration("world")
     world_name = LaunchConfiguration("world_name")
     spawn_x = LaunchConfiguration("spawn_x")
@@ -129,12 +232,11 @@ def generate_launch_description():
 
     robot = IncludeLaunchDescription(
         PythonLaunchDescriptionSource(
-            PathJoinSubstitution([FindPackageShare("studica_vmxpi_ros2"), "launch", "diffbot_gz_sim.launch.py"])
+            PathJoinSubstitution([FindPackageShare("studica_vmxpi_ros2"), "launch", "bringup.launch.py"])
         ),
         launch_arguments={
+            "mode": "gz_sim",
             "gui": gui,
-            "use_hardware": "false",
-            "use_gz_sim": "true",
             "world": world,
             "world_name": world_name,
             "spawn_x": spawn_x,
@@ -145,27 +247,11 @@ def generate_launch_description():
             "use_joystick": use_joystick,
             "joystick_cmd_vel_topic": joystick_cmd_vel_topic,
             "joystick_publish_stamped": joystick_publish_stamped,
+            "robot_profile": robot_profile,
         }.items(),
     )
 
-    bridge = Node(
-        package="studica_vmxpi_ros2",
-        executable="topic_adapter_node",
-        name="nav2_topic_bridge",
-        output="screen",
-        parameters=[
-            {
-                "use_sim_time": use_sim_time,
-                "enable_nav2_bridge": True,
-                "input_cmd_vel_topic": "/cmd_vel",
-                "output_cmd_vel_topic": "/diffbot_base_controller/cmd_vel",
-                "input_odom_topic": "/diffbot_base_controller/odom",
-                "output_odom_topic": "/odom",
-                "cmd_vel_frame_id": "base_link",
-            }
-        ],
-    )
-
     return LaunchDescription(
-        declared_arguments + [robot, bridge, OpaqueFunction(function=_maybe_include_nav2)]
+        declared_arguments
+        + [robot, OpaqueFunction(function=_maybe_include_nav2)]
     )

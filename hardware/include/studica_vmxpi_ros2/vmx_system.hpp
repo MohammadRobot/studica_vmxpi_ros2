@@ -85,6 +85,7 @@ private:
   std::vector<double> hw_positions_; // Store current joint positions
   std::vector<double> hw_velocities_; // Store current joint velocities
   std::vector<double> hw_commands_; // Store commanded joint velocities
+  std::vector<int> joint_motor_indices_; // Per-joint motor mapping for 4-wheel layouts
 
   uint8_t can_id_{0};
   uint16_t motor_freq_{0};
@@ -93,6 +94,7 @@ private:
   double dist_per_tick_{0.0};
   double speed_scale_{1.0};
   double max_wheel_angular_velocity_rad_s_{20.0};
+  bool is_holonomic_layout_{false};
 
   int left_front_motor_{-1};
   int left_rear_motor_{-1};

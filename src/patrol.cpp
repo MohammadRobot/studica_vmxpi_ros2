@@ -13,7 +13,7 @@ class Patrol : public rclcpp::Node {
 public:
   Patrol() : Node("robot_patrol_node") {
     const auto cmd_vel_topic = this->declare_parameter<std::string>(
-        "cmd_vel_topic", "/diffbot_base_controller/cmd_vel");
+        "cmd_vel_topic", "/robot_base_controller/cmd_vel");
     const auto scan_topic =
         this->declare_parameter<std::string>("scan_topic", "/scan");
 

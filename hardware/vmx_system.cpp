@@ -23,6 +23,7 @@
 #include <limits>
 #include <memory>
 #include <sstream>
+#include <string>
 #include <vector>
 #include <math.h>
 
@@ -262,10 +263,39 @@ hardware_interface::CallbackReturn VmxSystemHardware::on_init(
   hw_positions_.resize(info_.joints.size(), std::numeric_limits<double>::quiet_NaN());
   hw_velocities_.resize(info_.joints.size(), std::numeric_limits<double>::quiet_NaN());
   hw_commands_.resize(info_.joints.size(), std::numeric_limits<double>::quiet_NaN());
+  joint_motor_indices_.assign(info_.joints.size(), -1);
+  is_holonomic_layout_ = info_.joints.size() == 4;
 
-  for (const hardware_interface::ComponentInfo & joint : info_.joints)
+  const int left_primary_motor =
+    (left_front_motor_ >= 0) ? left_front_motor_ : left_rear_motor_;
+  const int right_primary_motor =
+    (right_front_motor_ >= 0) ? right_front_motor_ : right_rear_motor_;
+
+  auto map_joint_to_motor = [&](const std::string & joint_name) -> int {
+    if (joint_name.find("front_left") != std::string::npos) {
+      return left_front_motor_;
+    }
+    if (joint_name.find("rear_left") != std::string::npos) {
+      return left_rear_motor_;
+    }
+    if (joint_name.find("front_right") != std::string::npos) {
+      return right_front_motor_;
+    }
+    if (joint_name.find("rear_right") != std::string::npos) {
+      return right_rear_motor_;
+    }
+    if (joint_name.find("left_wheel") != std::string::npos) {
+      return left_primary_motor;
+    }
+    if (joint_name.find("right_wheel") != std::string::npos) {
+      return right_primary_motor;
+    }
+    return -1;
+  };
+
+  for (size_t i = 0; i < info_.joints.size(); ++i)
   {
-    // DiffBotSystem has exactly two states and one command interface on each joint
+    const auto & joint = info_.joints[i];
     if (joint.command_interfaces.size() != 1)
     {
       RCLCPP_FATAL(
@@ -306,6 +336,16 @@ hardware_interface::CallbackReturn VmxSystemHardware::on_init(
         get_logger(), "Joint '%s' have '%s' as second state interface. '%s' expected.",
         joint.name.c_str(), joint.state_interfaces[1].name.c_str(),
         hardware_interface::HW_IF_VELOCITY);
+      return hardware_interface::CallbackReturn::ERROR;
+    }
+
+    joint_motor_indices_[i] = map_joint_to_motor(joint.name);
+    if (is_holonomic_layout_ && joint_motor_indices_[i] < 0) {
+      RCLCPP_FATAL(
+        get_logger(),
+        "Failed to map holonomic joint '%s' to a Titan motor index. "
+        "Expected one of: front_left, front_right, rear_left, rear_right.",
+        joint.name.c_str());
       return hardware_interface::CallbackReturn::ERROR;
     }
   }
@@ -483,21 +523,33 @@ hardware_interface::return_type VmxSystemHardware::read(
     return 0.0;
   };
 
-  const double left_distance = average_pair(left_front_motor_, left_rear_motor_, motor_distance);
-  const double right_distance = average_pair(right_front_motor_, right_rear_motor_, motor_distance);
-
-  if (wheel_radius_ > 0.0 && hw_positions_.size() >= 2) {
-    hw_positions_[0] = left_distance / wheel_radius_;
-    hw_positions_[1] = right_distance / wheel_radius_;
-  }
-
-  const double left_rpm = average_pair(left_front_motor_, left_rear_motor_, motor_rpm);
-  const double right_rpm = average_pair(right_front_motor_, right_rear_motor_, motor_rpm);
   const double rpm_to_rad_s = 2.0 * M_PI / 60.0;
+  if (is_holonomic_layout_) {
+    for (size_t i = 0; i < hw_positions_.size(); ++i) {
+      const int motor = (i < joint_motor_indices_.size()) ? joint_motor_indices_[i] : -1;
+      const double distance = motor_distance(motor);
+      const double rpm = motor_rpm(motor);
 
-  if (hw_velocities_.size() >= 2) {
-    hw_velocities_[0] = left_rpm * rpm_to_rad_s;
-    hw_velocities_[1] = right_rpm * rpm_to_rad_s;
+      hw_positions_[i] = (wheel_radius_ > 0.0) ? (distance / wheel_radius_) : 0.0;
+      hw_velocities_[i] = rpm * rpm_to_rad_s;
+    }
+  } else {
+    const double left_distance = average_pair(
+      left_front_motor_, left_rear_motor_, motor_distance);
+    const double right_distance = average_pair(
+      right_front_motor_, right_rear_motor_, motor_distance);
+    const double left_rpm = average_pair(left_front_motor_, left_rear_motor_, motor_rpm);
+    const double right_rpm = average_pair(right_front_motor_, right_rear_motor_, motor_rpm);
+
+    if (wheel_radius_ > 0.0 && hw_positions_.size() >= 2) {
+      hw_positions_[0] = left_distance / wheel_radius_;
+      hw_positions_[1] = right_distance / wheel_radius_;
+    }
+
+    if (hw_velocities_.size() >= 2) {
+      hw_velocities_[0] = left_rpm * rpm_to_rad_s;
+      hw_velocities_[1] = right_rpm * rpm_to_rad_s;
+    }
   }
 
   if (imu_enabled_ && imu_driver_) {
@@ -530,35 +582,8 @@ hardware_interface::return_type studica_vmxpi_ros2 ::VmxSystemHardware::write(
   }
 
   if (hw_commands_.size() < 2) {
-    RCLCPP_ERROR(get_logger(), "Expected at least 2 command interfaces for diff drive.");
+    RCLCPP_ERROR(get_logger(), "Expected at least 2 command interfaces.");
     return hardware_interface::return_type::ERROR;
-  }
-
-  double left_cmd_rad_s = hw_commands_[0];
-  double right_cmd_rad_s = hw_commands_[1];
-
-  if (std::isnan(left_cmd_rad_s)) {
-    left_cmd_rad_s = 0.0;
-  }
-  if (std::isnan(right_cmd_rad_s)) {
-    right_cmd_rad_s = 0.0;
-  }
-
-  const double left_cmd_scaled =
-    (left_cmd_rad_s / max_wheel_angular_velocity_rad_s_) * speed_scale_;
-  const double right_cmd_scaled =
-    (right_cmd_rad_s / max_wheel_angular_velocity_rad_s_) * speed_scale_;
-
-  const double left_cmd = std::clamp(left_cmd_scaled, -1.0, 1.0);
-  const double right_cmd = std::clamp(right_cmd_scaled, -1.0, 1.0);
-
-  if (std::abs(left_cmd_scaled - left_cmd) > 1e-9 || std::abs(right_cmd_scaled - right_cmd) > 1e-9) {
-    RCLCPP_WARN_THROTTLE(
-      get_logger(), *get_clock(), 2000,
-      "Wheel command saturated to Titan range [-1, 1]: raw(rad/s) left=%.3f right=%.3f, "
-      "scaled left=%.3f right=%.3f, max_wheel_angular_velocity_rad_s=%.3f, speed_scale=%.3f",
-      left_cmd_rad_s, right_cmd_rad_s, left_cmd_scaled, right_cmd_scaled,
-      max_wheel_angular_velocity_rad_s_, speed_scale_);
   }
 
   auto set_speed = [&](int motor, double value) {
@@ -568,10 +593,65 @@ hardware_interface::return_type studica_vmxpi_ros2 ::VmxSystemHardware::write(
     titan_driver_->SetSpeed(static_cast<uint8_t>(motor), value);
   };
 
-  set_speed(left_front_motor_, left_cmd);
-  set_speed(left_rear_motor_, left_cmd);
-  set_speed(right_front_motor_, right_cmd);
-  set_speed(right_rear_motor_, right_cmd);
+  if (is_holonomic_layout_) {
+    for (size_t i = 0; i < hw_commands_.size(); ++i) {
+      const int motor = (i < joint_motor_indices_.size()) ? joint_motor_indices_[i] : -1;
+      if (motor < 0) {
+        continue;
+      }
+
+      double cmd_rad_s = hw_commands_[i];
+      if (std::isnan(cmd_rad_s)) {
+        cmd_rad_s = 0.0;
+      }
+
+      const double cmd_scaled =
+        (cmd_rad_s / max_wheel_angular_velocity_rad_s_) * speed_scale_;
+      const double cmd = std::clamp(cmd_scaled, -1.0, 1.0);
+
+      if (std::abs(cmd_scaled - cmd) > 1e-9) {
+        RCLCPP_WARN_THROTTLE(
+          get_logger(), *get_clock(), 2000,
+          "Holonomic wheel command saturated for joint index %zu: raw=%.3f scaled=%.3f "
+          "max_wheel_angular_velocity_rad_s=%.3f speed_scale=%.3f",
+          i, cmd_rad_s, cmd_scaled, max_wheel_angular_velocity_rad_s_, speed_scale_);
+      }
+
+      set_speed(motor, cmd);
+    }
+  } else {
+    double left_cmd_rad_s = hw_commands_[0];
+    double right_cmd_rad_s = hw_commands_[1];
+
+    if (std::isnan(left_cmd_rad_s)) {
+      left_cmd_rad_s = 0.0;
+    }
+    if (std::isnan(right_cmd_rad_s)) {
+      right_cmd_rad_s = 0.0;
+    }
+
+    const double left_cmd_scaled =
+      (left_cmd_rad_s / max_wheel_angular_velocity_rad_s_) * speed_scale_;
+    const double right_cmd_scaled =
+      (right_cmd_rad_s / max_wheel_angular_velocity_rad_s_) * speed_scale_;
+
+    const double left_cmd = std::clamp(left_cmd_scaled, -1.0, 1.0);
+    const double right_cmd = std::clamp(right_cmd_scaled, -1.0, 1.0);
+
+    if (std::abs(left_cmd_scaled - left_cmd) > 1e-9 || std::abs(right_cmd_scaled - right_cmd) > 1e-9) {
+      RCLCPP_WARN_THROTTLE(
+        get_logger(), *get_clock(), 2000,
+        "Wheel command saturated to Titan range [-1, 1]: raw(rad/s) left=%.3f right=%.3f, "
+        "scaled left=%.3f right=%.3f, max_wheel_angular_velocity_rad_s=%.3f, speed_scale=%.3f",
+        left_cmd_rad_s, right_cmd_rad_s, left_cmd_scaled, right_cmd_scaled,
+        max_wheel_angular_velocity_rad_s_, speed_scale_);
+    }
+
+    set_speed(left_front_motor_, left_cmd);
+    set_speed(left_rear_motor_, left_cmd);
+    set_speed(right_front_motor_, right_cmd);
+    set_speed(right_rear_motor_, right_cmd);
+  }
 
   return hardware_interface::return_type::OK;
 }

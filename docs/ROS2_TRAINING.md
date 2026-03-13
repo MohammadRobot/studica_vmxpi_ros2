@@ -31,9 +31,9 @@ By the end of this training, you should be able to:
 High-level data flow in this repo:
 
 1. Robot model:
-- `description/urdf/diffbot.urdf.xacro`
-- `description/ros2_control/diffbot.ros2_control.xacro`
-- `description/gz/diffbot.gz.xacro`
+- `description/urdf/robot.urdf.xacro`
+- `description/ros2_control/robot.ros2_control.xacro`
+- `description/gz/robot.gz.xacro`
 
 2. Simulation runtime:
 - Gazebo Sim publishes clock and sensor topics.
@@ -42,8 +42,10 @@ High-level data flow in this repo:
 - `gz_ros2_control` + `controller_manager` run drive controllers.
 
 3. Control:
-- Teleop sends `geometry_msgs/msg/TwistStamped` commands to `/diffbot_base_controller/cmd_vel`.
-- `diff_drive_controller` generates odom and wheel state.
+- Teleop sends `geometry_msgs/msg/TwistStamped` commands to the active drive controller command topic.
+  - diff profiles: `/<drive_controller>/cmd_vel`
+  - mecanum/omni profiles: `/<drive_controller>/reference`
+- The selected drive controller (`diff_drive_controller` or `mecanum_drive_controller`) generates odom and wheel state.
 - IMU is exposed by `imu_sensor_broadcaster` and relayed to `/imu`.
 
 4. Navigation stack:
@@ -61,7 +63,7 @@ Examples in this project:
 - `robot_state_publisher`
 - `controller_manager`
 - `joint_state_broadcaster`
-- `diffbot_base_controller`
+- drive controller from profile (`robot_base_controller`, `mecanum_base_controller`, or `omni_base_controller`)
 - `topic_adapter_node` (scan/imu/nav2 bridging modes)
 - `ros_gz_bridge` (`parameter_bridge`)
 - `joy_node`, `gamepad_teleop`
@@ -80,8 +82,9 @@ Important topics:
 - `/scan`, `/scan_raw` (`sensor_msgs/LaserScan`)
 - `/imu` (`sensor_msgs/Imu`)
 - `/tf`, `/tf_static`
-- `/diffbot_base_controller/cmd_vel` (`geometry_msgs/TwistStamped`)
-- `/diffbot_base_controller/odom`
+- drive command topic from profile (`/<drive_controller>/cmd_vel` or `/<drive_controller>/reference`)
+- drive odom topic from profile (`/<drive_controller>/odom` or `/<drive_controller>/odometry`)
+- compatibility odom alias `/odom`
 - `/clock`
 
 CLI:
@@ -124,14 +127,17 @@ ros2 action info /navigate_to_pose
 Parameters are runtime configuration values for nodes.
 
 Example:
-- `bringup/config/diffbot_controllers.yaml` configures `diffbot_base_controller`.
+- `bringup/config/profiles/<profile>/robot_controllers.yaml` configures the selected drive controller.
 
 CLI:
 
 ```bash
-ros2 param list /diffbot_base_controller
-ros2 param get /diffbot_base_controller wheel_radius
+ros2 param list /robot_base_controller
+ros2 param get /robot_base_controller wheel_radius
 ```
+
+For holonomic profiles, use the configured controller node instead
+(for example `/mecanum_base_controller` or `/omni_base_controller`).
 
 ### 3.6 TF (Transforms)
 TF tracks robot frame relationships.
@@ -185,7 +191,7 @@ ros2 pkg prefix studica_vmxpi_ros2
 Start simulation:
 
 ```bash
-ros2 launch studica_vmxpi_ros2 diffbot_gz_sim.launch.py gui:=true use_gz_sim:=true
+ros2 launch studica_vmxpi_ros2 bringup.launch.py mode:=gz_sim gui:=true
 ```
 
 Inspect:
@@ -194,7 +200,7 @@ Inspect:
 ros2 node list
 ros2 topic list
 ros2 topic echo /clock --once
-ros2 topic echo /diffbot_base_controller/odom --once
+ros2 topic echo /odom --once
 ```
 
 What to learn:
@@ -209,24 +215,29 @@ What to learn:
 Keyboard:
 
 ```bash
-ros2 run teleop_twist_keyboard teleop_twist_keyboard --ros-args -p stamped:=true -p frame_id:=base_link --remap cmd_vel:=/diffbot_base_controller/cmd_vel
+CMD_TOPIC=/robot_base_controller/cmd_vel
+# CMD_TOPIC=/mecanum_base_controller/reference
+# CMD_TOPIC=/omni_base_controller/reference
+ros2 run teleop_twist_keyboard teleop_twist_keyboard --ros-args -p stamped:=true -p frame_id:=base_link --remap cmd_vel:=${CMD_TOPIC}
 ```
 
 Joystick (from launch):
 
 ```bash
-ros2 launch studica_vmxpi_ros2 diffbot_gz_sim.launch.py gui:=true use_gz_sim:=true use_joystick:=true
+ros2 launch studica_vmxpi_ros2 bringup.launch.py mode:=gz_sim gui:=true use_joystick:=true
 ```
 
 Note:
-- In Gazebo Sim mode, joystick commands are stamped and published to `/diffbot_base_controller/cmd_vel`
-  to match hardware.
+- In Gazebo Sim mode, joystick commands are stamped and published to the active drive command topic
+  selected by profile (`/<drive_controller>/cmd_vel` or `/<drive_controller>/reference`).
 
 Monitor command and output:
 
 ```bash
-ros2 topic echo /diffbot_base_controller/cmd_vel
-ros2 topic echo /diffbot_base_controller/cmd_vel_out
+CMD_TOPIC=/robot_base_controller/cmd_vel
+# CMD_TOPIC=/mecanum_base_controller/reference
+# CMD_TOPIC=/omni_base_controller/reference
+ros2 topic echo ${CMD_TOPIC}
 ```
 
 What to learn:
@@ -240,7 +251,7 @@ What to learn:
 Start mapping:
 
 ```bash
-ros2 launch studica_vmxpi_ros2 nav2_mapping_gz_sim.launch.py gui:=true use_gz_sim:=true use_joystick:=true
+ros2 launch studica_vmxpi_ros2 nav2_mapping_gz_sim.launch.py gui:=true use_joystick:=true
 ```
 
 Drive robot to cover the map area, then save:
@@ -262,7 +273,7 @@ Run navigation with saved map:
 
 ```bash
 ros2 launch studica_vmxpi_ros2 nav2_navigation_gz_sim.launch.py \
-  gui:=true use_gz_sim:=true use_joystick:=true \
+  gui:=true use_joystick:=true \
   map:=$HOME/ros2_ws/src/studica_vmxpi_ros2/maps/my_map.yaml
 ```
 
@@ -284,7 +295,7 @@ What to learn:
 Main components:
 - `controller_manager`
 - `joint_state_broadcaster`
-- `diffbot_base_controller`
+- drive controller from profile (`robot_base_controller`, `mecanum_base_controller`, or `omni_base_controller`)
 - `gz_ros2_control` backend in simulation
 - Titan hardware backend for real robot mode
 
@@ -297,7 +308,7 @@ ros2 control list_hardware_interfaces
 
 Expected active controllers:
 - `joint_state_broadcaster`
-- `diffbot_base_controller`
+- selected drive controller from profile
 
 ---
 
@@ -306,7 +317,7 @@ Expected active controllers:
 Launch without simulation:
 
 ```bash
-ros2 launch studica_vmxpi_ros2 diffbot_gz_sim.launch.py use_hardware:=true use_gz_sim:=false
+ros2 launch studica_vmxpi_ros2 bringup.launch.py mode:=hardware
 ```
 
 Key point:
@@ -319,9 +330,8 @@ Key point:
 
 ### 11.1 No movement
 - Check controller status: `ros2 control list_controllers`
-- Check command topic: `ros2 topic echo /diffbot_base_controller/cmd_vel`
-- Check command subscription/publisher counts: `ros2 topic info /diffbot_base_controller/cmd_vel`
-- Check controller output acceptance: `ros2 topic echo /diffbot_base_controller/cmd_vel_out --qos-durability transient_local --once`
+- Check command topic (pick profile-specific topic): `ros2 topic echo /robot_base_controller/cmd_vel` or `ros2 topic echo /mecanum_base_controller/reference` or `ros2 topic echo /omni_base_controller/reference`
+- Check command subscription/publisher counts on the same command topic.
 
 ### 11.2 TF issues
 - Check TF stream: `ros2 topic echo /tf --once`
@@ -368,13 +378,13 @@ Session 4 (1-2 hours):
 cd ~/ros2_ws && colcon build --packages-select studica_vmxpi_ros2 && source install/setup.bash
 
 # Sim
-ros2 launch studica_vmxpi_ros2 diffbot_gz_sim.launch.py gui:=true use_gz_sim:=true use_joystick:=true
+ros2 launch studica_vmxpi_ros2 bringup.launch.py mode:=gz_sim gui:=true use_joystick:=true
 
 # Mapping
-ros2 launch studica_vmxpi_ros2 nav2_mapping_gz_sim.launch.py gui:=true use_gz_sim:=true use_joystick:=true
+ros2 launch studica_vmxpi_ros2 nav2_mapping_gz_sim.launch.py gui:=true use_joystick:=true
 
 # Navigation
-ros2 launch studica_vmxpi_ros2 nav2_navigation_gz_sim.launch.py gui:=true use_gz_sim:=true use_joystick:=true map:=$HOME/ros2_ws/src/studica_vmxpi_ros2/maps/my_map.yaml
+ros2 launch studica_vmxpi_ros2 nav2_navigation_gz_sim.launch.py gui:=true use_joystick:=true map:=$HOME/ros2_ws/src/studica_vmxpi_ros2/maps/my_map.yaml
 
 # Debug
 ros2 control list_controllers

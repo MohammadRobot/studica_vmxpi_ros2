@@ -1,0 +1,50 @@
+controller_manager:
+  ros__parameters:
+    update_rate: 100
+
+    joint_state_broadcaster:
+      type: joint_state_broadcaster/JointStateBroadcaster
+
+    mecanum_base_controller:
+      type: mecanum_drive_controller/MecanumDriveController
+
+    imu_sensor_broadcaster:
+      type: imu_sensor_broadcaster/IMUSensorBroadcaster
+
+mecanum_base_controller:
+  ros__parameters:
+    use_stamped_vel: true
+    reference_timeout: 0.5
+    front_left_wheel_command_joint_name: "front_left_wheel_joint"
+    front_right_wheel_command_joint_name: "front_right_wheel_joint"
+    rear_right_wheel_command_joint_name: "rear_right_wheel_joint"
+    rear_left_wheel_command_joint_name: "rear_left_wheel_joint"
+
+    front_left_wheel_state_joint_name: "front_left_wheel_joint"
+    front_right_wheel_state_joint_name: "front_right_wheel_joint"
+    rear_right_wheel_state_joint_name: "rear_right_wheel_joint"
+    rear_left_wheel_state_joint_name: "rear_left_wheel_joint"
+
+    kinematics.wheels_radius: 0.05
+    kinematics.sum_of_robot_center_projection_on_X_Y_axis: 0.35
+    kinematics.base_frame_offset.x: 0.0
+    kinematics.base_frame_offset.y: 0.0
+    kinematics.base_frame_offset.theta: 0.0
+
+    base_frame_id: base_footprint
+    odom_frame_id: odom
+    enable_odom_tf: true
+
+    pose_covariance_diagonal: [0.001, 0.001, 0.001, 0.001, 0.001, 0.01]
+    twist_covariance_diagonal: [0.001, 0.001, 0.001, 0.001, 0.001, 0.01]
+
+imu_sensor_broadcaster:
+  ros__parameters:
+    sensor_name: imu_sensor
+    frame_id: imu_link
+    static_covariance_orientation:
+      [1000000.0, 0.0, 0.0, 0.0, 1000000.0, 0.0, 0.0, 0.0, 0.0005]
+    static_covariance_angular_velocity:
+      [1000000.0, 0.0, 0.0, 0.0, 1000000.0, 0.0, 0.0, 0.0, 0.0005]
+    static_covariance_linear_acceleration:
+      [0.5, 0.0, 0.0, 0.0, 0.5, 0.0, 0.0, 0.0, 0.5]

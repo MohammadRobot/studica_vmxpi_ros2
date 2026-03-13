@@ -24,11 +24,13 @@
   <depend>gz_ros2_control</depend>
   <depend>joint_state_broadcaster</depend>
   <depend>diff_drive_controller</depend>
+  <depend>mecanum_drive_controller</depend>
   <depend>imu_sensor_broadcaster</depend>
   <depend>gazebo_ros</depend>
   <depend>geometry_msgs</depend>
   <depend>nav_msgs</depend>
   <depend>sensor_msgs</depend>
+  <depend>tf2_msgs</depend>
   <depend>studica_drivers</depend>
 
 
@@ -51,9 +53,12 @@
   <exec_depend>ros_gz_bridge</exec_depend>
   <exec_depend>studica_ros2_control</exec_depend>
   <exec_depend>ydlidar_ros2_driver</exec_depend>
+  <exec_depend>python3-yaml</exec_depend>
  
   <test_depend>ament_lint_auto</test_depend>
   <test_depend>ament_lint_common</test_depend>
+  <test_depend>ament_cmake_test</test_depend>
+  <test_depend>python3-yaml</test_depend>
 
   <export>
     <build_type>ament_cmake</build_type>

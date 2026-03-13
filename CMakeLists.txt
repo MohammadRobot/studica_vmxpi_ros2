@@ -1,5 +1,6 @@
 cmake_minimum_required(VERSION 3.16)
 project(studica_vmxpi_ros2 LANGUAGES CXX)
+include(CTest)
 
 if(CMAKE_CXX_COMPILER_ID MATCHES "(GNU|Clang)")
   add_compile_options(-Wall -Wextra)
@@ -59,12 +60,66 @@ else()
 endif()
 
 # find dependencies
+#
+# Keep ROS builds isolated from an active Conda environment. Conda can expose
+# fmt/spdlog configs and libstdc++ that are ABI-incompatible with system ROS.
+set(_conda_prefixes "")
+if(DEFINED ENV{CONDA_PREFIX} AND NOT "$ENV{CONDA_PREFIX}" STREQUAL "")
+  list(APPEND _conda_prefixes "$ENV{CONDA_PREFIX}")
+endif()
+if(DEFINED ENV{CONDA_EXE} AND NOT "$ENV{CONDA_EXE}" STREQUAL "")
+  get_filename_component(_conda_bin_dir "$ENV{CONDA_EXE}" DIRECTORY)
+  get_filename_component(_conda_root "${_conda_bin_dir}/.." ABSOLUTE)
+  list(APPEND _conda_prefixes "${_conda_root}")
+endif()
+list(REMOVE_DUPLICATES _conda_prefixes)
+foreach(_conda_prefix IN LISTS _conda_prefixes)
+  if(EXISTS "${_conda_prefix}")
+    list(APPEND CMAKE_IGNORE_PREFIX_PATH "${_conda_prefix}")
+    list(APPEND CMAKE_IGNORE_PATH
+      "${_conda_prefix}"
+      "${_conda_prefix}/bin"
+      "${_conda_prefix}/lib"
+      "${_conda_prefix}/lib64"
+      "${_conda_prefix}/lib/cmake"
+      "${_conda_prefix}/share"
+      "${_conda_prefix}/include"
+    )
+
+    foreach(_pkg_dir_var IN ITEMS fmt_DIR spdlog_DIR)
+      if(DEFINED ${_pkg_dir_var})
+        string(FIND "${${_pkg_dir_var}}" "${_conda_prefix}" _conda_hit)
+        if(NOT _conda_hit EQUAL -1)
+          message(STATUS "Clearing cached ${_pkg_dir_var} from Conda path: ${${_pkg_dir_var}}")
+          unset(${_pkg_dir_var} CACHE)
+          unset(${_pkg_dir_var})
+        endif()
+      endif()
+    endforeach()
+  endif()
+endforeach()
+unset(_conda_hit)
+unset(_pkg_dir_var)
+unset(_conda_root)
+unset(_conda_bin_dir)
+unset(_conda_prefix)
+unset(_conda_prefixes)
+
 find_package(backward_ros REQUIRED)
 find_package(ament_cmake REQUIRED)
+# Avoid Conda Python injecting non-system runtime paths into ROS binaries.
+set(Python3_FIND_VIRTUALENV STANDARD)
+set(Python3_FIND_STRATEGY LOCATION)
+if(EXISTS "/usr/bin/python3")
+  set(Python3_ROOT_DIR "/usr" CACHE PATH "System Python root" FORCE)
+  set(Python3_EXECUTABLE "/usr/bin/python3" CACHE FILEPATH "System Python3 executable" FORCE)
+endif()
+find_package(Python3 REQUIRED COMPONENTS Interpreter Development)
 find_package(rclcpp REQUIRED)
 find_package(geometry_msgs REQUIRED)
 find_package(nav_msgs REQUIRED)
 find_package(sensor_msgs REQUIRED)
+find_package(tf2_msgs REQUIRED)
 foreach(Dependency IN ITEMS ${THIS_PACKAGE_INCLUDE_DEPENDS})
   find_package(${Dependency} REQUIRED)
 endforeach()
@@ -73,7 +128,7 @@ endforeach()
 add_library(
   studica_vmxpi_ros2
   SHARED
-  hardware/diffbot_system.cpp
+  hardware/sim_system.cpp
 )
 
 if(VMXPI_FOUND)
@@ -122,13 +177,26 @@ install(
 install(
   DIRECTORY bringup/launch bringup/config
   DESTINATION share/studica_vmxpi_ros2
+  PATTERN "__pycache__" EXCLUDE
+  PATTERN "*.pyc" EXCLUDE
+)
+install(
+  DIRECTORY docs
+  DESTINATION share/studica_vmxpi_ros2
+)
+install(PROGRAMS
+  scripts/motor_smoke_test.sh
+  scripts/create_profile.sh
+  scripts/install_git_hooks.sh
+  scripts/validate_profiles.py
+  DESTINATION lib/${PROJECT_NAME}
 )
 
 add_executable(robot_patrol_node src/patrol.cpp)
 ament_target_dependencies(robot_patrol_node rclcpp sensor_msgs geometry_msgs)
 
 add_executable(topic_adapter_node src/topic_adapter_node.cpp)
-ament_target_dependencies(topic_adapter_node rclcpp geometry_msgs nav_msgs sensor_msgs)
+ament_target_dependencies(topic_adapter_node rclcpp geometry_msgs nav_msgs sensor_msgs tf2_msgs)
 
 install(TARGETS
    robot_patrol_node
@@ -142,6 +210,18 @@ install(TARGETS studica_vmxpi_ros2
   LIBRARY DESTINATION lib
   RUNTIME DESTINATION bin
 )
+
+if(BUILD_TESTING)
+  find_package(ament_cmake_test REQUIRED)
+  ament_add_test(
+    validate_robot_profiles
+    GENERATE_RESULT_FOR_RETURN_CODE_ZERO
+    COMMAND ${Python3_EXECUTABLE}
+      ${CMAKE_CURRENT_SOURCE_DIR}/scripts/validate_profiles.py
+      --profiles-dir
+      ${CMAKE_CURRENT_SOURCE_DIR}/bringup/config/profiles
+  )
+endif()
 
 ## EXPORTS
 ament_export_targets(export_studica_vmxpi_ros2 HAS_LIBRARY_TARGET)

@@ -46,6 +46,11 @@ def generate_launch_description():
             description="Start RViz2 from robot launch.",
         ),
         DeclareLaunchArgument(
+            "robot_profile",
+            default_value="training_4wd",
+            description="Robot profile under config/profiles.",
+        ),
+        DeclareLaunchArgument(
             "use_sim_time",
             default_value="false",
             description="Use simulation time.",
@@ -67,8 +72,8 @@ def generate_launch_description():
         ),
         DeclareLaunchArgument(
             "joystick_cmd_vel_topic",
-            default_value="/diffbot_base_controller/cmd_vel",
-            description="Joystick command velocity output topic.",
+            default_value="",
+            description="Joystick command velocity output topic (empty = auto from drive profile).",
         ),
         DeclareLaunchArgument(
             "joystick_publish_stamped",
@@ -93,6 +98,7 @@ def generate_launch_description():
     ]
 
     gui = LaunchConfiguration("gui")
+    robot_profile = LaunchConfiguration("robot_profile")
     use_sim_time = LaunchConfiguration("use_sim_time")
     use_joystick = LaunchConfiguration("use_joystick")
     use_lidar = LaunchConfiguration("use_lidar")
@@ -102,18 +108,18 @@ def generate_launch_description():
 
     robot = IncludeLaunchDescription(
         PythonLaunchDescriptionSource(
-            PathJoinSubstitution([FindPackageShare("studica_vmxpi_ros2"), "launch", "diffbot_gz_sim.launch.py"])
+            PathJoinSubstitution([FindPackageShare("studica_vmxpi_ros2"), "launch", "bringup.launch.py"])
         ),
         launch_arguments={
+            "mode": "hardware",
             "gui": gui,
-            "use_hardware": "true",
-            "use_gz_sim": "false",
             "use_sim_time": use_sim_time,
             "use_joystick": use_joystick,
             "use_lidar": use_lidar,
             "ydlidar_params_file": ydlidar_params_file,
             "joystick_cmd_vel_topic": joystick_cmd_vel_topic,
             "joystick_publish_stamped": joystick_publish_stamped,
+            "robot_profile": robot_profile,
         }.items(),
     )
 
