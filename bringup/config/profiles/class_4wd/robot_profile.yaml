@@ -1,0 +1,42 @@
+xacro:
+  base_mass: 10.0
+  base_width: 0.35
+  base_length: 0.288
+  base_height: 0.1
+  wheel_mass: 0.3
+  wheel_len: 0.04
+  wheel_radius: 0.0625
+  wheel_z_offset: -0.027
+  caster_wheel_mass: 0.1
+  caster_wheel_radius: 0.05
+  laser1_model_x: 0.192
+  laser_model_z: 0.0
+  laser_frame_z: 0.03
+  
+drive:
+  wheel_layout: diff_4wd
+  controller_name: robot_base_controller
+  controller_type: diff_drive_controller/DiffDriveController
+
+hardware:
+  can_id: 42
+  motor_freq: 15600
+  ticks_per_rotation: 1464
+  wheel_radius: 0.05
+  speed_scale: 0.5
+  max_wheel_angular_velocity_rad_s: 20.0
+
+  left_front_motor: 2
+  left_rear_motor: 3
+  right_front_motor: 0
+  right_rear_motor: 1
+
+  invert_left_front_motor: false
+  invert_left_rear_motor: false
+  invert_right_front_motor: true
+  invert_right_rear_motor: true
+
+  invert_left_front_encoder: false
+  invert_left_rear_encoder: false
+  invert_right_front_encoder: false
+  invert_right_rear_encoder: false

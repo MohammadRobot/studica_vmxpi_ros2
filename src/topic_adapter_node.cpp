@@ -8,6 +8,7 @@
 #include "rclcpp/rclcpp.hpp"
 #include "sensor_msgs/msg/imu.hpp"
 #include "sensor_msgs/msg/laser_scan.hpp"
+#include "tf2_msgs/msg/tf_message.hpp"
 
 class TopicAdapterNode : public rclcpp::Node {
 public:
@@ -15,6 +16,7 @@ public:
     enable_scan_relay_ = this->declare_parameter<bool>("enable_scan_relay", false);
     enable_imu_relay_ = this->declare_parameter<bool>("enable_imu_relay", false);
     enable_nav2_bridge_ = this->declare_parameter<bool>("enable_nav2_bridge", false);
+    enable_tf_relay_ = this->declare_parameter<bool>("enable_tf_relay", false);
 
     if (enable_scan_relay_) {
       setupScanRelay();
@@ -25,10 +27,14 @@ public:
     if (enable_nav2_bridge_) {
       setupNav2Bridge();
     }
+    if (enable_tf_relay_) {
+      setupTfRelay();
+    }
 
-    if (!enable_scan_relay_ && !enable_imu_relay_ && !enable_nav2_bridge_) {
+    if (!enable_scan_relay_ && !enable_imu_relay_ && !enable_nav2_bridge_ &&
+        !enable_tf_relay_) {
       RCLCPP_WARN(this->get_logger(), "No adapters enabled. Set one of: enable_scan_relay, "
-                                      "enable_imu_relay, enable_nav2_bridge.");
+                                      "enable_imu_relay, enable_nav2_bridge, enable_tf_relay.");
     }
   }
 
@@ -41,8 +47,11 @@ private:
     scan_output_frame_id_ =
         this->declare_parameter<std::string>("scan_output_frame_id", "laser_scan_frame");
 
+    // Offer reliable QoS on /scan so RViz and other reliable subscribers can connect.
+    // Reliable publishers remain compatible with best-effort subscribers.
+    auto scan_output_qos = rclcpp::QoS(rclcpp::KeepLast(10)).reliable();
     scan_pub_ = this->create_publisher<sensor_msgs::msg::LaserScan>(
-        scan_output_topic_, rclcpp::SensorDataQoS());
+        scan_output_topic_, scan_output_qos);
     scan_sub_ = this->create_subscription<sensor_msgs::msg::LaserScan>(
         scan_input_topic_, rclcpp::SensorDataQoS(),
         std::bind(&TopicAdapterNode::scanCallback, this, std::placeholders::_1));
@@ -59,7 +68,7 @@ private:
     imu_use_odom_fallback_ =
         this->declare_parameter<bool>("imu_use_odom_fallback", false);
     imu_fallback_odom_topic_ = this->declare_parameter<std::string>(
-        "imu_fallback_odom_topic", "/diffbot_base_controller/odom");
+        "imu_fallback_odom_topic", "/robot_base_controller/odom");
     imu_fallback_frame_id_ =
         this->declare_parameter<std::string>("imu_fallback_frame_id", "imu_link");
     imu_zero_epsilon_ =
@@ -89,9 +98,9 @@ private:
     nav2_input_cmd_vel_topic_ = this->declare_parameter<std::string>(
         "input_cmd_vel_topic", "/cmd_vel");
     nav2_output_cmd_vel_topic_ = this->declare_parameter<std::string>(
-        "output_cmd_vel_topic", "/diffbot_base_controller/cmd_vel");
+        "output_cmd_vel_topic", "/robot_base_controller/cmd_vel");
     nav2_input_odom_topic_ = this->declare_parameter<std::string>(
-        "input_odom_topic", "/diffbot_base_controller/odom");
+        "input_odom_topic", "/robot_base_controller/odom");
     nav2_output_odom_topic_ =
         this->declare_parameter<std::string>("output_odom_topic", "/odom");
     nav2_cmd_vel_frame_id_ =
@@ -117,6 +126,21 @@ private:
                 nav2_output_cmd_vel_topic_.c_str(),
                 nav2_input_odom_topic_.c_str(),
                 nav2_output_odom_topic_.c_str());
+  }
+
+  void setupTfRelay() {
+    tf_input_topic_ = this->declare_parameter<std::string>(
+        "tf_input_topic", "/mecanum_base_controller/tf_odometry");
+    tf_output_topic_ = this->declare_parameter<std::string>("tf_output_topic", "/tf");
+
+    auto tf_qos = rclcpp::QoS(rclcpp::KeepLast(100)).reliable();
+    tf_pub_ = this->create_publisher<tf2_msgs::msg::TFMessage>(tf_output_topic_, tf_qos);
+    tf_sub_ = this->create_subscription<tf2_msgs::msg::TFMessage>(
+        tf_input_topic_, tf_qos,
+        std::bind(&TopicAdapterNode::tfCallback, this, std::placeholders::_1));
+
+    RCLCPP_INFO(this->get_logger(), "TF relay enabled: %s -> %s",
+                tf_input_topic_.c_str(), tf_output_topic_.c_str());
   }
 
   void scanCallback(const sensor_msgs::msg::LaserScan::SharedPtr msg) {
@@ -181,9 +205,14 @@ private:
     nav2_odom_pub_->publish(*msg);
   }
 
+  void tfCallback(const tf2_msgs::msg::TFMessage::SharedPtr msg) {
+    tf_pub_->publish(*msg);
+  }
+
   bool enable_scan_relay_{false};
   bool enable_imu_relay_{false};
   bool enable_nav2_bridge_{false};
+  bool enable_tf_relay_{false};
 
   std::string scan_input_topic_;
   std::string scan_output_topic_;
@@ -211,6 +240,11 @@ private:
   rclcpp::Publisher<geometry_msgs::msg::TwistStamped>::SharedPtr nav2_cmd_vel_pub_;
   rclcpp::Subscription<nav_msgs::msg::Odometry>::SharedPtr nav2_odom_sub_;
   rclcpp::Publisher<nav_msgs::msg::Odometry>::SharedPtr nav2_odom_pub_;
+
+  std::string tf_input_topic_;
+  std::string tf_output_topic_;
+  rclcpp::Subscription<tf2_msgs::msg::TFMessage>::SharedPtr tf_sub_;
+  rclcpp::Publisher<tf2_msgs::msg::TFMessage>::SharedPtr tf_pub_;
 };
 
 int main(int argc, char **argv) {

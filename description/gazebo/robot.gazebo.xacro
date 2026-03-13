@@ -1,0 +1,172 @@
+<?xml version="1.0"?>
+<!--
+Copied and modified from ROS1 example -
+https://github.com/ros-simulation/gazebo_ros_demos/blob/kinetic-devel/rrbot_description/urdf/rrbot.gazebo
+-->
+<robot xmlns:xacro="http://ros.org/wiki/xacro">
+
+  <xacro:macro name="robot_gazebo" params="prefix controllers_file wheel_layout:=diff">
+
+    <xacro:property name="wheel_layout_resolved" value="${wheel_layout if wheel_layout in ['diff', 'diff_4wd', 'mecanum', 'omni'] else 'diff'}"/>
+    <xacro:property name="holonomic_mu" value="${8.0 if wheel_layout_resolved == 'mecanum' else 3.0}"/>
+    <xacro:property name="holonomic_mu2" value="${8.0 if wheel_layout_resolved == 'mecanum' else 0.2}"/>
+
+    <!-- ros_control plugin -->
+    <gazebo>
+      <plugin filename="libgazebo_ros2_control.so" name="gazebo_ros2_control">
+        <parameters>${controllers_file}</parameters>
+      </plugin>
+    </gazebo>
+
+    <!-- Joint State Publisher Plugin -->
+    <xacro:if value="${wheel_layout_resolved == 'diff'}">
+      <gazebo>
+        <plugin name="gazebo_joint_state_broadcaster" filename="libgazebo_ros_joint_state_publisher.so">
+          <update_rate>50</update_rate>
+          <joint_name>${prefix}caster_frontal_wheel_joint</joint_name>
+          <joint_name>${prefix}caster_rear_wheel_joint</joint_name>
+        </plugin>
+      </gazebo>
+    </xacro:if>
+
+    <!-- Base Link -->
+    <gazebo reference="${prefix}chassis_link">
+      <material>Gazebo/Orange</material>
+    </gazebo>
+
+    <xacro:if value="${wheel_layout_resolved == 'diff'}">
+      <gazebo reference="${prefix}left_wheel">
+        <kp>1e6</kp>
+        <kd>1e4</kd>
+        <friction>
+          <ode>
+            <mu>10</mu>
+            <mu2>10</mu2>
+          </ode>
+        </friction>
+        <material>Gazebo/Black</material>
+      </gazebo>
+
+      <gazebo reference="${prefix}right_wheel">
+        <kp>1e6</kp>
+        <kd>1e4</kd>
+        <friction>
+          <ode>
+            <mu>10</mu>
+            <mu2>10</mu2>
+          </ode>
+        </friction>
+        <material>Gazebo/Black</material>
+      </gazebo>
+
+      <gazebo reference="${prefix}caster_frontal_wheel">
+        <kp>1e6</kp>
+        <kd>1e4</kd>
+        <friction>
+          <ode>
+            <mu>0.001</mu>
+            <mu2>0.001</mu2>
+          </ode>
+        </friction>
+        <material>Gazebo/Green</material>
+      </gazebo>
+
+      <gazebo reference="${prefix}caster_rear_wheel">
+        <kp>1e6</kp>
+        <kd>1e4</kd>
+        <friction>
+          <ode>
+            <mu>0.001</mu>
+            <mu2>0.001</mu2>
+          </ode>
+        </friction>
+        <material>Gazebo/White</material>
+      </gazebo>
+    </xacro:if>
+
+    <xacro:unless value="${wheel_layout_resolved == 'diff'}">
+      <gazebo reference="${prefix}front_left_wheel">
+        <kp>1e6</kp>
+        <kd>1e4</kd>
+        <friction>
+          <ode>
+            <mu>${holonomic_mu}</mu>
+            <mu2>${holonomic_mu2}</mu2>
+          </ode>
+        </friction>
+        <material>Gazebo/Black</material>
+      </gazebo>
+
+      <gazebo reference="${prefix}front_right_wheel">
+        <kp>1e6</kp>
+        <kd>1e4</kd>
+        <friction>
+          <ode>
+            <mu>${holonomic_mu}</mu>
+            <mu2>${holonomic_mu2}</mu2>
+          </ode>
+        </friction>
+        <material>Gazebo/Black</material>
+      </gazebo>
+
+      <gazebo reference="${prefix}rear_left_wheel">
+        <kp>1e6</kp>
+        <kd>1e4</kd>
+        <friction>
+          <ode>
+            <mu>${holonomic_mu}</mu>
+            <mu2>${holonomic_mu2}</mu2>
+          </ode>
+        </friction>
+        <material>Gazebo/Black</material>
+      </gazebo>
+
+      <gazebo reference="${prefix}rear_right_wheel">
+        <kp>1e6</kp>
+        <kd>1e4</kd>
+        <friction>
+          <ode>
+            <mu>${holonomic_mu}</mu>
+            <mu2>${holonomic_mu2}</mu2>
+          </ode>
+        </friction>
+        <material>Gazebo/Black</material>
+      </gazebo>
+    </xacro:unless>
+
+    <!-- Lidar mesh color override (mesh can appear white in Gazebo if Collada materials are not resolved). -->
+    <gazebo reference="${prefix}laser_model_link">
+      <material>Gazebo/Grey</material>
+    </gazebo>
+
+    <gazebo reference="${prefix}laser_scan_frame">
+      <sensor name="sensor_ray" type="ray">
+          <pose>0 0 0 0 0 0</pose>
+          <ray>
+            <scan>
+              <horizontal>
+                <samples>200</samples>
+                <resolution>1.0</resolution>
+                <min_angle>-3.14</min_angle>
+                <max_angle>3.14</max_angle>
+              </horizontal>
+            </scan>
+            <range>
+              <min>0.1</min>
+              <max>5.0</max>
+            </range>
+          </ray>
+          <always_on>true</always_on>
+          <visualize>true</visualize>
+          <update_rate>20.0</update_rate>
+          <plugin name="laser_scan_node" filename="libgazebo_ros_ray_sensor.so">
+            <ros>
+              <remapping>~/out:=scan</remapping>
+            </ros>
+            <frame_name>${prefix}laser_scan_frame</frame_name>
+            <output_type>sensor_msgs/LaserScan</output_type>
+          </plugin>
+      </sensor>
+    </gazebo>
+  </xacro:macro>
+</robot>
