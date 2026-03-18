@@ -6,9 +6,9 @@ cd "$repo_root"
 
 changed_files="$(git diff --cached --name-only)"
 
-if ! grep -Eq '^(bringup/config/profiles/|bringup/config/profile_template/|scripts/validate_profiles.py|bringup/launch/bringup.launch.py)' <<<"$changed_files"; then
+if ! grep -Eq '^(bringup/config/profiles/|bringup/config/profile_template/|bringup/launch/|scripts/validate_profiles.py|scripts/check_project.sh|\.githooks/pre-commit)' <<<"$changed_files"; then
   exit 0
 fi
 
-echo "[pre-commit] Running profile validation..."
-python3 "${repo_root}/scripts/validate_profiles.py" --profiles-dir "${repo_root}/bringup/config/profiles"
+echo "[pre-commit] Running project checks..."
+"${repo_root}/scripts/check_project.sh"

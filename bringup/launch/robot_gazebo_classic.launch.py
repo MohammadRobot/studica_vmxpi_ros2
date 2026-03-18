@@ -11,6 +11,8 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+"""Gazebo Classic compatibility launch for the robot base stack."""
+
 import os
 from launch import LaunchDescription
 from launch.actions import DeclareLaunchArgument, IncludeLaunchDescription, LogInfo, OpaqueFunction
@@ -24,6 +26,7 @@ from ament_index_python.packages import PackageNotFoundError, get_package_prefix
 
 
 def _maybe_include_gamepad(context, *args, **kwargs):
+    """Include joystick teleop when requested and dependency is available."""
     use_joystick = LaunchConfiguration("use_joystick").perform(context).lower()
     if use_joystick not in ("true", "1", "yes"):
         return []

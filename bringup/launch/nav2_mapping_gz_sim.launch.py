@@ -1,8 +1,26 @@
+# Copyright (c) 2026 studica_vmxpi_ros2 contributors
+# SPDX-License-Identifier: Apache-2.0
+"""Gazebo Sim mapping wrapper (SLAM + unified bringup)."""
+
 from launch import LaunchDescription
 from launch.actions import DeclareLaunchArgument, IncludeLaunchDescription
 from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch.substitutions import LaunchConfiguration, PathJoinSubstitution, PythonExpression
 from launch_ros.substitutions import FindPackageShare
+
+
+def _runtime_mode_expression(use_gz_sim, use_hardware):
+    # Keep mode resolution in one place so wrappers stay easy to read.
+    return PythonExpression(
+        [
+            "'gz_sim' if ('",
+            use_gz_sim,
+            "').lower() in ['true','1','yes','on'] else "
+            "('hardware' if ('",
+            use_hardware,
+            "').lower() in ['true','1','yes','on'] else 'mock')",
+        ]
+    )
 
 
 def generate_launch_description():
@@ -65,6 +83,14 @@ def generate_launch_description():
             description="Use simulation time (defaults to use_gz_sim).",
         ),
         DeclareLaunchArgument(
+            "use_ground_truth_odom_tf",
+            default_value="false",
+            description=(
+                "In gz_sim, source /odom and /tf from Gazebo ground-truth odometry topics. "
+                "Set false to use controller odometry TF."
+            ),
+        ),
+        DeclareLaunchArgument(
             "use_joystick",
             default_value="false",
             description="Launch joystick teleop from studica_ros2_control.",
@@ -99,20 +125,12 @@ def generate_launch_description():
     spawn_z = LaunchConfiguration("spawn_z")
     spawn_yaw = LaunchConfiguration("spawn_yaw")
     use_sim_time = LaunchConfiguration("use_sim_time")
+    use_ground_truth_odom_tf = LaunchConfiguration("use_ground_truth_odom_tf")
     use_joystick = LaunchConfiguration("use_joystick")
     joystick_cmd_vel_topic = LaunchConfiguration("joystick_cmd_vel_topic")
     joystick_publish_stamped = LaunchConfiguration("joystick_publish_stamped")
     slam_params_file = LaunchConfiguration("slam_params_file")
-    mode = PythonExpression(
-        [
-            "'gz_sim' if ('",
-            use_gz_sim,
-            "').lower() in ['true','1','yes','on'] else "
-            "('hardware' if ('",
-            use_hardware,
-            "').lower() in ['true','1','yes','on'] else 'mock')",
-        ]
-    )
+    mode = _runtime_mode_expression(use_gz_sim, use_hardware)
 
     robot = IncludeLaunchDescription(
         PythonLaunchDescriptionSource(
@@ -128,6 +146,7 @@ def generate_launch_description():
             "spawn_z": spawn_z,
             "spawn_yaw": spawn_yaw,
             "use_sim_time": use_sim_time,
+            "use_ground_truth_odom_tf": use_ground_truth_odom_tf,
             "use_joystick": use_joystick,
             "joystick_cmd_vel_topic": joystick_cmd_vel_topic,
             "joystick_publish_stamped": joystick_publish_stamped,

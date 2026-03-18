@@ -1,4 +1,6 @@
-# Legacy combined bringup: ros2_control (studica_vmxpi_ros2) + optional studica sensors.
+# Copyright (c) 2026 studica_vmxpi_ros2 contributors
+# SPDX-License-Identifier: Apache-2.0
+"""Legacy combined bringup wrapper for ros2_control plus optional studica sensors."""
 
 import os
 

@@ -1,3 +1,11 @@
+// Copyright (c) 2026 studica_vmxpi_ros2 contributors
+// SPDX-License-Identifier: Apache-2.0
+// TopicAdapterNode centralizes API compatibility shims used by launch files:
+// - /scan_raw -> /scan frame normalization
+// - IMU aliasing/fallback
+// - Nav2 cmd_vel/odom topic adaptation
+// - TF relay for controller-specific topics
+
 #include <cmath>
 #include <memory>
 #include <string>
@@ -13,6 +21,7 @@
 class TopicAdapterNode : public rclcpp::Node {
 public:
   TopicAdapterNode() : Node("topic_adapter") {
+    // Enable only the adapters needed by the current launch profile.
     enable_scan_relay_ = this->declare_parameter<bool>("enable_scan_relay", false);
     enable_imu_relay_ = this->declare_parameter<bool>("enable_imu_relay", false);
     enable_nav2_bridge_ = this->declare_parameter<bool>("enable_nav2_bridge", false);

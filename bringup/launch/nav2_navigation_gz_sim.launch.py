@@ -1,3 +1,7 @@
+# Copyright (c) 2026 studica_vmxpi_ros2 contributors
+# SPDX-License-Identifier: Apache-2.0
+"""Gazebo Sim navigation wrapper (Nav2 localization + unified bringup)."""
+
 import os
 
 from ament_index_python.packages import PackageNotFoundError, get_package_share_directory
@@ -5,95 +9,15 @@ from launch import LaunchDescription
 from launch.actions import DeclareLaunchArgument, IncludeLaunchDescription, LogInfo, OpaqueFunction
 from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch.substitutions import LaunchConfiguration, PathJoinSubstitution
-from launch_ros.actions import Node
 from launch_ros.substitutions import FindPackageShare
-import yaml
 
 
-DEFAULT_DRIVE_CONTROLLER_NAME = "robot_base_controller"
-DEFAULT_DRIVE_CONTROLLER_TYPE = "diff_drive_controller/DiffDriveController"
-MECANUM_DRIVE_CONTROLLER_TYPE = "mecanum_drive_controller/MecanumDriveController"
-
-
-def _is_true(value: str) -> bool:
-    return value.lower() in ("true", "1", "yes", "on")
-
-
-def _load_yaml(path: str):
-    with open(path, "r", encoding="utf-8") as stream:
-        data = yaml.safe_load(stream)
-    if not isinstance(data, dict):
-        raise RuntimeError(f"YAML root must be a mapping: {path}")
-    return data
-
-
-def _drive_topics(controller_name: str, controller_type: str):
-    if controller_type == MECANUM_DRIVE_CONTROLLER_TYPE:
-        return f"/{controller_name}/reference", f"/{controller_name}/odometry"
-    return f"/{controller_name}/cmd_vel", f"/{controller_name}/odom"
-
-
-def _resolve_profile_drive_topics(profile_name: str):
-    controller_name = DEFAULT_DRIVE_CONTROLLER_NAME
-    controller_type = DEFAULT_DRIVE_CONTROLLER_TYPE
-
-    pkg_share = get_package_share_directory("studica_vmxpi_ros2")
-    profile_file = os.path.join(pkg_share, "config", "profiles", profile_name, "robot_profile.yaml")
-    if not os.path.exists(profile_file):
-        return _drive_topics(controller_name, controller_type)
-
-    try:
-        profile = _load_yaml(profile_file)
-    except Exception:
-        return _drive_topics(controller_name, controller_type)
-
-    drive_cfg = profile.get("drive")
-    if isinstance(drive_cfg, dict):
-        profile_controller_name = str(
-            drive_cfg.get("controller_name", DEFAULT_DRIVE_CONTROLLER_NAME)
-        ).strip()
-        profile_controller_type = str(
-            drive_cfg.get("controller_type", DEFAULT_DRIVE_CONTROLLER_TYPE)
-        ).strip()
-        if profile_controller_name:
-            controller_name = profile_controller_name
-        if profile_controller_type:
-            controller_type = profile_controller_type
-
-    return _drive_topics(controller_name, controller_type)
-
-
-def _build_nav2_bridge(context, *args, **kwargs):
-    robot_profile = LaunchConfiguration("robot_profile").perform(context).strip() or "training_4wd"
-    drive_cmd_topic = LaunchConfiguration("bridge_drive_cmd_topic").perform(context).strip()
-    drive_odom_topic = LaunchConfiguration("bridge_drive_odom_topic").perform(context).strip()
-
-    if not drive_cmd_topic or not drive_odom_topic:
-        resolved_cmd_topic, resolved_odom_topic = _resolve_profile_drive_topics(robot_profile)
-        if not drive_cmd_topic:
-            drive_cmd_topic = resolved_cmd_topic
-        if not drive_odom_topic:
-            drive_odom_topic = resolved_odom_topic
-
-    return [
-        Node(
-            package="studica_vmxpi_ros2",
-            executable="topic_adapter_node",
-            name="nav2_topic_bridge",
-            output="screen",
-            parameters=[
-                {
-                    "use_sim_time": _is_true(LaunchConfiguration("use_sim_time").perform(context)),
-                    "enable_nav2_bridge": True,
-                    "input_cmd_vel_topic": "/cmd_vel",
-                    "output_cmd_vel_topic": drive_cmd_topic,
-                    "input_odom_topic": drive_odom_topic,
-                    "output_odom_topic": "/odom",
-                    "cmd_vel_frame_id": "base_link",
-                }
-            ],
-        )
-    ]
+def _resolve_nav2_params_file(context, nav2_share: str) -> str:
+    # Use custom params when provided; otherwise keep nav2_bringup defaults.
+    configured = LaunchConfiguration("nav2_params_file").perform(context).strip()
+    if configured:
+        return configured
+    return os.path.join(nav2_share, "params", "nav2_params.yaml")
 
 
 def _maybe_include_nav2(context, *args, **kwargs):
@@ -108,19 +32,20 @@ def _maybe_include_nav2(context, *args, **kwargs):
     except PackageNotFoundError:
         return [LogInfo(msg="nav2_bringup not found; install ros-humble-nav2-bringup.")]
 
+    use_sim_time = LaunchConfiguration("use_sim_time").perform(context)
+    autostart = LaunchConfiguration("autostart").perform(context)
+    params_file = _resolve_nav2_params_file(context, nav2_share)
     return [
         IncludeLaunchDescription(
             PythonLaunchDescriptionSource(os.path.join(nav2_share, "launch", "bringup_launch.py")),
             launch_arguments={
                 "slam": "False",
+                # Disable composition to keep node graph transparent for students.
                 "use_composition": "False",
                 "map": map_path,
-                "params_file": (
-                    LaunchConfiguration("nav2_params_file").perform(context).strip()
-                    or os.path.join(nav2_share, "params", "nav2_params.yaml")
-                ),
-                "use_sim_time": LaunchConfiguration("use_sim_time").perform(context),
-                "autostart": LaunchConfiguration("autostart").perform(context),
+                "params_file": params_file,
+                "use_sim_time": use_sim_time,
+                "autostart": autostart,
             }.items(),
         )
     ]
@@ -134,8 +59,15 @@ def generate_launch_description():
             description="Start RViz2 from robot launch.",
         ),
         DeclareLaunchArgument(
+            "rviz_config_file",
+            default_value=PathJoinSubstitution(
+                [FindPackageShare("studica_vmxpi_ros2"), "description/robot/rviz", "nav2_navigation.rviz"]
+            ),
+            description="Absolute path to RViz config file.",
+        ),
+        DeclareLaunchArgument(
             "robot_profile",
-            default_value="training_4wd",
+            default_value="class_4wd",
             description="Robot profile under config/profiles.",
         ),
         DeclareLaunchArgument(
@@ -174,6 +106,14 @@ def generate_launch_description():
             "use_sim_time",
             default_value="true",
             description="Use simulation time.",
+        ),
+        DeclareLaunchArgument(
+            "use_ground_truth_odom_tf",
+            default_value="false",
+            description=(
+                "In gz_sim, source /odom and /tf from Gazebo ground-truth odometry topics. "
+                "Set false to use controller odometry TF."
+            ),
         ),
         DeclareLaunchArgument(
             "use_joystick",
@@ -219,6 +159,7 @@ def generate_launch_description():
 
     gui = LaunchConfiguration("gui")
     robot_profile = LaunchConfiguration("robot_profile")
+    rviz_config_file = LaunchConfiguration("rviz_config_file")
     world = LaunchConfiguration("world")
     world_name = LaunchConfiguration("world_name")
     spawn_x = LaunchConfiguration("spawn_x")
@@ -226,6 +167,7 @@ def generate_launch_description():
     spawn_z = LaunchConfiguration("spawn_z")
     spawn_yaw = LaunchConfiguration("spawn_yaw")
     use_sim_time = LaunchConfiguration("use_sim_time")
+    use_ground_truth_odom_tf = LaunchConfiguration("use_ground_truth_odom_tf")
     use_joystick = LaunchConfiguration("use_joystick")
     joystick_cmd_vel_topic = LaunchConfiguration("joystick_cmd_vel_topic")
     joystick_publish_stamped = LaunchConfiguration("joystick_publish_stamped")
@@ -244,9 +186,11 @@ def generate_launch_description():
             "spawn_z": spawn_z,
             "spawn_yaw": spawn_yaw,
             "use_sim_time": use_sim_time,
+            "use_ground_truth_odom_tf": use_ground_truth_odom_tf,
             "use_joystick": use_joystick,
             "joystick_cmd_vel_topic": joystick_cmd_vel_topic,
             "joystick_publish_stamped": joystick_publish_stamped,
+            "rviz_config_file": rviz_config_file,
             "robot_profile": robot_profile,
         }.items(),
     )

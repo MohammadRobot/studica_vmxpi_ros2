@@ -103,11 +103,11 @@
       </xacro:if>
       <xacro:if value="${use_gz_sim and wheel_layout_resolved == 'diff'}">
         <!-- Gazebo Sim: publish passive caster joints so robot_state_publisher can build full TF tree. -->
-        <joint name="${prefix}caster_frontal_wheel_joint">
+        <joint name="${prefix}caster_left_wheel_joint">
           <state_interface name="position"/>
           <state_interface name="velocity"/>
         </joint>
-        <joint name="${prefix}caster_rear_wheel_joint">
+        <joint name="${prefix}caster_right_wheel_joint">
           <state_interface name="position"/>
           <state_interface name="velocity"/>
         </joint>

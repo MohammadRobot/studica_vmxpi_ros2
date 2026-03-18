@@ -59,7 +59,7 @@ Set physical and hardware values:
   - Valid values are `0..3` for active motors.
   - Use `-1` for an unused motor slot.
   - At least one left motor and one right motor must be active.
-  - For `wheel_layout: mecanum` or `wheel_layout: omni`, all four motors must be active (`>= 0`).
+- For `wheel_layout: diff_4wd`, `wheel_layout: mecanum`, or `wheel_layout: omni`, all four motors must be active (`>= 0`).
 - Set every `invert_*` field explicitly as `true` or `false`.
 
 ## 3. Edit `robot_controllers.yaml`
@@ -104,6 +104,12 @@ Also run standalone profile lint:
 
 ```bash
 python3 scripts/validate_profiles.py --profiles-dir bringup/config/profiles
+```
+
+Or run the full local checks used by pre-commit:
+
+```bash
+scripts/check_project.sh
 ```
 
 ## 5. Classroom workflow

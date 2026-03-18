@@ -1,10 +1,26 @@
+# Copyright (c) 2026 studica_vmxpi_ros2 contributors
+# SPDX-License-Identifier: Apache-2.0
+"""Primary Gazebo Sim launch for robot model, control, bridges, and optional tools."""
+
 import math
 import os
 import shlex
 
 from ament_index_python.packages import PackageNotFoundError, get_package_prefix, get_package_share_directory
 from launch import LaunchDescription
-from launch.actions import DeclareLaunchArgument, ExecuteProcess, IncludeLaunchDescription, LogInfo, OpaqueFunction, SetEnvironmentVariable, TimerAction
+from launch.actions import (
+    DeclareLaunchArgument,
+    EmitEvent,
+    ExecuteProcess,
+    IncludeLaunchDescription,
+    LogInfo,
+    OpaqueFunction,
+    RegisterEventHandler,
+    SetEnvironmentVariable,
+    TimerAction,
+)
+from launch.event_handlers import OnProcessExit
+from launch.events import Shutdown
 from launch.conditions import IfCondition, UnlessCondition
 from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch.substitutions import Command, FindExecutable, LaunchConfiguration, PathJoinSubstitution, PythonExpression
@@ -13,8 +29,41 @@ from launch_ros.parameter_descriptions import ParameterValue
 from launch_ros.substitutions import FindPackageShare
 
 
+_TRUE_VALUES_EXPR = "['true','1','yes','on']"
+_FALSE_VALUES_EXPR = "['false','0','no','off']"
+
+
 def _is_true(value: str) -> bool:
     return value.lower() in ("true", "1", "yes", "on")
+
+
+def _expr_is_true(value):
+    """Build a PythonExpression fragment that checks truthy launch values."""
+    return ["('", value, f"').lower() in {_TRUE_VALUES_EXPR}"]
+
+
+def _expr_is_false(value):
+    """Build a PythonExpression fragment that checks falsy launch values."""
+    return ["('", value, f"').lower() in {_FALSE_VALUES_EXPR}"]
+
+
+def _declare_arg(name: str, default_value, description: str = ""):
+    """Create a launch argument with optional description text."""
+    if description:
+        return DeclareLaunchArgument(
+            name,
+            default_value=default_value,
+            description=description,
+        )
+    return DeclareLaunchArgument(name, default_value=default_value)
+
+
+def _append_env_path(var_name: str, entry: str):
+    """Append to an environment path variable while preserving prior contents."""
+    if var_name in os.environ:
+        os.environ[var_name] = f"{os.environ[var_name]}:{entry}"
+    else:
+        os.environ[var_name] = entry
 
 
 def _sanitize_ld_library_path_for_rviz() -> str:
@@ -343,8 +392,11 @@ run_spawner() {{
     return 0
   fi
 
-  # If already loaded, treat this as success and continue activation flow.
-  if echo "$output" | grep -q "Controller already loaded, skipping load_controller"; then
+  # Treat as success only if the controller is already active/running.
+  # "already loaded" alone is not enough, because configuration may still fail
+  # when hardware interfaces are not ready yet.
+  if echo "$output" | grep -Eq \
+    "Controller already active|already in state 'active'|already running|can not be configured from 'active' state"; then
     return 0
   fi
 
@@ -353,210 +405,198 @@ run_spawner() {{
 
 for cm in "${{CANDIDATES[@]}}"; do
   echo "[spawner-fallback] trying ${{cm}}"
+  done_joint=0
+  done_imu=0
+  done_drive=0
+
   for attempt in $(seq 1 20); do
-    ok=1
-    run_spawner joint_state_broadcaster "$cm" || ok=0
-    run_spawner imu_sensor_broadcaster "$cm" || ok=0
-    run_spawner "$DRIVE_CONTROLLER" "$cm" || ok=0
-    if [ "$ok" -eq 1 ]; then
+    if [ "$done_joint" -eq 0 ]; then
+      run_spawner joint_state_broadcaster "$cm" && done_joint=1
+    fi
+    if [ "$done_imu" -eq 0 ]; then
+      run_spawner imu_sensor_broadcaster "$cm" && done_imu=1
+    fi
+    if [ "$done_drive" -eq 0 ]; then
+      run_spawner "$DRIVE_CONTROLLER" "$cm" && done_drive=1
+    fi
+
+    if [ "$done_joint" -eq 1 ] && [ "$done_imu" -eq 1 ] && [ "$done_drive" -eq 1 ]; then
       echo "[spawner-fallback] controllers active on ${{cm}}"
       exit 0
     fi
+
     echo "[spawner-fallback] retry ${{attempt}}/20 for ${{cm}}"
     sleep 1
   done
 done
 
 echo "[spawner-fallback] failed. tried: ${{CANDIDATES[*]}}" >&2
-exit 0
+exit 1
 """
 
+    spawner_process = ExecuteProcess(
+        cmd=["bash", "-lc", spawn_script],
+        output="screen",
+    )
+
     return [
-        ExecuteProcess(
-            cmd=["bash", "-lc", spawn_script],
-            output="screen",
-        )
+        spawner_process,
+        RegisterEventHandler(
+            OnProcessExit(
+                target_action=spawner_process,
+                on_exit=_shutdown_if_controller_spawner_failed,
+            )
+        ),
+    ]
+
+
+def _shutdown_if_controller_spawner_failed(event, context):
+    del context
+    return_code = getattr(event, "returncode", None)
+    if return_code == 0:
+        return []
+
+    code_text = str(return_code) if return_code is not None else "unknown"
+    reason = f"Controller spawning failed (exit code: {code_text})"
+    return [
+        LogInfo(msg=f"{reason}. Shutting down bringup."),
+        EmitEvent(event=Shutdown(reason=reason)),
     ]
 
 
 def generate_launch_description():
     declared_arguments = [
-        DeclareLaunchArgument(
+        _declare_arg(
             "gui",
-            default_value="false",
-            description="Start RViz2 automatically with this launch file.",
+            "false",
+            "Start RViz2 automatically with this launch file.",
         ),
-        DeclareLaunchArgument(
+        _declare_arg(
             "rviz_start_delay",
-            default_value="10.0",
-            description="Delay before starting RViz2 (seconds). Lower for faster startup.",
+            "10.0",
+            "Delay before starting RViz2 (seconds). Lower for faster startup.",
         ),
-        DeclareLaunchArgument(
+        _declare_arg(
+            "rviz_config_file",
+            PathJoinSubstitution(
+                [FindPackageShare("studica_vmxpi_ros2"), "description/robot/rviz", "robot.rviz"]
+            ),
+            "Absolute path to RViz config file.",
+        ),
+        _declare_arg(
             "use_hardware",
-            default_value="false",
-            description="Use Titan hardware instead of mock system.",
+            "false",
+            "Use Titan hardware instead of mock system.",
         ),
-        DeclareLaunchArgument(
-            "use_gz_sim",
-            default_value="true",
-            description="Start Gazebo Sim.",
-        ),
-        DeclareLaunchArgument(
+        _declare_arg("use_gz_sim", "true", "Start Gazebo Sim."),
+        _declare_arg(
             "use_sim_time",
-            default_value=LaunchConfiguration("use_gz_sim"),
-            description="Use simulation time (defaults to use_gz_sim).",
+            LaunchConfiguration("use_gz_sim"),
+            "Use simulation time (defaults to use_gz_sim).",
         ),
-        DeclareLaunchArgument(
+        _declare_arg(
             "use_ground_truth_odom_tf",
-            default_value="true",
-            description="In gz_sim, source /odom and /tf from Gazebo ground-truth odometry.",
+            "true",
+            "In gz_sim, source /odom and /tf from Gazebo ground-truth odometry.",
         ),
-        DeclareLaunchArgument(
+        _declare_arg(
             "robot_profile",
-            default_value="training_4wd",
-            description="Robot profile under config/profiles (for example: training_4wd, training_2wd).",
+            "training_4wd",
+            "Robot profile under config/profiles (for example: training_4wd, training_2wd).",
         ),
-        DeclareLaunchArgument(
+        _declare_arg(
             "world",
-            default_value=PathJoinSubstitution(
+            PathJoinSubstitution(
                 [FindPackageShare("studica_vmxpi_ros2"), "description/gz/worlds", "diff_drive_world.sdf"]
             ),
-            description="Absolute path to Gazebo Sim world file.",
+            "Absolute path to Gazebo Sim world file.",
         ),
-        DeclareLaunchArgument(
-            "world_name",
-            default_value="default",
-            description="World name to spawn into.",
-        ),
-        DeclareLaunchArgument(
+        _declare_arg("world_name", "default", "World name to spawn into."),
+        _declare_arg(
             "gz_version",
-            default_value="8",
-            description="Gazebo Sim major version passed to ros_gz_sim (8 for Harmonic).",
+            "8",
+            "Gazebo Sim major version passed to ros_gz_sim (8 for Harmonic).",
         ),
-        DeclareLaunchArgument(
-            "imu_gz_topic",
-            default_value="/imu",
-            description="Gazebo IMU topic to bridge into ROS /imu.",
-        ),
-        DeclareLaunchArgument(
-            "spawn_x",
-            default_value="0.0",
-            description="Initial robot spawn x (meters).",
-        ),
-        DeclareLaunchArgument(
-            "spawn_y",
-            default_value="0.0",
-            description="Initial robot spawn y (meters).",
-        ),
-        DeclareLaunchArgument(
-            "spawn_z",
-            default_value="0.10",
-            description="Initial robot spawn z (meters).",
-        ),
-        DeclareLaunchArgument(
-            "spawn_yaw",
-            default_value="0.0",
-            description="Initial robot spawn yaw (radians).",
-        ),
-        DeclareLaunchArgument(
+        _declare_arg("imu_gz_topic", "/imu", "Gazebo IMU topic to bridge into ROS /imu."),
+        _declare_arg("spawn_x", "0.0", "Initial robot spawn x (meters)."),
+        _declare_arg("spawn_y", "0.0", "Initial robot spawn y (meters)."),
+        _declare_arg("spawn_z", "0.10", "Initial robot spawn z (meters)."),
+        _declare_arg("spawn_yaw", "0.0", "Initial robot spawn yaw (radians)."),
+        _declare_arg(
             "spawn_entity_name",
-            default_value="robot_system_position",
-            description="Entity name used when spawning the robot into Gazebo Sim.",
+            "robot_system_position",
+            "Entity name used when spawning the robot into Gazebo Sim.",
         ),
-        DeclareLaunchArgument(
+        _declare_arg(
             "controller_manager",
-            default_value="/controller_manager",
-            description="Preferred controller_manager service root for controller spawners.",
+            "/controller_manager",
+            "Preferred controller_manager service root for controller spawners.",
         ),
-        DeclareLaunchArgument(
+        _declare_arg(
             "use_joystick",
-            default_value="false",
-            description="Launch joystick teleop from studica_ros2_control.",
+            "false",
+            "Launch joystick teleop from studica_ros2_control.",
         ),
-        DeclareLaunchArgument(
+        _declare_arg(
             "use_lidar",
-            default_value=LaunchConfiguration("use_hardware"),
-            description="Launch YDLIDAR in real hardware mode (defaults to use_hardware).",
+            LaunchConfiguration("use_hardware"),
+            "Launch YDLIDAR in real hardware mode (defaults to use_hardware).",
         ),
-        DeclareLaunchArgument(
+        _declare_arg(
             "ydlidar_params_file",
-            default_value="",
-            description="Optional YDLIDAR params YAML. Empty uses studica_vmxpi_ros2/config/ydlidar_x2_hw.yaml.",
+            "",
+            "Optional YDLIDAR params YAML. Empty uses studica_vmxpi_ros2/config/ydlidar_x2_hw.yaml.",
         ),
-        DeclareLaunchArgument(
+        _declare_arg(
             "lidar_parent_frame",
-            default_value="base_link",
-            description="Parent frame for LiDAR static transform.",
+            "base_link",
+            "Parent frame for LiDAR static transform.",
         ),
-        DeclareLaunchArgument(
+        _declare_arg(
             "lidar_child_frame",
-            default_value="laser_frame",
-            description="Child frame for LiDAR static transform.",
+            "laser_frame",
+            "Child frame for LiDAR static transform.",
         ),
-        DeclareLaunchArgument(
-            "lidar_tf_x",
-            default_value="0.0",
-            description="LiDAR static TF translation X (meters).",
-        ),
-        DeclareLaunchArgument(
-            "lidar_tf_y",
-            default_value="0.0",
-            description="LiDAR static TF translation Y (meters).",
-        ),
-        DeclareLaunchArgument(
-            "lidar_tf_z",
-            default_value="0.02",
-            description="LiDAR static TF translation Z (meters).",
-        ),
-        DeclareLaunchArgument(
-            "lidar_tf_qx",
-            default_value="0.0",
-            description="LiDAR static TF quaternion X.",
-        ),
-        DeclareLaunchArgument(
-            "lidar_tf_qy",
-            default_value="0.0",
-            description="LiDAR static TF quaternion Y.",
-        ),
-        DeclareLaunchArgument(
+        _declare_arg("lidar_tf_x", "0.0", "LiDAR static TF translation X (meters)."),
+        _declare_arg("lidar_tf_y", "0.0", "LiDAR static TF translation Y (meters)."),
+        _declare_arg("lidar_tf_z", "0.02", "LiDAR static TF translation Z (meters)."),
+        _declare_arg("lidar_tf_qx", "0.0", "LiDAR static TF quaternion X."),
+        _declare_arg("lidar_tf_qy", "0.0", "LiDAR static TF quaternion Y."),
+        _declare_arg(
             "lidar_tf_qz",
-            default_value="1.0",
-            description="LiDAR static TF quaternion Z (default rotates hardware LiDAR 180 degrees yaw).",
+            "1.0",
+            "LiDAR static TF quaternion Z (default rotates hardware LiDAR 180 degrees yaw).",
         ),
-        DeclareLaunchArgument(
-            "lidar_tf_qw",
-            default_value="0.0",
-            description="LiDAR static TF quaternion W.",
-        ),
-        DeclareLaunchArgument(
+        _declare_arg("lidar_tf_qw", "0.0", "LiDAR static TF quaternion W."),
+        _declare_arg(
             "joystick_cmd_vel_topic",
-            default_value="",
-            description="Joystick command velocity output topic (empty = auto from drive profile).",
+            "",
+            "Joystick command velocity output topic (empty = auto from drive profile).",
         ),
-        DeclareLaunchArgument(
+        _declare_arg(
             "joystick_publish_stamped",
-            default_value="true",
-            description="Publish TwistStamped joystick commands.",
+            "true",
+            "Publish TwistStamped joystick commands.",
         ),
-        DeclareLaunchArgument(
+        _declare_arg(
             "drive_controller_name",
-            default_value="robot_base_controller",
-            description="Primary drive controller name loaded by controller_manager.",
+            "robot_base_controller",
+            "Primary drive controller name loaded by controller_manager.",
         ),
-        DeclareLaunchArgument(
+        _declare_arg(
             "drive_controller_type",
-            default_value="diff_drive_controller/DiffDriveController",
-            description="Primary drive controller plugin type.",
+            "diff_drive_controller/DiffDriveController",
+            "Primary drive controller plugin type.",
         ),
-        DeclareLaunchArgument(
+        _declare_arg(
             "drive_cmd_topic",
-            default_value="/robot_base_controller/cmd_vel",
-            description="Primary drive command topic.",
+            "/robot_base_controller/cmd_vel",
+            "Primary drive command topic.",
         ),
-        DeclareLaunchArgument(
+        _declare_arg(
             "drive_odom_topic",
-            default_value="/robot_base_controller/odom",
-            description="Primary drive odometry topic.",
+            "/robot_base_controller/odom",
+            "Primary drive odometry topic.",
         ),
     ]
 
@@ -576,17 +616,9 @@ def generate_launch_description():
     install_dir = get_package_prefix("studica_vmxpi_ros2")
     gz_models_path = os.path.join(pkg_studica_vmxpi_ros2, "description", "models")
 
-    if "GZ_SIM_RESOURCE_PATH" in os.environ:
-        os.environ["GZ_SIM_RESOURCE_PATH"] = (
-            os.environ["GZ_SIM_RESOURCE_PATH"] + ":" + install_dir + "/share" + ":" + gz_models_path
-        )
-    else:
-        os.environ["GZ_SIM_RESOURCE_PATH"] = install_dir + "/share" + ":" + gz_models_path
-
-    if "GZ_SIM_SYSTEM_PLUGIN_PATH" in os.environ:
-        os.environ["GZ_SIM_SYSTEM_PLUGIN_PATH"] = os.environ["GZ_SIM_SYSTEM_PLUGIN_PATH"] + ":" + install_dir + "/lib"
-    else:
-        os.environ["GZ_SIM_SYSTEM_PLUGIN_PATH"] = install_dir + "/lib"
+    _append_env_path("GZ_SIM_RESOURCE_PATH", install_dir + "/share")
+    _append_env_path("GZ_SIM_RESOURCE_PATH", gz_models_path)
+    _append_env_path("GZ_SIM_SYSTEM_PLUGIN_PATH", install_dir + "/lib")
 
     print("GZ SIM RESOURCE PATH==" + str(os.environ["GZ_SIM_RESOURCE_PATH"]))
     print("GZ SIM SYSTEM PLUGINS PATH==" + str(os.environ["GZ_SIM_SYSTEM_PLUGIN_PATH"]))
@@ -622,9 +654,7 @@ def generate_launch_description():
         "use_sim_time": use_sim_time,
     }
 
-    rviz_config_file = PathJoinSubstitution(
-        [FindPackageShare("studica_vmxpi_ros2"), "description/robot/rviz", "robot.rviz"]
-    )
+    rviz_config_file = LaunchConfiguration("rviz_config_file")
     rviz_env = {}
     sanitized_ld_library_path = _sanitize_ld_library_path_for_rviz()
     if sanitized_ld_library_path:
@@ -650,13 +680,9 @@ def generate_launch_description():
         arguments=["imu_sensor_broadcaster", "--controller-manager", "/controller_manager"],
         condition=IfCondition(
             PythonExpression(
-                [
-                    "('",
-                    use_hardware,
-                    "').lower() in ['true','1','yes','on'] and ('",
-                    use_gz_sim,
-                    "').lower() in ['false','0','no','off']",
-                ]
+                _expr_is_true(use_hardware)
+                + [" and "]
+                + _expr_is_false(use_gz_sim)
             )
         ),
     )
@@ -679,15 +705,13 @@ def generate_launch_description():
         ],
         condition=IfCondition(
             PythonExpression(
-                [
-                    "(('",
-                    use_gz_sim,
-                    "').lower() in ['true','1','yes','on']) or (('",
-                    use_hardware,
-                    "').lower() in ['true','1','yes','on'] and ('",
-                    use_gz_sim,
-                    "').lower() in ['false','0','no','off'])",
-                ]
+                ["("]
+                + _expr_is_true(use_gz_sim)
+                + [") or ("]
+                + _expr_is_true(use_hardware)
+                + [" and "]
+                + _expr_is_false(use_gz_sim)
+                + [")"]
             )
         ),
     )
@@ -710,13 +734,9 @@ def generate_launch_description():
             ],
         condition=IfCondition(
             PythonExpression(
-                [
-                    "('",
-                    use_gz_sim,
-                    "').lower() in ['true','1','yes','on'] and ('",
-                    use_ground_truth_odom_tf,
-                    "').lower() in ['true','1','yes','on']",
-                ]
+                _expr_is_true(use_gz_sim)
+                + [" and "]
+                + _expr_is_true(use_ground_truth_odom_tf)
             )
         ),
     )
@@ -739,15 +759,13 @@ def generate_launch_description():
         ],
         condition=IfCondition(
             PythonExpression(
-                [
-                    "(('",
-                    use_hardware,
-                    "').lower() in ['true','1','yes','on']) or (('",
-                    use_gz_sim,
-                    "').lower() in ['true','1','yes','on'] and ('",
-                    use_ground_truth_odom_tf,
-                    "').lower() in ['false','0','no','off'])",
-                ]
+                ["("]
+                + _expr_is_true(use_hardware)
+                + [") or ("]
+                + _expr_is_true(use_gz_sim)
+                + [" and "]
+                + _expr_is_false(use_ground_truth_odom_tf)
+                + [")"]
             )
         ),
     )
@@ -767,13 +785,9 @@ def generate_launch_description():
         ],
         condition=IfCondition(
             PythonExpression(
-                [
-                    "('",
-                    use_gz_sim,
-                    "').lower() in ['true','1','yes','on'] and ('",
-                    use_ground_truth_odom_tf,
-                    "').lower() in ['true','1','yes','on']",
-                ]
+                _expr_is_true(use_gz_sim)
+                + [" and "]
+                + _expr_is_true(use_ground_truth_odom_tf)
             )
         ),
     )
@@ -798,12 +812,12 @@ def generate_launch_description():
                 [
                     "(('",
                     drive_controller_type,
-                    "').strip() == 'mecanum_drive_controller/MecanumDriveController') and not (('",
-                    use_gz_sim,
-                    "').lower() in ['true','1','yes','on'] and ('",
-                    use_ground_truth_odom_tf,
-                    "').lower() in ['true','1','yes','on'])",
+                    "').strip() == 'mecanum_drive_controller/MecanumDriveController') and not (",
                 ]
+                + _expr_is_true(use_gz_sim)
+                + [" and "]
+                + _expr_is_true(use_ground_truth_odom_tf)
+                + [")"]
             )
         ),
     )

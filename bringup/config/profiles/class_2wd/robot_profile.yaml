@@ -1,11 +1,11 @@
 xacro:
   base_mass: 10.0
-  base_width: 0.3
+  base_width: 0.35
   base_length: 0.288
-  base_height: 0.185
+  base_height: 0.1
   wheel_mass: 0.3
-  wheel_len: 0.04
-  wheel_radius: 0.0625
+  wheel_len: 0.025
+  wheel_radius: 0.05
   wheel_z_offset: -0.027
   caster_wheel_mass: 0.1
   caster_wheel_radius: 0.05

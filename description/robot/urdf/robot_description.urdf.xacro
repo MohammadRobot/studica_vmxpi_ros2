@@ -16,8 +16,8 @@
     
     <xacro:if value="${wheel_layout_resolved == 'diff'}">
       <xacro:property name="robot_frame_mesh_file" value="package://studica_vmxpi_ros2/description/meshes/frames/robot_frame_4wd.dae"/>
-      <xacro:property name="left_wheel_mesh_file" value="package://studica_vmxpi_ros2/description/meshes/wheels/76249RW.dae"/>
-      <xacro:property name="right_wheel_mesh_file" value="package://studica_vmxpi_ros2/description/meshes/wheels/76249RW.dae"/>
+      <xacro:property name="left_wheel_mesh_file" value="package://studica_vmxpi_ros2/description/meshes/wheels/drive_wheel.dae"/>
+      <xacro:property name="right_wheel_mesh_file" value="package://studica_vmxpi_ros2/description/meshes/wheels/drive_wheel.dae"/>
     </xacro:if>
     <xacro:if value="${wheel_layout_resolved == 'diff_4wd'}">
       <xacro:property name="robot_frame_mesh_file" value="package://studica_vmxpi_ros2/description/meshes/frames/robot_frame_4wd.dae"/>
@@ -77,7 +77,7 @@
       <joint name="${prefix}left_wheel_joint" type="continuous">
         <parent link="${prefix}chassis_link"/>
         <child link="${prefix}left_wheel"/>
-        <origin xyz="0 ${base_width/2} ${wheel_z_offset}" rpy="0 0 0"/>
+        <origin xyz="${base_length/2} ${base_width/2} ${wheel_z_offset}" rpy="0 0 0"/>
         <axis xyz="0 1 0"/>
         <dynamics damping="0.05"/>
         <limit effort="100" velocity="20.0"/>
@@ -113,7 +113,7 @@
       <joint name="${prefix}right_wheel_joint" type="continuous">
         <parent link="${prefix}chassis_link"/>
         <child link="${prefix}right_wheel"/>
-        <origin xyz="0 -${base_width/2} ${wheel_z_offset}" rpy="0 0 0"/>
+        <origin xyz="${base_length/2} -${base_width/2} ${wheel_z_offset}" rpy="0 0 0"/>
         <axis xyz="0 1 0"/>
         <dynamics damping="0.05"/>
         <limit effort="100" velocity="20.0"/>
@@ -146,67 +146,71 @@
         </inertial>
       </link>
 
-      <joint name="${prefix}caster_frontal_wheel_joint" type="continuous">
+      <joint name="${prefix}caster_left_wheel_joint" type="continuous">
         <parent link="${prefix}chassis_link"/>
-        <child link="${prefix}caster_frontal_wheel"/>
-        <origin xyz="${base_width/2 - caster_wheel_radius} 0 ${wheel_z_offset}" rpy="0 0 0"/>
+        <child link="${prefix}caster_left_wheel"/>
+        <origin xyz="${-base_length/2} ${base_width/2} ${wheel_z_offset}" rpy="0 0 ${rear_left_wheel_yaw}"/>
+        <axis xyz="0 1 0"/>
+        <dynamics damping="0.05"/>
+        <limit effort="100" velocity="20.0"/>
       </joint>
 
-      <link name="${prefix}caster_frontal_wheel">
+      <link name="${prefix}caster_left_wheel">
         <collision>
-          <origin xyz="0 0 0" rpy="0 0 0"/>
+          <origin xyz="0 0 0" rpy="${PI/2} 0 ${PI}"/>
           <geometry>
-            <sphere radius="${caster_wheel_radius}"/>
+            <cylinder length="${wheel_len}" radius="${wheel_radius}"/>
           </geometry>
         </collision>
-
         <visual>
-          <origin xyz="0 0 0" rpy="0 0 0"/>
+          <origin xyz="0 0 0" rpy="${PI/2} 0 ${PI}"/>
           <geometry>
-            <sphere radius="${caster_wheel_radius}"/>
+            <!-- <cylinder length="${wheel_len}" radius="${wheel_radius}"/> -->
+            <mesh filename="package://studica_vmxpi_ros2/description/meshes/wheels/omni_wheel_v2.dae" scale="1.0 1.0 1.0"/>
           </geometry>
-          <material name="green"/>
+          <!-- <material name="black"/> -->
         </visual>
-
         <inertial>
-          <origin xyz="0 0 0" rpy="0 0 0"/>
-          <mass value="${caster_wheel_mass}"/>
+          <origin xyz="0 0 0" rpy="${PI/2} 0 ${PI}"/>
+          <mass value="${wheel_mass}"/>
           <inertia
-            ixx="${caster_wheel_mass * 0.4 * (caster_wheel_radius * caster_wheel_radius)}" ixy="0.0" ixz="0.0"
-            iyy="${caster_wheel_mass * 0.4 * (caster_wheel_radius * caster_wheel_radius)}" iyz="0.0"
-            izz="${caster_wheel_mass * 0.4 * (caster_wheel_radius * caster_wheel_radius)}"/>
+            ixx="${wheel_mass / 12.0 * (3*wheel_radius*wheel_radius + wheel_len*wheel_len)}" ixy="0.0" ixz="0.0"
+            iyy="${wheel_mass / 12.0 * (3*wheel_radius*wheel_radius + wheel_len*wheel_len)}" iyz="0.0"
+            izz="${wheel_mass / 2.0 * wheel_radius*wheel_radius}"/>
         </inertial>
       </link>
 
-      <joint name="${prefix}caster_rear_wheel_joint" type="continuous">
+      <joint name="${prefix}caster_right_wheel_joint" type="continuous">
         <parent link="${prefix}chassis_link"/>
-        <child link="${prefix}caster_rear_wheel"/>
-        <origin xyz="${-base_width/2 + caster_wheel_radius} 0 ${wheel_z_offset}" rpy="0 0 0"/>
+        <child link="${prefix}caster_right_wheel"/>
+        <origin xyz="${-base_length/2} -${base_width/2} ${wheel_z_offset}" rpy="0 0 ${rear_right_wheel_yaw}"/>
+        <axis xyz="0 1 0"/>
+        <dynamics damping="0.05"/>
+        <limit effort="100" velocity="20.0"/>     
       </joint>
 
-      <link name="${prefix}caster_rear_wheel">
-        <collision>
-          <origin xyz="0 0 0" rpy="0 0 0"/>
+      <link name="${prefix}caster_right_wheel">
+         <collision>
+          <origin xyz="0 0 0" rpy="${PI/2} 0 0"/>
           <geometry>
-            <sphere radius="${caster_wheel_radius}"/>
+            <cylinder length="${wheel_len}" radius="${wheel_radius}"/>
           </geometry>
         </collision>
-
         <visual>
-          <origin xyz="0 0 0" rpy="0 0 0"/>
+          <origin xyz="0 0 0" rpy="${PI/2} 0 0"/>
           <geometry>
-            <sphere radius="${caster_wheel_radius}"/>
+            <!-- <cylinder length="${wheel_len}" radius="${wheel_radius}"/> -->
+            <mesh filename="package://studica_vmxpi_ros2/description/meshes/wheels/omni_wheel_v2.dae" scale="1.0 1.0 1.0"/>
           </geometry>
-          <material name="white"/>
+          <!-- <material name="black"/> -->
         </visual>
-
         <inertial>
-          <origin xyz="0 0 0" rpy="0 0 0"/>
-          <mass value="${caster_wheel_mass}"/>
+          <origin xyz="0 0 0" rpy="${PI/2} 0 0"/>
+          <mass value="${wheel_mass}"/>
           <inertia
-            ixx="${caster_wheel_mass * 0.4 * (caster_wheel_radius * caster_wheel_radius)}" ixy="0.0" ixz="0.0"
-            iyy="${caster_wheel_mass * 0.4 * (caster_wheel_radius * caster_wheel_radius)}" iyz="0.0"
-            izz="${caster_wheel_mass * 0.4 * (caster_wheel_radius * caster_wheel_radius)}"/>
+            ixx="${wheel_mass / 12.0 * (3*wheel_radius*wheel_radius + wheel_len*wheel_len)}" ixy="0.0" ixz="0.0"
+            iyy="${wheel_mass / 12.0 * (3*wheel_radius*wheel_radius + wheel_len*wheel_len)}" iyz="0.0"
+            izz="${wheel_mass / 2.0 * wheel_radius*wheel_radius}"/>
         </inertial>
       </link>
     </xacro:if>
@@ -317,7 +321,6 @@
       <joint name="${prefix}rear_right_wheel_joint" type="continuous">
         <parent link="${prefix}chassis_link"/>
         <child link="${prefix}rear_right_wheel"/>
-        <!-- <origin xyz="${-base_length/2 + wheel_radius} -${base_width/2} ${wheel_z_offset}" rpy="0 0 ${rear_right_wheel_yaw}"/> -->
         <origin xyz="${-base_length/2} -${base_width/2} ${wheel_z_offset}" rpy="0 0 ${rear_right_wheel_yaw}"/>
         <axis xyz="0 1 0"/>
         <dynamics damping="0.05"/>

@@ -67,6 +67,61 @@ source install/setup.bash
 
 If you use Conda, make sure `colcon` resolves to system Python, or install missing Python ROS deps in the active Conda env (for example `catkin_pkg`).
 
+## Student Quick Path (Simulation First)
+
+If you are new to ROS 2, follow this section first.
+The rest of this README has deeper details for customization and hardware.
+
+1. Build and source:
+
+```bash
+cd ~/ros2_ws
+colcon build --packages-select ydlidar_ros2_driver studica_drivers studica_ros2_control studica_vmxpi_ros2
+source /opt/ros/humble/setup.bash
+source ~/ros2_ws/install/setup.bash
+```
+
+2. Start simulation bringup:
+
+```bash
+ros2 launch studica_vmxpi_ros2 bringup.launch.py \
+  mode:=gz_sim robot_profile:=class_4wd gui:=true use_joystick:=true \
+  use_ground_truth_odom_tf:=false
+```
+
+3. Build a map (SLAM):
+
+```bash
+WORLD_SDF="$(ros2 pkg prefix studica_vmxpi_ros2)/share/studica_vmxpi_ros2/description/gz/worlds/office_map.sdf"
+ros2 launch studica_vmxpi_ros2 nav2_mapping_gz_sim.launch.py \
+  robot_profile:=class_4wd gui:=true use_joystick:=true \
+  use_ground_truth_odom_tf:=false \
+  world:="${WORLD_SDF}"
+```
+
+4. Save the map:
+
+```bash
+mkdir -p "$HOME/ros2_ws/src/studica_vmxpi_ros2/maps"
+ros2 service call /slam_toolbox/save_map slam_toolbox/srv/SaveMap "{name: {data: '$HOME/ros2_ws/src/studica_vmxpi_ros2/maps/my_map'}}"
+```
+
+5. Start navigation:
+
+```bash
+WORLD_SDF="$(ros2 pkg prefix studica_vmxpi_ros2)/share/studica_vmxpi_ros2/description/gz/worlds/office_map.sdf"
+ros2 launch studica_vmxpi_ros2 nav2_navigation_gz_sim.launch.py \
+  robot_profile:=class_4wd gui:=true use_joystick:=true \
+  use_ground_truth_odom_tf:=false \
+  world:="${WORLD_SDF}" \
+  map:="$HOME/ros2_ws/src/studica_vmxpi_ros2/maps/my_map.yaml"
+```
+
+6. In RViz for navigation:
+- `nav2_navigation_gz_sim.launch.py` uses `nav2_navigation.rviz` by default (`Fixed Frame: map`).
+- Click `2D Pose Estimate` once to initialize AMCL.
+- Then use `Nav2 Goal`.
+
 ## Humble + Harmonic
 
 On ROS 2 Humble, `gz_ros2_control` for Harmonic must be built from source overlay.
@@ -98,7 +153,7 @@ Unified bringup entry point (recommended):
 # Gazebo Sim with default profile
 ros2 launch studica_vmxpi_ros2 bringup.launch.py mode:=gz_sim robot_profile:=class_2wd gui:=true use_joystick:=true
 
-# Switch robot profile (example: 4WD  profile)
+# Switch robot profile (example: 4WD profile)
 ros2 launch studica_vmxpi_ros2 bringup.launch.py mode:=gz_sim robot_profile:=class_4wd gui:=true use_joystick:=true
 
 # Mecanum drive profile (holonomic)
@@ -120,7 +175,7 @@ Profiles live under:
 Each profile contains:
 
 - `robot_profile.yaml` (URDF geometry + hardware mapping)
-- `robot_profile.yaml` `drive.*` section (`wheel_layout`, `controller_name`, `controller_type`)
+- `drive.*` section in `robot_profile.yaml` (`wheel_layout`, `controller_name`, `controller_type`)
 - `robot_controllers.yaml` (controller tuning)
 
 Wheel layout options:
@@ -135,6 +190,7 @@ Holonomic profile note:
 - In ROS 2 Humble this package uses `mecanum_drive_controller` for both `wheel_layout: mecanum` and `wheel_layout: omni`.
 - `wheel_layout: omni` uses an X-drive wheel mounting in URDF (45 deg wheel yaw at each corner).
 - `class_4wd` uses `wheel_layout: diff_4wd` with `diff_drive_controller`.
+- For `diff_4wd`, `mecanum`, and `omni` layouts, all four motor indices must be active (`>= 0`).
 
 Profile template source files are provided in:
 
@@ -164,6 +220,8 @@ studica_vmxpi_ros2/
 |       |-- profiles/
 |       |   |-- class_2wd/
 |       |   |-- class_4wd/
+|       |   |-- class_mecanum/
+|       |   |-- class_omni/
 |       |   |-- training_2wd/
 |       |   `-- training_4wd/
 |       |-- profile_template/
@@ -186,6 +244,7 @@ studica_vmxpi_ros2/
 |-- scripts/
 |   |-- create_profile.sh
 |   |-- validate_profiles.py
+|   |-- check_project.sh
 |   |-- install_git_hooks.sh
 |   `-- motor_smoke_test.sh
 `-- docs/
@@ -220,7 +279,7 @@ How this supports different robot configurations:
 - Robot differences are encoded in profiles under `bringup/config/profiles/<profile_name>/`.
 - `robot_profile.yaml` controls geometry and hardware mapping (motors, inversions, scales, CAN, wheel params).
 - `robot_controllers.yaml` controls controller types and tuning.
-- Create a new profile, validate it (`scripts/validate_profiles.py`), then launch with `robot_profile:=<new_profile>`.
+- Create a new profile, run `scripts/check_project.sh`, then launch with `robot_profile:=<new_profile>`.
 
 ## Launch Migration
 
@@ -256,13 +315,19 @@ Validate all profiles locally:
 python3 scripts/validate_profiles.py --profiles-dir bringup/config/profiles
 ```
 
+Run the full local maintenance checks (syntax + profile validation):
+
+```bash
+scripts/check_project.sh
+```
+
 Enable local pre-commit validation:
 
 ```bash
 scripts/install_git_hooks.sh
 ```
 
-When profile files are staged, pre-commit runs the validator automatically.
+When relevant launch/profile files are staged, pre-commit runs `scripts/check_project.sh` automatically.
 CI also validates profiles in `.github/workflows/profile-validation.yml`.
 
 Simulation:
@@ -398,7 +463,7 @@ source /home/vmx/ros2_ws/install/setup.bash
 export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/usr/local/lib/vmxpi
 ```
 
-After updating `.bashrc`, run `source ~/.bashrc` once (or open a new terminal).  
+After updating `.bashrc`, run `source ~/.bashrc` once (or open a new terminal).
 From then on, you do not need to re-run the ROS export lines in every terminal.
 
 Known-good hardware bringup (single command, runs as root):
@@ -443,7 +508,7 @@ Legacy combined bringup (not recommended for production single-runtime mode):
 ros2 launch studica_vmxpi_ros2 robot_bringup.launch.py use_studica_sensors:=true
 ```
 
-Use this only for compatibility testing.  
+Use this only for compatibility testing.
 Production hardware mode should use `bringup.launch.py mode:=hardware`, where IMU is already inside `ros2_control`.
 
 ## LiDAR (YDLIDAR)
@@ -507,7 +572,7 @@ ros2 launch ydlidar_ros2_driver ydlidar_launch_view.py
 - Real robot Nav2 launch: `nav2_navigation_hw.launch.py`
 - Gazebo Sim sensor topics:
   - `/scan` (`sensor_msgs/LaserScan`)
-- `/imu` (`sensor_msgs/Imu`)
+  - `/imu` (`sensor_msgs/Imu`)
 - Gazebo Classic compatibility launches are still available (`robot_gazebo_classic.launch.py`, `nav2_mapping.launch.py`, `nav2_navigation.launch.py`).
 
 ## System Architecture (Best Performance)
@@ -623,7 +688,9 @@ Notes:
 Launch mapping:
 
 ```bash
-ros2 launch studica_vmxpi_ros2 nav2_mapping_gz_sim.launch.py gui:=true use_joystick:=true
+ros2 launch studica_vmxpi_ros2 nav2_mapping_gz_sim.launch.py \
+  gui:=true use_joystick:=true \
+  use_ground_truth_odom_tf:=false
 ```
 
 Launch mapping with a specific world:
@@ -631,7 +698,8 @@ Launch mapping with a specific world:
 ```bash
 WORLD_SDF="$(ros2 pkg prefix studica_vmxpi_ros2)/share/studica_vmxpi_ros2/description/gz/worlds/office_map.sdf"
 ros2 launch studica_vmxpi_ros2 nav2_mapping_gz_sim.launch.py \
-  gui:=true use_joystick:=true \
+  robot_profile:=class_4wd gui:=true use_joystick:=true \
+  use_ground_truth_odom_tf:=false \
   world:="${WORLD_SDF}"
 ```
 
@@ -649,10 +717,15 @@ Launch navigation in simulation with a saved map:
 ```bash
 WORLD_SDF="$(ros2 pkg prefix studica_vmxpi_ros2)/share/studica_vmxpi_ros2/description/gz/worlds/office_map.sdf"
 ros2 launch studica_vmxpi_ros2 nav2_navigation_gz_sim.launch.py \
-  gui:=true use_joystick:=true \
+  robot_profile:=class_4wd gui:=true use_joystick:=true \
+  use_ground_truth_odom_tf:=false \
   world:="${WORLD_SDF}" \
   map:="$HOME/ros2_ws/src/studica_vmxpi_ros2/maps/my_map.yaml"
 ```
+
+`nav2_navigation_gz_sim.launch.py` defaults to
+`description/robot/rviz/nav2_navigation.rviz` (Fixed Frame: `map`).
+Use `rviz_config_file:=/absolute/path/to/file.rviz` to override.
 
 Launch navigation on the real robot with a saved map:
 
@@ -664,7 +737,7 @@ ros2 launch studica_vmxpi_ros2 nav2_navigation_hw.launch.py \
 
 After launch in RViz:
 
-1. Set fixed frame to `map`.
+1. Set fixed frame to `map` (if it is not already `map`).
 2. Click `2D Pose Estimate` once to initialize AMCL.
 3. Use `Nav2 Goal` to send goals.
 

@@ -1,3 +1,7 @@
+# Copyright (c) 2026 studica_vmxpi_ros2 contributors
+# SPDX-License-Identifier: Apache-2.0
+"""Legacy Gazebo Classic navigation wrapper (Nav2 + base bringup)."""
+
 import os
 
 from ament_index_python.packages import PackageNotFoundError, get_package_share_directory

@@ -1,3 +1,8 @@
+// Copyright (c) 2026 studica_vmxpi_ros2 contributors
+// SPDX-License-Identifier: Apache-2.0
+// Simple reactive patrol behavior for classroom demos.
+// The node reads LaserScan data and publishes TwistStamped commands.
+
 #include "geometry_msgs/msg/twist.hpp"
 #include "geometry_msgs/msg/twist_stamped.hpp"
 #include "sensor_msgs/msg/laser_scan.hpp"
@@ -39,6 +44,7 @@ private:
   int laserAngularRange = 360;
 
   void timer_callback() {
+    // Publish the latest velocity command as TwistStamped for controller compatibility.
     auto message = geometry_msgs::msg::Twist();
     message.linear.x = linearVelocityX;
     message.angular.z = angularVelocityZ;
@@ -89,8 +95,10 @@ private:
         static_cast<int>(round(((scan_msg->angle_max - scan_msg->angle_min) /
                                 scan_msg->angle_increment)));
 
+    // Evaluate a forward-facing window (90..270 deg in this scan layout).
     int startPoint = getAngelScanPoint(90);
     int endPoint = getAngelScanPoint(270);
+    // Center window is used for immediate obstacle checks.
     int centerStartPoint = getAngelScanPoint(140);
     int centerEndPoint = getAngelScanPoint(220);
 
@@ -114,14 +122,17 @@ private:
       }
     }
 
+    // Close obstacle: slow down and steer away quickly.
     if (frontMinDistance <= 1.0) {
       linearVelocityX = 0.2;
       direction_ = getDirection_(frontMinDistanceAngle);
       angularVelocityZ = direction_ * -1;
+    // Medium range: steer toward open space.
     } else if (frontMinDistance <= 2.0) {
       linearVelocityX = 0.5;
       direction_ = getDirection_(maxDistanceAngle);
       angularVelocityZ = direction_ / 2;
+    // Clear path: drive straight.
     } else {
       linearVelocityX = 0.5;
       angularVelocityZ = 0.0;

@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# Copyright (c) 2026 studica_vmxpi_ros2 contributors
+# SPDX-License-Identifier: Apache-2.0
 set -euo pipefail
 
 script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -25,4 +27,4 @@ git -C "${repo_root}" config core.hooksPath .githooks
 echo "Installed repository hooks."
 echo "  core.hooksPath=$(git -C "${repo_root}" config --get core.hooksPath)"
 echo
-echo "Pre-commit will now validate profile YAML files when relevant files are staged."
+echo "Pre-commit will now run scripts/check_project.sh when relevant files are staged."

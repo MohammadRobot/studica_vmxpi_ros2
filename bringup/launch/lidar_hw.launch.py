@@ -1,6 +1,6 @@
-"""
-Hardware LiDAR launch owned by studica_vmxpi_ros2.
-"""
+# Copyright (c) 2026 studica_vmxpi_ros2 contributors
+# SPDX-License-Identifier: Apache-2.0
+"""Hardware YDLIDAR launch with optional static TF configuration."""
 
 from launch import LaunchDescription
 from launch.actions import DeclareLaunchArgument, LogInfo
@@ -39,13 +39,41 @@ def generate_launch_description():
             default_value="laser_frame",
             description="Child frame for LiDAR static transform.",
         ),
-        DeclareLaunchArgument("lidar_tf_x", default_value="0.0"),
-        DeclareLaunchArgument("lidar_tf_y", default_value="0.0"),
-        DeclareLaunchArgument("lidar_tf_z", default_value="0.02"),
-        DeclareLaunchArgument("lidar_tf_qx", default_value="0.0"),
-        DeclareLaunchArgument("lidar_tf_qy", default_value="0.0"),
-        DeclareLaunchArgument("lidar_tf_qz", default_value="1.0"),
-        DeclareLaunchArgument("lidar_tf_qw", default_value="0.0"),
+        DeclareLaunchArgument(
+            "lidar_tf_x",
+            default_value="0.0",
+            description="Static TF translation X from parent to LiDAR frame (meters).",
+        ),
+        DeclareLaunchArgument(
+            "lidar_tf_y",
+            default_value="0.0",
+            description="Static TF translation Y from parent to LiDAR frame (meters).",
+        ),
+        DeclareLaunchArgument(
+            "lidar_tf_z",
+            default_value="0.02",
+            description="Static TF translation Z from parent to LiDAR frame (meters).",
+        ),
+        DeclareLaunchArgument(
+            "lidar_tf_qx",
+            default_value="0.0",
+            description="Static TF quaternion X.",
+        ),
+        DeclareLaunchArgument(
+            "lidar_tf_qy",
+            default_value="0.0",
+            description="Static TF quaternion Y.",
+        ),
+        DeclareLaunchArgument(
+            "lidar_tf_qz",
+            default_value="1.0",
+            description="Static TF quaternion Z.",
+        ),
+        DeclareLaunchArgument(
+            "lidar_tf_qw",
+            default_value="0.0",
+            description="Static TF quaternion W.",
+        ),
     ]
 
     driver_node = LifecycleNode(
