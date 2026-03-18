@@ -867,3 +867,11 @@ Odometry is noisy / not smooth enough:
   - `controller_manager.update_rate: 100`
   - `robot_base_controller.publish_rate: 100.0`
   - `robot_base_controller.velocity_rolling_window_size: 30`
+
+## License
+
+This project is licensed under the Apache License, Version 2.0.
+
+- Full license text: `LICENSE`
+- Project notices/attribution: `NOTICE`
+- ROS package metadata: `package.xml` (`<license>Apache-2.0</license>`)
