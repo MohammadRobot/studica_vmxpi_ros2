@@ -12,6 +12,10 @@ Platform:
 - ROS 2 Humble
 - Gazebo Sim (Harmonic / `gz sim`)
 
+Lab conventions used in this guide:
+- Robot profile: `class_4wd`
+- Navigation/mapping in simulation: `use_ground_truth_odom_tf:=false` (controller-generated odom TF)
+
 ---
 
 ## 1. Learning Goals
@@ -32,6 +36,7 @@ High-level data flow in this repo:
 
 1. Robot model:
 - `description/urdf/robot.urdf.xacro`
+- `description/robot/urdf/robot_description.urdf.xacro`
 - `description/ros2_control/robot.ros2_control.xacro`
 - `description/gz/robot.gz.xacro`
 
@@ -173,7 +178,7 @@ ros2 topic echo /imu --qos-profile sensor_data
 
 ```bash
 cd ~/ros2_ws
-colcon build --packages-select studica_vmxpi_ros2
+colcon build --packages-select ydlidar_ros2_driver studica_drivers studica_ros2_control studica_vmxpi_ros2
 source install/setup.bash
 ```
 
@@ -191,7 +196,9 @@ ros2 pkg prefix studica_vmxpi_ros2
 Start simulation:
 
 ```bash
-ros2 launch studica_vmxpi_ros2 bringup.launch.py mode:=gz_sim gui:=true
+ros2 launch studica_vmxpi_ros2 bringup.launch.py \
+  mode:=gz_sim robot_profile:=class_4wd gui:=true use_joystick:=true \
+  use_ground_truth_odom_tf:=false
 ```
 
 Inspect:
@@ -224,7 +231,9 @@ ros2 run teleop_twist_keyboard teleop_twist_keyboard --ros-args -p stamped:=true
 Joystick (from launch):
 
 ```bash
-ros2 launch studica_vmxpi_ros2 bringup.launch.py mode:=gz_sim gui:=true use_joystick:=true
+ros2 launch studica_vmxpi_ros2 bringup.launch.py \
+  mode:=gz_sim robot_profile:=class_4wd gui:=true use_joystick:=true \
+  use_ground_truth_odom_tf:=false
 ```
 
 Note:
@@ -251,7 +260,11 @@ What to learn:
 Start mapping:
 
 ```bash
-ros2 launch studica_vmxpi_ros2 nav2_mapping_gz_sim.launch.py gui:=true use_joystick:=true
+WORLD_SDF="$(ros2 pkg prefix studica_vmxpi_ros2)/share/studica_vmxpi_ros2/description/gz/worlds/office_map.sdf"
+ros2 launch studica_vmxpi_ros2 nav2_mapping_gz_sim.launch.py \
+  robot_profile:=class_4wd gui:=true use_joystick:=true \
+  use_ground_truth_odom_tf:=false \
+  world:="${WORLD_SDF}"
 ```
 
 Drive robot to cover the map area, then save:
@@ -272,14 +285,17 @@ What to learn:
 Run navigation with saved map:
 
 ```bash
+WORLD_SDF="$(ros2 pkg prefix studica_vmxpi_ros2)/share/studica_vmxpi_ros2/description/gz/worlds/office_map.sdf"
 ros2 launch studica_vmxpi_ros2 nav2_navigation_gz_sim.launch.py \
-  gui:=true use_joystick:=true \
+  robot_profile:=class_4wd gui:=true use_joystick:=true \
+  use_ground_truth_odom_tf:=false \
+  world:="${WORLD_SDF}" \
   map:=$HOME/ros2_ws/src/studica_vmxpi_ros2/maps/my_map.yaml
 ```
 
 In RViz:
 
-1. Set fixed frame to `map`.
+1. `nav2_navigation.rviz` already uses `map` as fixed frame (set it manually only if changed).
 2. Click `2D Pose Estimate` once.
 3. Send `Nav2 Goal`.
 
@@ -308,6 +324,7 @@ ros2 control list_hardware_interfaces
 
 Expected active controllers:
 - `joint_state_broadcaster`
+- `imu_sensor_broadcaster`
 - selected drive controller from profile
 
 ---
@@ -317,7 +334,7 @@ Expected active controllers:
 Launch without simulation:
 
 ```bash
-ros2 launch studica_vmxpi_ros2 bringup.launch.py mode:=hardware
+ros2 launch studica_vmxpi_ros2 bringup.launch.py mode:=hardware robot_profile:=class_4wd
 ```
 
 Key point:
@@ -345,6 +362,18 @@ Key point:
 ### 11.4 RViz "jump back in time"
 - Usually multiple `/clock` publishers or stale processes.
 - Stop old launches and restart cleanly.
+
+### 11.5 "No transform from [base_link] to [odom]" (or wheel frame to odom)
+- Verify controllers are active: `ros2 control list_controllers`
+- Confirm selected drive controller is `active` and publishing odometry.
+- In simulation labs, use `use_ground_truth_odom_tf:=false` so the controller provides `odom -> base_link`.
+- Make sure only one launch session is running (avoid duplicate TF/clock publishers).
+
+### 11.6 RViz map display empty on Nav2 startup
+- Confirm map argument path exists and ends with `.yaml`.
+- In RViz, confirm fixed frame is `map`.
+- If display was stale, toggle the `Map` display off/on once.
+- Click `2D Pose Estimate` once so AMCL initializes the robot pose on the map.
 
 ---
 
@@ -375,16 +404,18 @@ Session 4 (1-2 hours):
 
 ```bash
 # Build
-cd ~/ros2_ws && colcon build --packages-select studica_vmxpi_ros2 && source install/setup.bash
+cd ~/ros2_ws && colcon build --packages-select ydlidar_ros2_driver studica_drivers studica_ros2_control studica_vmxpi_ros2 && source install/setup.bash
 
 # Sim
-ros2 launch studica_vmxpi_ros2 bringup.launch.py mode:=gz_sim gui:=true use_joystick:=true
+ros2 launch studica_vmxpi_ros2 bringup.launch.py mode:=gz_sim robot_profile:=class_4wd gui:=true use_joystick:=true use_ground_truth_odom_tf:=false
 
 # Mapping
-ros2 launch studica_vmxpi_ros2 nav2_mapping_gz_sim.launch.py gui:=true use_joystick:=true
+WORLD_SDF="$(ros2 pkg prefix studica_vmxpi_ros2)/share/studica_vmxpi_ros2/description/gz/worlds/office_map.sdf"
+ros2 launch studica_vmxpi_ros2 nav2_mapping_gz_sim.launch.py robot_profile:=class_4wd gui:=true use_joystick:=true use_ground_truth_odom_tf:=false world:="${WORLD_SDF}"
 
 # Navigation
-ros2 launch studica_vmxpi_ros2 nav2_navigation_gz_sim.launch.py gui:=true use_joystick:=true map:=$HOME/ros2_ws/src/studica_vmxpi_ros2/maps/my_map.yaml
+WORLD_SDF="$(ros2 pkg prefix studica_vmxpi_ros2)/share/studica_vmxpi_ros2/description/gz/worlds/office_map.sdf"
+ros2 launch studica_vmxpi_ros2 nav2_navigation_gz_sim.launch.py robot_profile:=class_4wd gui:=true use_joystick:=true use_ground_truth_odom_tf:=false world:="${WORLD_SDF}" map:=$HOME/ros2_ws/src/studica_vmxpi_ros2/maps/my_map.yaml
 
 # Debug
 ros2 control list_controllers

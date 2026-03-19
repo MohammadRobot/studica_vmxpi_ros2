@@ -100,16 +100,16 @@ Expected result:
 - No immediate schema error from `bringup.launch.py`.
 - If a key/type/range is wrong, launch exits with a clear error message naming the file and field.
 
-Also run standalone profile lint:
-
-```bash
-python3 scripts/validate_profiles.py --profiles-dir bringup/config/profiles
-```
-
-Or run the full local checks used by pre-commit:
+Run the full local checks used by pre-commit (recommended):
 
 ```bash
 scripts/check_project.sh
+```
+
+Optional standalone profile lint (profiles only):
+
+```bash
+python3 scripts/validate_profiles.py --profiles-dir bringup/config/profiles
 ```
 
 ## 5. Classroom workflow

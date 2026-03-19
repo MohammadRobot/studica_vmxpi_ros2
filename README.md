@@ -4,10 +4,12 @@ ROS 2 Humble package for Titan/VMX hardware and Gazebo Sim (`gz sim`) simulation
 
 ## Training Material
 
-Detailed ROS 2 training guide for this project:
+Use these docs in order for classroom/lab onboarding:
 
-- `docs/ROS2_TRAINING.md`
-- `docs/ARCHITECTURE.md`
+1. `docs/ROS2_TRAINING.md` (hands-on labs: bringup, teleop, SLAM, Nav2, debugging)
+2. `docs/ARCHITECTURE.md` (runtime architecture and data flow)
+3. `docs/PROFILE_AUTHORING.md` (create and validate new robot profiles)
+4. `docs/LAUNCH_MIGRATION.md` (legacy launch command migration)
 
 ## Dependencies
 
@@ -121,6 +123,7 @@ ros2 launch studica_vmxpi_ros2 nav2_navigation_gz_sim.launch.py \
 - `nav2_navigation_gz_sim.launch.py` uses `nav2_navigation.rviz` by default (`Fixed Frame: map`).
 - Click `2D Pose Estimate` once to initialize AMCL.
 - Then use `Nav2 Goal`.
+- If `Map` looks empty right after startup, toggle the `Map` display once in RViz.
 
 ## Humble + Harmonic
 
