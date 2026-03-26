@@ -165,13 +165,13 @@ def _maybe_include_lidar(context, *args, **kwargs):
     except PackageNotFoundError:
         return [LogInfo(msg="studica_vmxpi_ros2 not found; skipping LiDAR launch.")]
     try:
-        get_package_share_directory("ydlidar_ros2_driver")
+        ydlidar_pkg = get_package_share_directory("ydlidar_ros2_driver")
     except PackageNotFoundError:
         return [LogInfo(msg="ydlidar_ros2_driver not found; skipping LiDAR launch.")]
 
     ydlidar_params_file = LaunchConfiguration("ydlidar_params_file").perform(context).strip()
     if not ydlidar_params_file:
-        ydlidar_params_file = os.path.join(studica_pkg, "config", "ydlidar_x2_hw.yaml")
+        ydlidar_params_file = os.path.join(ydlidar_pkg, "params", "Tmini.yaml")
 
     return [
         IncludeLaunchDescription(
@@ -189,6 +189,51 @@ def _maybe_include_lidar(context, *args, **kwargs):
                 "lidar_tf_qy": LaunchConfiguration("lidar_tf_qy").perform(context),
                 "lidar_tf_qz": LaunchConfiguration("lidar_tf_qz").perform(context),
                 "lidar_tf_qw": LaunchConfiguration("lidar_tf_qw").perform(context),
+            }.items(),
+        )
+    ]
+
+
+def _maybe_include_camera(context, *args, **kwargs):
+    use_camera = LaunchConfiguration("use_camera").perform(context)
+    use_hardware = LaunchConfiguration("use_hardware").perform(context)
+    use_gz_sim = LaunchConfiguration("use_gz_sim").perform(context)
+    if not _is_true(use_camera):
+        return []
+    if not _is_true(use_hardware):
+        return [LogInfo(msg="use_camera enabled but use_hardware is false; skipping camera launch.")]
+    if _is_true(use_gz_sim):
+        return [LogInfo(msg="use_camera enabled but use_gz_sim is true; skipping real camera launch.")]
+
+    try:
+        studica_pkg = get_package_share_directory("studica_vmxpi_ros2")
+    except PackageNotFoundError:
+        return [LogInfo(msg="studica_vmxpi_ros2 not found; skipping camera launch.")]
+    try:
+        get_package_share_directory("orbbec_camera")
+    except PackageNotFoundError:
+        return [LogInfo(msg="orbbec_camera not found; skipping camera launch.")]
+
+    return [
+        IncludeLaunchDescription(
+            PythonLaunchDescriptionSource(
+                os.path.join(studica_pkg, "launch", "camera_hw.launch.py")
+            ),
+            launch_arguments={
+                "orbbec_launch_file": LaunchConfiguration("orbbec_launch_file").perform(context),
+                "orbbec_camera_name": LaunchConfiguration("orbbec_camera_name").perform(context),
+                "orbbec_serial_number": LaunchConfiguration("orbbec_serial_number").perform(context),
+                "orbbec_enable_point_cloud": LaunchConfiguration("orbbec_enable_point_cloud").perform(context),
+                "publish_camera_tf": LaunchConfiguration("publish_camera_tf").perform(context),
+                "camera_parent_frame": LaunchConfiguration("camera_parent_frame").perform(context),
+                "camera_child_frame": LaunchConfiguration("camera_child_frame").perform(context),
+                "camera_tf_x": LaunchConfiguration("camera_tf_x").perform(context),
+                "camera_tf_y": LaunchConfiguration("camera_tf_y").perform(context),
+                "camera_tf_z": LaunchConfiguration("camera_tf_z").perform(context),
+                "camera_tf_qx": LaunchConfiguration("camera_tf_qx").perform(context),
+                "camera_tf_qy": LaunchConfiguration("camera_tf_qy").perform(context),
+                "camera_tf_qz": LaunchConfiguration("camera_tf_qz").perform(context),
+                "camera_tf_qw": LaunchConfiguration("camera_tf_qw").perform(context),
             }.items(),
         )
     ]
@@ -545,7 +590,7 @@ def generate_launch_description():
         _declare_arg(
             "ydlidar_params_file",
             "",
-            "Optional YDLIDAR params YAML. Empty uses studica_vmxpi_ros2/config/ydlidar_x2_hw.yaml.",
+            "Optional YDLIDAR params YAML. Empty uses ydlidar_ros2_driver/params/Tmini.yaml.",
         ),
         _declare_arg(
             "lidar_parent_frame",
@@ -564,10 +609,57 @@ def generate_launch_description():
         _declare_arg("lidar_tf_qy", "0.0", "LiDAR static TF quaternion Y."),
         _declare_arg(
             "lidar_tf_qz",
-            "1.0",
-            "LiDAR static TF quaternion Z (default rotates hardware LiDAR 180 degrees yaw).",
+            "0.0",
+            "LiDAR static TF quaternion Z.",
         ),
-        _declare_arg("lidar_tf_qw", "0.0", "LiDAR static TF quaternion W."),
+        _declare_arg("lidar_tf_qw", "1.0", "LiDAR static TF quaternion W."),
+        _declare_arg(
+            "use_camera",
+            LaunchConfiguration("use_hardware"),
+            "Launch Orbbec camera in real hardware mode (defaults to use_hardware).",
+        ),
+        _declare_arg(
+            "orbbec_launch_file",
+            "gemini_e.launch.py",
+            "Orbbec launch file in orbbec_camera/launch.",
+        ),
+        _declare_arg(
+            "orbbec_camera_name",
+            "camera",
+            "Orbbec camera_name launch argument (also sets namespace).",
+        ),
+        _declare_arg(
+            "orbbec_serial_number",
+            "",
+            "Optional Orbbec serial number for selecting a specific device.",
+        ),
+        _declare_arg(
+            "orbbec_enable_point_cloud",
+            "false",
+            "Enable Orbbec point cloud output.",
+        ),
+        _declare_arg(
+            "publish_camera_tf",
+            "false",
+            "Publish additional static TF from base frame to camera frame.",
+        ),
+        _declare_arg(
+            "camera_parent_frame",
+            "base_link",
+            "Parent frame for camera static transform.",
+        ),
+        _declare_arg(
+            "camera_child_frame",
+            "",
+            "Child frame for camera static transform (empty => <orbbec_camera_name>_link).",
+        ),
+        _declare_arg("camera_tf_x", "0.0", "Camera static TF translation X (meters)."),
+        _declare_arg("camera_tf_y", "0.0", "Camera static TF translation Y (meters)."),
+        _declare_arg("camera_tf_z", "0.0", "Camera static TF translation Z (meters)."),
+        _declare_arg("camera_tf_qx", "0.0", "Camera static TF quaternion X."),
+        _declare_arg("camera_tf_qy", "0.0", "Camera static TF quaternion Y."),
+        _declare_arg("camera_tf_qz", "0.0", "Camera static TF quaternion Z."),
+        _declare_arg("camera_tf_qw", "1.0", "Camera static TF quaternion W."),
         _declare_arg(
             "joystick_cmd_vel_topic",
             "",
@@ -884,6 +976,7 @@ def generate_launch_description():
         rviz_node_delayed,
         OpaqueFunction(function=_maybe_include_gamepad),
         OpaqueFunction(function=_maybe_include_lidar),
+        OpaqueFunction(function=_maybe_include_camera),
     ]
 
     return LaunchDescription(declared_arguments + nodes)

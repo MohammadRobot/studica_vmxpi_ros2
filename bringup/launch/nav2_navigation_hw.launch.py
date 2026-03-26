@@ -72,7 +72,82 @@ def generate_launch_description():
         DeclareLaunchArgument(
             "ydlidar_params_file",
             default_value="",
-            description="Optional YDLIDAR params YAML. Empty uses studica_vmxpi_ros2/config/ydlidar_x2_hw.yaml.",
+            description="Optional YDLIDAR params YAML. Empty uses ydlidar_ros2_driver/params/Tmini.yaml.",
+        ),
+        DeclareLaunchArgument(
+            "use_camera",
+            default_value="true",
+            description="Launch Orbbec camera from studica_vmxpi_ros2 hardware camera launch.",
+        ),
+        DeclareLaunchArgument(
+            "orbbec_launch_file",
+            default_value="gemini_e.launch.py",
+            description="Orbbec launch file in orbbec_camera/launch.",
+        ),
+        DeclareLaunchArgument(
+            "orbbec_camera_name",
+            default_value="camera",
+            description="Orbbec camera_name launch argument.",
+        ),
+        DeclareLaunchArgument(
+            "orbbec_serial_number",
+            default_value="",
+            description="Optional Orbbec serial number for selecting a specific device.",
+        ),
+        DeclareLaunchArgument(
+            "orbbec_enable_point_cloud",
+            default_value="false",
+            description="Enable Orbbec point cloud output.",
+        ),
+        DeclareLaunchArgument(
+            "publish_camera_tf",
+            default_value="false",
+            description="Publish additional static TF from base_link to camera frame.",
+        ),
+        DeclareLaunchArgument(
+            "camera_parent_frame",
+            default_value="base_link",
+            description="Parent frame for camera static transform.",
+        ),
+        DeclareLaunchArgument(
+            "camera_child_frame",
+            default_value="",
+            description="Child frame for camera static transform (empty => <orbbec_camera_name>_link).",
+        ),
+        DeclareLaunchArgument(
+            "camera_tf_x",
+            default_value="0.0",
+            description="Camera static TF translation X (meters).",
+        ),
+        DeclareLaunchArgument(
+            "camera_tf_y",
+            default_value="0.0",
+            description="Camera static TF translation Y (meters).",
+        ),
+        DeclareLaunchArgument(
+            "camera_tf_z",
+            default_value="0.0",
+            description="Camera static TF translation Z (meters).",
+        ),
+        DeclareLaunchArgument(
+            "camera_tf_qx",
+            default_value="0.0",
+            description="Camera static TF quaternion X.",
+        ),
+        DeclareLaunchArgument(
+            "camera_tf_qy",
+            default_value="0.0",
+            description="Camera static TF quaternion Y.",
+        ),
+        DeclareLaunchArgument(
+            "camera_tf_qz",
+            default_value="0.0",
+            description="Camera static TF quaternion Z.",
+        ),
+        DeclareLaunchArgument(
+            "camera_tf_qw",
+            default_value="1.0",
+            description="Camera static TF quaternion W.",
         ),
         DeclareLaunchArgument(
             "joystick_cmd_vel_topic",
@@ -107,6 +182,21 @@ def generate_launch_description():
     use_joystick = LaunchConfiguration("use_joystick")
     use_lidar = LaunchConfiguration("use_lidar")
     ydlidar_params_file = LaunchConfiguration("ydlidar_params_file")
+    use_camera = LaunchConfiguration("use_camera")
+    orbbec_launch_file = LaunchConfiguration("orbbec_launch_file")
+    orbbec_camera_name = LaunchConfiguration("orbbec_camera_name")
+    orbbec_serial_number = LaunchConfiguration("orbbec_serial_number")
+    orbbec_enable_point_cloud = LaunchConfiguration("orbbec_enable_point_cloud")
+    publish_camera_tf = LaunchConfiguration("publish_camera_tf")
+    camera_parent_frame = LaunchConfiguration("camera_parent_frame")
+    camera_child_frame = LaunchConfiguration("camera_child_frame")
+    camera_tf_x = LaunchConfiguration("camera_tf_x")
+    camera_tf_y = LaunchConfiguration("camera_tf_y")
+    camera_tf_z = LaunchConfiguration("camera_tf_z")
+    camera_tf_qx = LaunchConfiguration("camera_tf_qx")
+    camera_tf_qy = LaunchConfiguration("camera_tf_qy")
+    camera_tf_qz = LaunchConfiguration("camera_tf_qz")
+    camera_tf_qw = LaunchConfiguration("camera_tf_qw")
     joystick_cmd_vel_topic = LaunchConfiguration("joystick_cmd_vel_topic")
     joystick_publish_stamped = LaunchConfiguration("joystick_publish_stamped")
 
@@ -121,6 +211,21 @@ def generate_launch_description():
             "use_joystick": use_joystick,
             "use_lidar": use_lidar,
             "ydlidar_params_file": ydlidar_params_file,
+            "use_camera": use_camera,
+            "orbbec_launch_file": orbbec_launch_file,
+            "orbbec_camera_name": orbbec_camera_name,
+            "orbbec_serial_number": orbbec_serial_number,
+            "orbbec_enable_point_cloud": orbbec_enable_point_cloud,
+            "publish_camera_tf": publish_camera_tf,
+            "camera_parent_frame": camera_parent_frame,
+            "camera_child_frame": camera_child_frame,
+            "camera_tf_x": camera_tf_x,
+            "camera_tf_y": camera_tf_y,
+            "camera_tf_z": camera_tf_z,
+            "camera_tf_qx": camera_tf_qx,
+            "camera_tf_qy": camera_tf_qy,
+            "camera_tf_qz": camera_tf_qz,
+            "camera_tf_qw": camera_tf_qw,
             "joystick_cmd_vel_topic": joystick_cmd_vel_topic,
             "joystick_publish_stamped": joystick_publish_stamped,
             "robot_profile": robot_profile,

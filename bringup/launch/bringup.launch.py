@@ -39,6 +39,7 @@ def _runtime_actions(context, *args, **kwargs):
     robot_profile = LaunchConfiguration("robot_profile").perform(context)
     use_sim_time = LaunchConfiguration("use_sim_time").perform(context).strip()
     use_lidar = LaunchConfiguration("use_lidar").perform(context).strip()
+    use_camera = LaunchConfiguration("use_camera").perform(context).strip()
     use_ground_truth_odom_tf = LaunchConfiguration("use_ground_truth_odom_tf").perform(context).strip()
     world = LaunchConfiguration("world").perform(context).strip()
     rviz_config_file = LaunchConfiguration("rviz_config_file").perform(context).strip()
@@ -49,6 +50,20 @@ def _runtime_actions(context, *args, **kwargs):
     spawn_yaw = LaunchConfiguration("spawn_yaw").perform(context)
     spawn_entity_name = LaunchConfiguration("spawn_entity_name").perform(context)
     ydlidar_params_file = LaunchConfiguration("ydlidar_params_file").perform(context)
+    orbbec_launch_file = LaunchConfiguration("orbbec_launch_file").perform(context)
+    orbbec_camera_name = LaunchConfiguration("orbbec_camera_name").perform(context)
+    orbbec_serial_number = LaunchConfiguration("orbbec_serial_number").perform(context)
+    orbbec_enable_point_cloud = LaunchConfiguration("orbbec_enable_point_cloud").perform(context)
+    publish_camera_tf = LaunchConfiguration("publish_camera_tf").perform(context)
+    camera_parent_frame = LaunchConfiguration("camera_parent_frame").perform(context)
+    camera_child_frame = LaunchConfiguration("camera_child_frame").perform(context)
+    camera_tf_x = LaunchConfiguration("camera_tf_x").perform(context)
+    camera_tf_y = LaunchConfiguration("camera_tf_y").perform(context)
+    camera_tf_z = LaunchConfiguration("camera_tf_z").perform(context)
+    camera_tf_qx = LaunchConfiguration("camera_tf_qx").perform(context)
+    camera_tf_qy = LaunchConfiguration("camera_tf_qy").perform(context)
+    camera_tf_qz = LaunchConfiguration("camera_tf_qz").perform(context)
+    camera_tf_qw = LaunchConfiguration("camera_tf_qw").perform(context)
     joystick_cmd_vel_topic = LaunchConfiguration("joystick_cmd_vel_topic").perform(context)
     joystick_publish_stamped = LaunchConfiguration("joystick_publish_stamped").perform(context)
 
@@ -76,6 +91,8 @@ def _runtime_actions(context, *args, **kwargs):
         use_sim_time = "true" if mode == "gz_sim" else "false"
     if not use_lidar:
         use_lidar = "true" if mode == "hardware" else "false"
+    if not use_camera:
+        use_camera = "true" if mode == "hardware" else "false"
 
     if mode == "gazebo_classic":
         if drive_wheel_layout not in ("diff", "diff_4wd"):
@@ -120,6 +137,21 @@ def _runtime_actions(context, *args, **kwargs):
         "use_joystick": use_joystick,
         "use_lidar": use_lidar,
         "ydlidar_params_file": ydlidar_params_file,
+        "use_camera": use_camera,
+        "orbbec_launch_file": orbbec_launch_file,
+        "orbbec_camera_name": orbbec_camera_name,
+        "orbbec_serial_number": orbbec_serial_number,
+        "orbbec_enable_point_cloud": orbbec_enable_point_cloud,
+        "publish_camera_tf": publish_camera_tf,
+        "camera_parent_frame": camera_parent_frame,
+        "camera_child_frame": camera_child_frame,
+        "camera_tf_x": camera_tf_x,
+        "camera_tf_y": camera_tf_y,
+        "camera_tf_z": camera_tf_z,
+        "camera_tf_qx": camera_tf_qx,
+        "camera_tf_qy": camera_tf_qy,
+        "camera_tf_qz": camera_tf_qz,
+        "camera_tf_qw": camera_tf_qw,
         "joystick_cmd_vel_topic": joystick_cmd_vel_topic,
         "joystick_publish_stamped": joystick_publish_stamped,
         "drive_controller_name": drive_controller_name,
@@ -223,7 +255,82 @@ def generate_launch_description():
             _declare_arg(
                 "ydlidar_params_file",
                 "",
-                "Optional YDLIDAR params YAML file (hardware mode only).",
+                "Optional YDLIDAR params YAML file (hardware mode only; empty uses ydlidar_ros2_driver/params/Tmini.yaml).",
+            ),
+            _declare_arg(
+                "use_camera",
+                "",
+                "Leave empty to auto-select (true in hardware mode).",
+            ),
+            _declare_arg(
+                "orbbec_launch_file",
+                "gemini_e.launch.py",
+                "Orbbec launch file in orbbec_camera/launch (hardware mode only).",
+            ),
+            _declare_arg(
+                "orbbec_camera_name",
+                "camera",
+                "Orbbec camera_name launch argument.",
+            ),
+            _declare_arg(
+                "orbbec_serial_number",
+                "",
+                "Optional Orbbec serial number for selecting a specific device.",
+            ),
+            _declare_arg(
+                "orbbec_enable_point_cloud",
+                "false",
+                "Enable Orbbec point cloud output.",
+            ),
+            _declare_arg(
+                "publish_camera_tf",
+                "false",
+                "Publish additional static TF from base_link to camera frame.",
+            ),
+            _declare_arg(
+                "camera_parent_frame",
+                "base_link",
+                "Parent frame for camera static transform.",
+            ),
+            _declare_arg(
+                "camera_child_frame",
+                "",
+                "Child frame for camera static transform (empty => <orbbec_camera_name>_link).",
+            ),
+            _declare_arg(
+                "camera_tf_x",
+                "0.0",
+                "Camera static TF translation X (meters).",
+            ),
+            _declare_arg(
+                "camera_tf_y",
+                "0.0",
+                "Camera static TF translation Y (meters).",
+            ),
+            _declare_arg(
+                "camera_tf_z",
+                "0.0",
+                "Camera static TF translation Z (meters).",
+            ),
+            _declare_arg(
+                "camera_tf_qx",
+                "0.0",
+                "Camera static TF quaternion X.",
+            ),
+            _declare_arg(
+                "camera_tf_qy",
+                "0.0",
+                "Camera static TF quaternion Y.",
+            ),
+            _declare_arg(
+                "camera_tf_qz",
+                "0.0",
+                "Camera static TF quaternion Z.",
+            ),
+            _declare_arg(
+                "camera_tf_qw",
+                "1.0",
+                "Camera static TF quaternion W.",
             ),
             _declare_arg(
                 "joystick_cmd_vel_topic",

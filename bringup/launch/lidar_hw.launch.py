@@ -25,9 +25,9 @@ def generate_launch_description():
         DeclareLaunchArgument(
             "ydlidar_params_file",
             default_value=PathJoinSubstitution(
-                [FindPackageShare("studica_vmxpi_ros2"), "config", "ydlidar_x2_hw.yaml"]
+                [FindPackageShare("ydlidar_ros2_driver"), "params", "Tmini.yaml"]
             ),
-            description="Path to YDLidar ROS2 params file.",
+            description="Path to YDLidar ROS2 params file (defaults to ydlidar_ros2_driver/params/Tmini.yaml).",
         ),
         DeclareLaunchArgument(
             "lidar_parent_frame",
@@ -66,12 +66,12 @@ def generate_launch_description():
         ),
         DeclareLaunchArgument(
             "lidar_tf_qz",
-            default_value="1.0",
+            default_value="0.0",
             description="Static TF quaternion Z.",
         ),
         DeclareLaunchArgument(
             "lidar_tf_qw",
-            default_value="0.0",
+            default_value="1.0",
             description="Static TF quaternion W.",
         ),
     ]

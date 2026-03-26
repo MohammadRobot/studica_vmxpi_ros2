@@ -57,6 +57,7 @@ cd ~/ros2_ws/src
 git clone https://github.com/MohammadRobot/studica_drivers.git
 git clone https://github.com/MohammadRobot/studica_ros2_control.git
 git clone https://github.com/MohammadRobot/ydlidar_ros2_driver.git
+git clone https://github.com/MohammadRobot/OrbbecSDK_ROS2.git
 ```
 
 ## Build
@@ -65,6 +66,21 @@ git clone https://github.com/MohammadRobot/ydlidar_ros2_driver.git
 cd ~/ros2_ws
 colcon build --packages-select ydlidar_ros2_driver studica_drivers studica_ros2_control studica_vmxpi_ros2
 source install/setup.bash
+```
+
+For YDLIDAR TMini stability, build the LiDAR package exactly as:
+
+```bash
+cd ~/ros2_ws
+colcon build --packages-select ydlidar_ros2_driver --symlink-install
+source ~/ros2_ws/install/setup.bash
+```
+
+For Orbbec camera stability, build Orbbec packages in `Release` exactly as:
+
+```bash
+cd ~/ros2_ws/
+colcon build --packages-select orbbec_camera orbbec_camera_msgs orbbec_description --event-handlers console_direct+ --cmake-args -DCMAKE_BUILD_TYPE=Release
 ```
 
 If you use Conda, make sure `colcon` resolves to system Python, or install missing Python ROS deps in the active Conda env (for example `catkin_pkg`).
@@ -218,6 +234,7 @@ studica_vmxpi_ros2/
 |   |   |-- robot_bringup.launch.py
 |   |   |-- nav2_mapping*.launch.py
 |   |   |-- nav2_navigation*.launch.py
+|   |   |-- camera_hw.launch.py
 |   |   `-- lidar_hw.launch.py
 |   `-- config/
 |       |-- profiles/
@@ -229,7 +246,7 @@ studica_vmxpi_ros2/
 |       |   `-- training_4wd/
 |       |-- profile_template/
 |       |-- slam_toolbox_mapper_params.yaml
-|       `-- ydlidar_x2_hw.yaml
+|       `-- ydlidar_x2_hw.yaml        # legacy optional config (default is ydlidar_ros2_driver/params/Tmini.yaml)
 |-- description/
 |   |-- urdf/
 |   |-- robot/urdf/
@@ -274,6 +291,7 @@ Runtime flow:
    - Nav2 bridge (in Nav2 launches and hardware path): `/cmd_vel (Twist) -> /<drive_controller>/cmd_vel|reference (TwistStamped)` and odom aliasing.
 7. Optional features are composed on top:
    - LiDAR launch in hardware mode (`use_lidar:=true`).
+   - Camera launch in hardware mode (`use_camera:=true`).
    - Joystick teleop (`use_joystick:=true`).
    - Mapping and navigation launches include bringup and then add SLAM/Nav2.
 
@@ -377,13 +395,14 @@ ros2 launch studica_vmxpi_ros2 bringup.launch.py mode:=hardware
 '
 ```
 
-In this real-hardware mode, LiDAR starts automatically by default (`use_lidar:=true` when `mode:=hardware`).
+In this real-hardware mode, LiDAR and Orbbec camera start automatically by default
+(`use_lidar:=true` and `use_camera:=true` when `mode:=hardware`).
 IMU is published by `imu_sensor_broadcaster` in the same `ros2_control` stack (single VMX hardware owner), and relayed to `/imu` for compatibility.
 
-Disable LiDAR auto-start if needed:
+Disable LiDAR and camera auto-start if needed:
 
 ```bash
-ros2 launch studica_vmxpi_ros2 bringup.launch.py mode:=hardware use_lidar:=false
+ros2 launch studica_vmxpi_ros2 bringup.launch.py mode:=hardware use_lidar:=false use_camera:=false
 ```
 
 Check IMU data (published from `ros2_control`):
@@ -400,6 +419,60 @@ ros2 launch studica_vmxpi_ros2 bringup.launch.py \
   ydlidar_params_file:=/path/to/ydlidar.yaml
 ```
 
+Use custom Orbbec camera options from the main bringup:
+
+```bash
+ros2 launch studica_vmxpi_ros2 bringup.launch.py \
+  mode:=hardware \
+  orbbec_launch_file:=gemini_e.launch.py \
+  orbbec_camera_name:=camera \
+  orbbec_serial_number:=<serial_number> \
+  orbbec_enable_point_cloud:=true
+```
+
+## Known-Good Hardware Checklist
+
+Use this sequence when setting up hardware to match the known-good LiDAR + camera workflow.
+
+1. Build and source YDLIDAR driver:
+
+```bash
+cd ~/ros2_ws
+colcon build --packages-select ydlidar_ros2_driver --symlink-install
+source ~/ros2_ws/install/setup.bash
+```
+
+2. Build and source Orbbec packages in Release:
+
+```bash
+cd ~/ros2_ws
+colcon build --packages-select orbbec_camera orbbec_camera_msgs orbbec_description --event-handlers console_direct+ --cmake-args -DCMAKE_BUILD_TYPE=Release
+source ~/ros2_ws/install/setup.bash
+```
+
+3. Optional standalone sensor checks:
+
+```bash
+ros2 launch ydlidar_ros2_driver ydlidar_tmini.launch.py
+```
+
+```bash
+ros2 launch orbbec_camera gemini_e.launch.py
+```
+
+4. Launch integrated hardware stack:
+
+```bash
+ros2 launch studica_vmxpi_ros2 bringup.launch.py mode:=hardware
+```
+
+5. Quick verification:
+
+```bash
+ros2 topic list | grep -E "^/scan$|^/imu$|^/camera/color/image_raw$|^/camera/depth/image_raw$"
+ros2 control list_controllers
+```
+
 IMU broadcaster settings are configured in the selected profile controller file
 (`bringup/config/profiles/<profile>/robot_controllers.yaml`, `imu_sensor_broadcaster` block).
 
@@ -412,6 +485,12 @@ ros2 topic list | grep -E "^/cmd_vel$|^/odom$|^/imu$|^/scan$"
 ```
 
 Expected: public API topics are present (`/cmd_vel`, `/odom`, `/imu`, `/scan`).
+
+If camera is enabled (`use_camera:=true`), verify camera topics:
+
+```bash
+ros2 topic list | grep -E "^/camera/color/image_raw$|^/camera/depth/image_raw$"
+```
 
 ```bash
 ros2 control list_controllers
@@ -527,7 +606,16 @@ ros2 launch studica_vmxpi_ros2 bringup.launch.py mode:=hardware
 Standalone driver test (known-good command):
 
 ```bash
-ros2 launch ydlidar_ros2_driver ydlidar_launch.py
+ros2 launch ydlidar_ros2_driver ydlidar_tmini.launch.py
+```
+
+Known-good standalone LiDAR flow:
+
+```bash
+cd ~/ros2_ws
+colcon build --packages-select ydlidar_ros2_driver --symlink-install
+source ~/ros2_ws/install/setup.bash
+ros2 launch ydlidar_ros2_driver ydlidar_tmini.launch.py
 ```
 
 Integrated launch from Studica stack:
@@ -566,6 +654,62 @@ One-command RViz launch from driver package (optional):
 ros2 launch ydlidar_ros2_driver ydlidar_launch_view.py
 ```
 
+## Camera (OrbbecSDK_ROS2)
+
+Recommended approach: keep `orbbec_camera` as the camera hardware driver, and let
+`studica_vmxpi_ros2` own system-level bringup and TF integration.
+
+Main hardware launch auto-starts camera:
+
+```bash
+ros2 launch studica_vmxpi_ros2 bringup.launch.py mode:=hardware
+```
+
+Standalone driver test (known-good command):
+
+```bash
+ros2 launch orbbec_camera gemini_e.launch.py
+```
+
+Use custom camera launch selection and device serial when needed:
+
+```bash
+ros2 launch studica_vmxpi_ros2 bringup.launch.py \
+  mode:=hardware \
+  orbbec_launch_file:=gemini_e.launch.py \
+  orbbec_camera_name:=camera \
+  orbbec_serial_number:=<serial_number> \
+  orbbec_enable_point_cloud:=true
+```
+
+Known-good standalone camera bringup flow:
+
+```bash
+# Build (Release)
+cd ~/ros2_ws/
+colcon build --packages-select orbbec_camera orbbec_camera_msgs orbbec_description --event-handlers console_direct+ --cmake-args -DCMAKE_BUILD_TYPE=Release
+```
+
+```bash
+# Terminal 1
+source install/setup.bash
+ros2 launch orbbec_camera gemini_e.launch.py
+```
+
+```bash
+# Terminal 2
+. ./install/setup.bash
+rviz2
+```
+
+If you switch away from `gemini_e.launch.py` and need an extra camera TF from this package, enable:
+
+```bash
+ros2 launch studica_vmxpi_ros2 bringup.launch.py \
+  mode:=hardware \
+  publish_camera_tf:=true
+```
+
 ## Gazebo Sim Notes
 
 - Unified Gazebo Sim launch: `bringup.launch.py mode:=gz_sim`
@@ -582,7 +726,7 @@ ros2 launch ydlidar_ros2_driver ydlidar_launch_view.py
 
 Recommended deployment is split across two machines:
 
-- VMX robot host: run hardware-critical nodes only (VMX/Titan drivers, ros2_control, motor controllers, hardware sensor drivers like LiDAR).
+- VMX robot host: run hardware-critical nodes only (VMX/Titan drivers, ros2_control, motor controllers, hardware sensor drivers like LiDAR and depth cameras).
 - Remote PC host: run operator and high-CPU nodes (RViz2, teleop, Nav2 tools, SLAM tools, debugging/visualization tools).
 
 Why this split works better:
@@ -605,6 +749,7 @@ Node placement reference:
 | `controller_manager` + controllers (`diff_drive_controller`, `imu_sensor_broadcaster`) | Robot (VMX) | Keeps motor + IMU control loop local and stable. |
 | `studica_ros2_control` teleop/utilities (optional) | Robot or Remote PC | Use for optional tools (for example joystick helper), not primary hardware runtime. |
 | `ydlidar_ros2_driver` | Robot (VMX) | Serial LiDAR data capture should stay local to `/dev/ttyUSB*`. |
+| `orbbec_camera` | Robot (VMX) | USB camera capture should stay local to robot USB bus and sensor power domain. |
 | TF publishers tied to physical sensors | Robot (VMX) | Keeps robot frame tree synchronized with real sensors. |
 | Teleop nodes (`teleop_twist_keyboard`, gamepad client) | Remote PC | Operator input/UI runs offboard to reduce VMX load. |
 | `rviz2` | Remote PC | Visualization is GPU/CPU heavy and not control-critical. |
