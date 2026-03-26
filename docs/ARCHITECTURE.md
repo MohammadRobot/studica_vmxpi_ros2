@@ -9,7 +9,7 @@ This document explains how `studica_vmxpi_ros2` is composed and how launch modes
 - Robot model: `description/urdf/*.xacro` + `description/ros2_control/*.xacro`
 - Control and hardware abstraction: `ros2_control_node` + hardware plugins in `hardware/`
 - Topic/API compatibility: `topic_adapter_node` in `src/topic_adapter_node.cpp`
-- Optional features: LiDAR, joystick, SLAM, Nav2 launch wrappers
+- Optional features: LiDAR, camera, joystick, SLAM, Nav2 launch wrappers
 
 ## 2) Runtime Flow
 
@@ -24,7 +24,7 @@ flowchart TD
 
     M -->|gz_sim| GZ[robot_gz_sim.launch.py]
     GZ --> GZS[ros_gz_sim world + spawn]
-    GZ --> BR[ros_gz_bridge /clock and /scan]
+    GZ --> BR[ros_gz_bridge /clock, /scan, /camera/color/*, /camera/depth/*]
     GZ --> SR[topic_adapter scan relay /scan_raw -> /scan]
     GZ --> CM1[controller_manager in gz_ros2_control]
 
@@ -54,6 +54,7 @@ flowchart TD
     IMUR[topic_adapter imu relay] --> IMU_OUT[/imu]
 
     LID[optional lidar_hw.launch.py] --> SCAN[/scan]
+    CAM[sim camera sensors in robot.gz.xacro] --> CAMTOPICS[/camera/color/* + /camera/depth/*]
     JOY[optional joystick launch] --> CMD
 ```
 
@@ -90,3 +91,5 @@ No launch/C++ changes are needed for normal configuration differences.
 - Compatibility odom alias: `/odom`
 - Laser scan: `/scan` (`sensor_msgs/msg/LaserScan`)
 - IMU output alias: `/imu` (`sensor_msgs/msg/Imu`)
+- Sim camera color image: `/camera/color/image_raw` (`sensor_msgs/msg/Image`)
+- Sim camera depth image: `/camera/depth/image_raw` (`sensor_msgs/msg/Image`)

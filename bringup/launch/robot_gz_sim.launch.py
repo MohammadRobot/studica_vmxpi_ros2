@@ -254,6 +254,8 @@ def _maybe_include_gz_sim(context, *args, **kwargs):
         return [LogInfo(msg="World path is empty. Pass world:=/absolute/path/to/world.sdf")]
 
     gz_version = LaunchConfiguration("gz_version").perform(context).strip() or "8"
+    gz_headless = _is_true(LaunchConfiguration("gz_headless").perform(context))
+    gz_args = f"-s -r {world}" if gz_headless else f"-r {world}"
 
     return [
         IncludeLaunchDescription(
@@ -261,7 +263,7 @@ def _maybe_include_gz_sim(context, *args, **kwargs):
                 os.path.join(ros_gz_sim_share, "launch", "gz_sim.launch.py")
             ),
             launch_arguments={
-                "gz_args": f"-r {world}",
+                "gz_args": gz_args,
                 "gz_version": gz_version,
             }.items(),
         )
@@ -296,6 +298,18 @@ def _maybe_add_gz_sim_runtime_nodes(context, *args, **kwargs):
     use_ground_truth_odom_tf = LaunchConfiguration("use_ground_truth_odom_tf").perform(context)
     robot_profile = LaunchConfiguration("robot_profile").perform(context).strip() or "training_4wd"
     gz_version = LaunchConfiguration("gz_version").perform(context).strip() or "8"
+    sim_enable_camera = LaunchConfiguration("sim_enable_camera").perform(context)
+    sim_camera_width = LaunchConfiguration("sim_camera_width").perform(context).strip() or "640"
+    sim_camera_height = LaunchConfiguration("sim_camera_height").perform(context).strip() or "480"
+    sim_camera_update_rate = (
+        LaunchConfiguration("sim_camera_update_rate").perform(context).strip() or "30.0"
+    )
+    sim_lidar_samples = LaunchConfiguration("sim_lidar_samples").perform(context).strip() or "200"
+    sim_lidar_update_rate = (
+        LaunchConfiguration("sim_lidar_update_rate").perform(context).strip() or "20.0"
+    )
+    sim_lidar_visualize = LaunchConfiguration("sim_lidar_visualize").perform(context)
+    sim_imu_update_rate = LaunchConfiguration("sim_imu_update_rate").perform(context).strip() or "100.0"
     use_sim_time = _is_true(LaunchConfiguration("use_sim_time").perform(context))
     profile_file, controllers_file = _profile_assets(robot_profile)
 
@@ -318,6 +332,15 @@ def _maybe_add_gz_sim_runtime_nodes(context, *args, **kwargs):
         "/clock@rosgraph_msgs/msg/Clock[gz.msgs.Clock",
         "/scan@sensor_msgs/msg/LaserScan[gz.msgs.LaserScan",
     ]
+    if _is_true(sim_enable_camera):
+        bridge_arguments.extend(
+            [
+                "/camera/color/image_raw@sensor_msgs/msg/Image[gz.msgs.Image",
+                "/camera/color/camera_info@sensor_msgs/msg/CameraInfo[gz.msgs.CameraInfo",
+                "/camera/depth/image_raw@sensor_msgs/msg/Image[gz.msgs.Image",
+                "/camera/depth/camera_info@sensor_msgs/msg/CameraInfo[gz.msgs.CameraInfo",
+            ]
+        )
     if _is_true(use_ground_truth_odom_tf):
         bridge_arguments.extend(
             [
@@ -365,6 +388,14 @@ def _maybe_add_gz_sim_runtime_nodes(context, *args, **kwargs):
         "use_gz_sim:=true "
         f"use_hardware:={shlex.quote(use_hardware)} "
         f"gz_version:={shlex.quote(gz_version)} "
+        f"sim_enable_camera:={shlex.quote(sim_enable_camera)} "
+        f"sim_camera_width:={shlex.quote(sim_camera_width)} "
+        f"sim_camera_height:={shlex.quote(sim_camera_height)} "
+        f"sim_camera_update_rate:={shlex.quote(sim_camera_update_rate)} "
+        f"sim_lidar_samples:={shlex.quote(sim_lidar_samples)} "
+        f"sim_lidar_update_rate:={shlex.quote(sim_lidar_update_rate)} "
+        f"sim_lidar_visualize:={shlex.quote(sim_lidar_visualize)} "
+        f"sim_imu_update_rate:={shlex.quote(sim_imu_update_rate)} "
         f"profile_file:={shlex.quote(profile_file)} "
         f"controllers_file:={shlex.quote(controllers_file)} "
         "> \"$TMP_URDF\"; "
@@ -429,11 +460,19 @@ run_spawner() {{
   local output
   local rc
 
+  if controller_is_active "$name" "$cm"; then
+    return 0
+  fi
+
   output="$(ros2 run controller_manager spawner "$name" --controller-manager "$cm" --controller-manager-timeout 20 2>&1)"
   rc=$?
-  echo "$output"
 
   if [ "$rc" -eq 0 ]; then
+    echo "$output"
+    return 0
+  fi
+
+  if controller_is_active "$name" "$cm"; then
     return 0
   fi
 
@@ -445,7 +484,18 @@ run_spawner() {{
     return 0
   fi
 
+  echo "$output"
   return "$rc"
+}}
+
+controller_is_active() {{
+  local name="$1"
+  local cm="$2"
+  local output
+
+  output="$(ros2 control list_controllers --controller-manager "$cm" 2>/dev/null | \
+    sed -E 's/\x1B\\[[0-9;]*[mK]//g')"
+  echo "$output" | grep -Eq "^${{name}}[[:space:]].*[[:space:]]active([[:space:]]|$)"
 }}
 
 for cm in "${{CANDIDATES[@]}}"; do
@@ -561,6 +611,51 @@ def generate_launch_description():
             "gz_version",
             "8",
             "Gazebo Sim major version passed to ros_gz_sim (8 for Harmonic).",
+        ),
+        _declare_arg(
+            "gz_headless",
+            "false",
+            "Run Gazebo Sim server only (no Gazebo GUI client).",
+        ),
+        _declare_arg(
+            "sim_enable_camera",
+            "true",
+            "Enable simulated RGB + depth camera sensors in gz_sim.",
+        ),
+        _declare_arg(
+            "sim_camera_width",
+            "640",
+            "Sim camera image width in pixels.",
+        ),
+        _declare_arg(
+            "sim_camera_height",
+            "480",
+            "Sim camera image height in pixels.",
+        ),
+        _declare_arg(
+            "sim_camera_update_rate",
+            "30.0",
+            "Sim camera update rate (Hz) for color and depth streams.",
+        ),
+        _declare_arg(
+            "sim_lidar_samples",
+            "200",
+            "Sim lidar horizontal sample count.",
+        ),
+        _declare_arg(
+            "sim_lidar_update_rate",
+            "20.0",
+            "Sim lidar update rate (Hz).",
+        ),
+        _declare_arg(
+            "sim_lidar_visualize",
+            "true",
+            "Enable Gazebo visualization for lidar rays.",
+        ),
+        _declare_arg(
+            "sim_imu_update_rate",
+            "100.0",
+            "Sim IMU update rate (Hz).",
         ),
         _declare_arg("imu_gz_topic", "/imu", "Gazebo IMU topic to bridge into ROS /imu."),
         _declare_arg("spawn_x", "0.0", "Initial robot spawn x (meters)."),
@@ -735,6 +830,22 @@ def generate_launch_description():
             "use_hardware:=", use_hardware,
             " ",
             "gz_version:=", LaunchConfiguration("gz_version"),
+            " ",
+            "sim_enable_camera:=", LaunchConfiguration("sim_enable_camera"),
+            " ",
+            "sim_camera_width:=", LaunchConfiguration("sim_camera_width"),
+            " ",
+            "sim_camera_height:=", LaunchConfiguration("sim_camera_height"),
+            " ",
+            "sim_camera_update_rate:=", LaunchConfiguration("sim_camera_update_rate"),
+            " ",
+            "sim_lidar_samples:=", LaunchConfiguration("sim_lidar_samples"),
+            " ",
+            "sim_lidar_update_rate:=", LaunchConfiguration("sim_lidar_update_rate"),
+            " ",
+            "sim_lidar_visualize:=", LaunchConfiguration("sim_lidar_visualize"),
+            " ",
+            "sim_imu_update_rate:=", LaunchConfiguration("sim_imu_update_rate"),
             " ",
             "profile_file:=", profile_file,
             " ",
@@ -943,7 +1054,24 @@ def generate_launch_description():
         executable="static_transform_publisher",
         output="screen",
         parameters=[{"use_sim_time": use_sim_time}],
-        arguments=["0", "0", "0.0", "0", "0", "0", "base_footprint", "base_link"],
+        arguments=[
+            "--x",
+            "0",
+            "--y",
+            "0",
+            "--z",
+            "0.0",
+            "--roll",
+            "0",
+            "--pitch",
+            "0",
+            "--yaw",
+            "0",
+            "--frame-id",
+            "base_footprint",
+            "--child-frame-id",
+            "base_link",
+        ],
     )
 
     # Hardware-only control path (no simulation).

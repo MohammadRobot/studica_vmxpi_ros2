@@ -68,7 +68,7 @@ colcon build --packages-select ydlidar_ros2_driver studica_drivers studica_ros2_
 source install/setup.bash
 ```
 
-For YDLIDAR TMini stability, build the LiDAR package exactly as:
+For LIDAR stability, build the LiDAR package exactly as:
 
 ```bash
 cd ~/ros2_ws
@@ -76,7 +76,7 @@ colcon build --packages-select ydlidar_ros2_driver --symlink-install
 source ~/ros2_ws/install/setup.bash
 ```
 
-For Orbbec camera stability, build Orbbec packages in `Release` exactly as:
+For camera stability, build Orbbec packages in `Release` exactly as:
 
 ```bash
 cd ~/ros2_ws/
@@ -106,6 +106,17 @@ ros2 launch studica_vmxpi_ros2 bringup.launch.py \
   mode:=gz_sim robot_profile:=class_4wd gui:=true use_joystick:=true \
   use_ground_truth_odom_tf:=false
 ```
+  - Low-Load Mode 
+```bash
+ros2 launch studica_vmxpi_ros2 bringup.launch.py \
+  mode:=gz_sim robot_profile:=class_4wd gui:=true \
+  gz_headless:=true \
+  sim_camera_width:=320 sim_camera_height:=240 sim_camera_update_rate:=10.0 \
+  sim_lidar_samples:=120 sim_lidar_update_rate:=10.0 sim_lidar_visualize:=false \
+  sim_imu_update_rate:=50.0 \
+  use_joystick:=false use_ground_truth_odom_tf:=false
+```
+
 
 3. Build a map (SLAM):
 
@@ -281,7 +292,7 @@ Runtime flow:
 2. The launch validates the selected profile (`robot_profile.yaml` + `robot_controllers.yaml`) before starting nodes.
 3. URDF is generated from Xacro (`description/urdf/robot.urdf.xacro`) using profile values and controller config.
 4. Mode-specific startup:
-   - `gz_sim`: starts Gazebo Sim, spawns the robot, bridges `/clock` and `/scan`, and relays `/scan_raw -> /scan` with normalized frame id.
+   - `gz_sim`: starts Gazebo Sim, spawns the robot, bridges `/clock`, `/scan`, and simulated camera topics (`/camera/color/*`, `/camera/depth/*`), and relays `/scan_raw -> /scan` with normalized frame id.
    - `hardware`: starts `ros2_control_node` with VMX/Titan hardware plugin (`vmx_system.cpp`), then controllers.
    - `mock`: starts `ros2_control_node` without real hardware for software-only testing.
    - `gazebo_classic`: routes through the Classic compatibility launch.
@@ -720,6 +731,10 @@ ros2 launch studica_vmxpi_ros2 bringup.launch.py \
 - Gazebo Sim sensor topics:
   - `/scan` (`sensor_msgs/LaserScan`)
   - `/imu` (`sensor_msgs/Imu`)
+  - `/camera/color/image_raw` (`sensor_msgs/Image`)
+  - `/camera/color/camera_info` (`sensor_msgs/CameraInfo`)
+  - `/camera/depth/image_raw` (`sensor_msgs/Image`)
+  - `/camera/depth/camera_info` (`sensor_msgs/CameraInfo`)
 - Gazebo Classic compatibility launches are still available (`robot_gazebo_classic.launch.py`, `nav2_mapping.launch.py`, `nav2_navigation.launch.py`).
 
 ## System Architecture (Best Performance)
@@ -976,6 +991,16 @@ Logs are written to `/tmp/studica_motor_smoke_YYYYMMDD_HHMMSS/`.
 
 ## Troubleshooting
 
+PC becomes very slow when running `mode:=gz_sim`:
+
+- Make sure only one Gazebo/bringup session is running:
+  `pkill -f "ros2 launch studica_vmxpi_ros2 bringup.launch.py"; pkill -f "gz sim"`
+- If logs show `RTPS_TRANSPORT_SHM Error ... open_and_lock_file failed`, clear stale FastDDS locks:
+  `rm -f /dev/shm/fastrtps_* /dev/shm/sem.fastrtps_*`
+- Use low-load sim settings (headless Gazebo + reduced sensor rates):
+  `ros2 launch studica_vmxpi_ros2 bringup.launch.py mode:=gz_sim robot_profile:=class_4wd gui:=true gz_headless:=true sim_camera_width:=320 sim_camera_height:=240 sim_camera_update_rate:=10.0 sim_lidar_samples:=120 sim_lidar_update_rate:=10.0 sim_lidar_visualize:=false sim_imu_update_rate:=50.0`
+- If you still need Gazebo GUI, keep `gz_headless:=false` but keep reduced sensor settings.
+
 Teleop command runs but robot does not move:
 
 - If launch is running as `root` and teleop runs as normal user, local DDS discovery may work but topic/service data can fail between users.
@@ -993,6 +1018,9 @@ Teleop command runs but robot does not move:
   `spawner-fallback controllers active on /controller_manager`.
 - If needed, stop stale sim processes and relaunch cleanly:
   `pkill -f "gz sim"; pkill -f "ros2 launch studica_vmxpi_ros2 bringup.launch.py"`
+- If RViz shows repeated `TF_OLD_DATA` warnings, ensure only one active ROS/Gazebo session per DDS domain.
+  Quick isolation test: launch in a different domain:
+  `ROS_DOMAIN_ID=66 ros2 launch studica_vmxpi_ros2 bringup.launch.py mode:=gz_sim robot_profile:=class_4wd gui:=true`
 
 Robot appears in Gazebo Sim, joystick is detected, but robot does not move:
 

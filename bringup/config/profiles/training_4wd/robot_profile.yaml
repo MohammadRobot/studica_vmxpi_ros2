@@ -8,7 +8,7 @@ xacro:
   wheel_radius: 0.05
   caster_wheel_mass: 0.1
   caster_wheel_radius: 0.05
-  laser_model_z: 0.1
+  laser_pos_z: 0.1
   laser_frame_z: 0.05
 
 drive:

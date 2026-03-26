@@ -44,11 +44,20 @@ def _runtime_actions(context, *args, **kwargs):
     world = LaunchConfiguration("world").perform(context).strip()
     rviz_config_file = LaunchConfiguration("rviz_config_file").perform(context).strip()
     world_name = LaunchConfiguration("world_name").perform(context)
+    gz_headless = LaunchConfiguration("gz_headless").perform(context)
     spawn_x = LaunchConfiguration("spawn_x").perform(context)
     spawn_y = LaunchConfiguration("spawn_y").perform(context)
     spawn_z = LaunchConfiguration("spawn_z").perform(context)
     spawn_yaw = LaunchConfiguration("spawn_yaw").perform(context)
     spawn_entity_name = LaunchConfiguration("spawn_entity_name").perform(context)
+    sim_enable_camera = LaunchConfiguration("sim_enable_camera").perform(context)
+    sim_camera_width = LaunchConfiguration("sim_camera_width").perform(context)
+    sim_camera_height = LaunchConfiguration("sim_camera_height").perform(context)
+    sim_camera_update_rate = LaunchConfiguration("sim_camera_update_rate").perform(context)
+    sim_lidar_samples = LaunchConfiguration("sim_lidar_samples").perform(context)
+    sim_lidar_update_rate = LaunchConfiguration("sim_lidar_update_rate").perform(context)
+    sim_lidar_visualize = LaunchConfiguration("sim_lidar_visualize").perform(context)
+    sim_imu_update_rate = LaunchConfiguration("sim_imu_update_rate").perform(context)
     ydlidar_params_file = LaunchConfiguration("ydlidar_params_file").perform(context)
     orbbec_launch_file = LaunchConfiguration("orbbec_launch_file").perform(context)
     orbbec_camera_name = LaunchConfiguration("orbbec_camera_name").perform(context)
@@ -129,11 +138,20 @@ def _runtime_actions(context, *args, **kwargs):
         "use_ground_truth_odom_tf": use_ground_truth_odom_tf,
         "world": world,
         "world_name": world_name,
+        "gz_headless": gz_headless,
         "spawn_x": spawn_x,
         "spawn_y": spawn_y,
         "spawn_z": spawn_z,
         "spawn_yaw": spawn_yaw,
         "spawn_entity_name": spawn_entity_name,
+        "sim_enable_camera": sim_enable_camera,
+        "sim_camera_width": sim_camera_width,
+        "sim_camera_height": sim_camera_height,
+        "sim_camera_update_rate": sim_camera_update_rate,
+        "sim_lidar_samples": sim_lidar_samples,
+        "sim_lidar_update_rate": sim_lidar_update_rate,
+        "sim_lidar_visualize": sim_lidar_visualize,
+        "sim_imu_update_rate": sim_imu_update_rate,
         "use_joystick": use_joystick,
         "use_lidar": use_lidar,
         "ydlidar_params_file": ydlidar_params_file,
@@ -218,6 +236,11 @@ def generate_launch_description():
                 "World name used by Gazebo Sim service calls.",
             ),
             _declare_arg(
+                "gz_headless",
+                "false",
+                "Run Gazebo Sim server only (no Gazebo GUI client).",
+            ),
+            _declare_arg(
                 "spawn_x",
                 "0.0",
                 "Initial robot spawn x position (meters).",
@@ -241,6 +264,46 @@ def generate_launch_description():
                 "spawn_entity_name",
                 "robot_system_position",
                 "Robot entity name used when spawning into Gazebo Sim.",
+            ),
+            _declare_arg(
+                "sim_enable_camera",
+                "true",
+                "Enable simulated RGB + depth camera sensors in gz_sim.",
+            ),
+            _declare_arg(
+                "sim_camera_width",
+                "640",
+                "Sim camera image width in pixels.",
+            ),
+            _declare_arg(
+                "sim_camera_height",
+                "480",
+                "Sim camera image height in pixels.",
+            ),
+            _declare_arg(
+                "sim_camera_update_rate",
+                "30.0",
+                "Sim camera update rate (Hz) for color and depth streams.",
+            ),
+            _declare_arg(
+                "sim_lidar_samples",
+                "200",
+                "Sim lidar horizontal sample count.",
+            ),
+            _declare_arg(
+                "sim_lidar_update_rate",
+                "20.0",
+                "Sim lidar update rate (Hz).",
+            ),
+            _declare_arg(
+                "sim_lidar_visualize",
+                "true",
+                "Enable Gazebo visualization for lidar rays.",
+            ),
+            _declare_arg(
+                "sim_imu_update_rate",
+                "100.0",
+                "Sim IMU update rate (Hz).",
             ),
             _declare_arg(
                 "use_joystick",

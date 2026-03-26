@@ -86,6 +86,8 @@ Topics = streaming data channels.
 Important topics:
 - `/scan`, `/scan_raw` (`sensor_msgs/LaserScan`)
 - `/imu` (`sensor_msgs/Imu`)
+- `/camera/color/image_raw`, `/camera/color/camera_info`
+- `/camera/depth/image_raw`, `/camera/depth/camera_info`
 - `/tf`, `/tf_static`
 - drive command topic from profile (`/<drive_controller>/cmd_vel` or `/<drive_controller>/reference`)
 - drive odom topic from profile (`/<drive_controller>/odom` or `/<drive_controller>/odometry`)
@@ -176,10 +178,28 @@ ros2 topic echo /imu --qos-profile sensor_data
 
 ## 4. Workspace and Build
 
+Build the main stack:
+
 ```bash
 cd ~/ros2_ws
 colcon build --packages-select ydlidar_ros2_driver studica_drivers studica_ros2_control studica_vmxpi_ros2
 source install/setup.bash
+```
+
+Known-good sensor-driver builds for hardware labs:
+
+```bash
+# YDLIDAR (TMini workflow)
+cd ~/ros2_ws
+colcon build --packages-select ydlidar_ros2_driver --symlink-install
+source ~/ros2_ws/install/setup.bash
+```
+
+```bash
+# Orbbec (Release workflow)
+cd ~/ros2_ws
+colcon build --packages-select orbbec_camera orbbec_camera_msgs orbbec_description --event-handlers console_direct+ --cmake-args -DCMAKE_BUILD_TYPE=Release
+source ~/ros2_ws/install/setup.bash
 ```
 
 Check package visibility:
@@ -337,6 +357,23 @@ Launch without simulation:
 ros2 launch studica_vmxpi_ros2 bringup.launch.py mode:=hardware robot_profile:=class_4wd
 ```
 
+Default hardware sensor behavior in this repo:
+- LiDAR auto-start enabled (`use_lidar:=true`) with default TMini parameters (`ydlidar_ros2_driver/params/Tmini.yaml`).
+- Orbbec auto-start enabled (`use_camera:=true`) with default launch `gemini_e.launch.py`.
+- Additional camera TF from this package is disabled by default (`publish_camera_tf:=false`) to avoid duplicate static TF with `gemini_e.launch.py`.
+
+Known-good standalone sensor checks:
+
+```bash
+# LiDAR
+ros2 launch ydlidar_ros2_driver ydlidar_tmini.launch.py
+```
+
+```bash
+# Camera
+ros2 launch orbbec_camera gemini_e.launch.py
+```
+
 Key point:
 - Same repository and mostly same ROS interfaces for sim and hardware.
 - This reduces integration drift between development and deployment.
@@ -356,6 +393,10 @@ Key point:
 
 ### 11.3 Sensor topic exists but no data
 - Confirm publishers: `ros2 topic info /imu -v`
+- Check sensor topics directly:
+  - `ros2 topic info /scan -v`
+  - `ros2 topic info /camera/color/image_raw -v`
+  - `ros2 topic info /camera/depth/image_raw -v`
 - Use sensor QoS in echo.
 - Verify bridge source topic and remapping in launch.
 
@@ -405,6 +446,19 @@ Session 4 (1-2 hours):
 ```bash
 # Build
 cd ~/ros2_ws && colcon build --packages-select ydlidar_ros2_driver studica_drivers studica_ros2_control studica_vmxpi_ros2 && source install/setup.bash
+
+# YDLIDAR known-good build + source
+cd ~/ros2_ws && colcon build --packages-select ydlidar_ros2_driver --symlink-install && source ~/ros2_ws/install/setup.bash
+
+# Orbbec known-good build + source
+cd ~/ros2_ws && colcon build --packages-select orbbec_camera orbbec_camera_msgs orbbec_description --event-handlers console_direct+ --cmake-args -DCMAKE_BUILD_TYPE=Release && source ~/ros2_ws/install/setup.bash
+
+# Standalone sensor checks
+ros2 launch ydlidar_ros2_driver ydlidar_tmini.launch.py
+ros2 launch orbbec_camera gemini_e.launch.py
+
+# Hardware bringup
+ros2 launch studica_vmxpi_ros2 bringup.launch.py mode:=hardware robot_profile:=class_4wd
 
 # Sim
 ros2 launch studica_vmxpi_ros2 bringup.launch.py mode:=gz_sim robot_profile:=class_4wd gui:=true use_joystick:=true use_ground_truth_odom_tf:=false

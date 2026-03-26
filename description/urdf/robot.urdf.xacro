@@ -6,6 +6,14 @@
   <xacro:arg name="use_gazebo_classic" default="false" />
   <xacro:arg name="use_gz_sim" default="false" />
   <xacro:arg name="gz_version" default="8" />
+  <xacro:arg name="sim_enable_camera" default="true" />
+  <xacro:arg name="sim_camera_width" default="640" />
+  <xacro:arg name="sim_camera_height" default="480" />
+  <xacro:arg name="sim_camera_update_rate" default="30.0" />
+  <xacro:arg name="sim_lidar_samples" default="200" />
+  <xacro:arg name="sim_lidar_update_rate" default="20.0" />
+  <xacro:arg name="sim_lidar_visualize" default="true" />
+  <xacro:arg name="sim_imu_update_rate" default="100.0" />
   <xacro:arg name="profile_file" default="$(find studica_vmxpi_ros2)/config/profiles/training_4wd/robot_profile.yaml" />
   <xacro:arg name="controllers_file" default="$(find studica_vmxpi_ros2)/config/profiles/training_4wd/robot_controllers.yaml" />
 
@@ -21,6 +29,12 @@
   <xacro:property name="geometry_cfg" value="${profile['xacro']}"/>
   <xacro:property name="drive_cfg" value="${profile['drive'] if 'drive' in profile else dict()}"/>
   <xacro:property name="wheel_layout" value="${str(drive_cfg.get('wheel_layout', 'diff')).lower()}"/>
+  <xacro:property name="cam_pos_x" value="${geometry_cfg.get('cam_pos_x', geometry_cfg['base_length'] / 4.0)}"/>
+  <xacro:property name="cam_pos_y" value="${geometry_cfg.get('cam_pos_y', 0.0)}"/>
+  <xacro:property name="cam_pos_z" value="${geometry_cfg.get('cam_pos_z', geometry_cfg['base_height'] / 2.0)}"/>
+  <xacro:property name="cam_roll" value="${geometry_cfg.get('cam_roll', 0.0)}"/>
+  <xacro:property name="cam_pitch" value="${geometry_cfg.get('cam_pitch', 0.0)}"/>
+  <xacro:property name="cam_yaw" value="${geometry_cfg.get('cam_yaw', 0.0)}"/>
 
   <xacro:robot_description
     prefix="$(arg prefix)"
@@ -33,8 +47,14 @@
     wheel_radius="${geometry_cfg['wheel_radius']}"
     caster_wheel_mass="${geometry_cfg['caster_wheel_mass']}"
     caster_wheel_radius="${geometry_cfg['caster_wheel_radius']}"
-    laser_model_z="${geometry_cfg['laser_model_z']}"
+    laser_pos_z="${geometry_cfg['laser_pos_z']}"
     laser_frame_z="${geometry_cfg['laser_frame_z']}"
+    cam_pos_x="${cam_pos_x}"
+    cam_pos_y="${cam_pos_y}"
+    cam_pos_z="${cam_pos_z}"
+    cam_roll="${cam_roll}"
+    cam_pitch="${cam_pitch}"
+    cam_yaw="${cam_yaw}"
     wheel_layout="${wheel_layout}"/>
 
   <xacro:robot_ros2_control
@@ -62,6 +82,14 @@
       prefix="$(arg prefix)"
       gz_version="$(arg gz_version)"
       controllers_file="$(arg controllers_file)"
+      sim_enable_camera="$(arg sim_enable_camera)"
+      sim_camera_width="$(arg sim_camera_width)"
+      sim_camera_height="$(arg sim_camera_height)"
+      sim_camera_update_rate="$(arg sim_camera_update_rate)"
+      sim_lidar_samples="$(arg sim_lidar_samples)"
+      sim_lidar_update_rate="$(arg sim_lidar_update_rate)"
+      sim_lidar_visualize="$(arg sim_lidar_visualize)"
+      sim_imu_update_rate="$(arg sim_imu_update_rate)"
       wheel_layout="${wheel_layout}"/>
   </xacro:if>
 

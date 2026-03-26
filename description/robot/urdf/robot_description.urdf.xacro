@@ -1,7 +1,7 @@
 <?xml version="1.0"?>
 <robot xmlns:xacro="http://www.ros.org/wiki/xacro">
 
-  <xacro:macro name="robot_description" params="prefix base_mass:=10.0 base_width:=0.4 base_length:=0.4 base_height:=0.1 wheel_mass:=0.3 wheel_len:=0.04 wheel_radius:=0.05 wheel_z_offset:=-0.027 caster_wheel_mass:=0.1 caster_wheel_radius:=0.05 laser1_model_x:=0.192 laser_model_z:=0.0 laser_frame_z:=0.03 wheel_layout:=diff">
+  <xacro:macro name="robot_description" params="prefix base_mass:=10.0 base_width:=0.4 base_length:=0.4 base_height:=0.1 wheel_mass:=0.3 wheel_len:=0.04 wheel_radius:=0.05 wheel_z_offset:=-0.027 caster_wheel_mass:=0.1 caster_wheel_radius:=0.05 laser_pos_x:=0.192 laser_pos_z:=0.0 laser_frame_z:=0.03 cam_pos_x:=${base_length/2.0} cam_pos_y:=0.0 cam_pos_z:=${base_height/2.0} cam_roll:=0.0 cam_pitch:=0.0 cam_yaw:=0.0 wheel_layout:=diff">
 
     <!-- Constants for robot dimensions -->
     <xacro:property name="PI" value="3.1415926535897931"/>
@@ -376,7 +376,7 @@
     </link>
 
     <joint name="${prefix}laser_scan_model_link_joint" type="fixed">
-      <origin rpy="0 0 0" xyz="${laser1_model_x} 0 ${laser_model_z}"/>
+      <origin rpy="0 0 0" xyz="${laser_pos_x} 0 ${laser_pos_z}"/>
       <parent link="${prefix}chassis_link"/>
       <child link="${prefix}laser_model_link"/>
       <axis xyz="0 0 0"/>
@@ -400,6 +400,30 @@
       <origin rpy="0 0 0" xyz="0 0 0"/>
       <parent link="${prefix}chassis_link"/>
       <child link="${prefix}imu_link"/>
+    </joint>
+
+    <!-- Camera mounting frame used by Gazebo Sim camera sensors. -->
+    <link name="${prefix}camera_link">
+      <visual>
+        <origin xyz="0 0 0" rpy="0 0 0"/>
+        <geometry>
+          <mesh filename="package://studica_vmxpi_ros2/description/meshes/sensors/3d_depth_camera.dae" scale="1.0 1.0 1.0"/>
+        </geometry>
+      </visual>
+    </link>
+
+    <joint name="${prefix}camera_link_joint" type="fixed">
+      <origin rpy="${cam_roll} ${cam_pitch} ${cam_yaw}" xyz="${cam_pos_x} ${cam_pos_y} ${cam_pos_z}"/>
+      <parent link="${prefix}chassis_link"/>
+      <child link="${prefix}camera_link"/>
+    </joint>
+
+    <!-- ROS optical frame convention (REP-103): z forward, x right, y down. -->
+    <link name="${prefix}camera_optical_frame"/>
+    <joint name="${prefix}camera_optical_frame_joint" type="fixed">
+      <origin xyz="0 0 0" rpy="${-PI/2} 0 ${-PI/2}"/>
+      <parent link="${prefix}camera_link"/>
+      <child link="${prefix}camera_optical_frame"/>
     </joint>
 
   </xacro:macro>

@@ -9,8 +9,8 @@ xacro:
   wheel_z_offset: -0.027
   caster_wheel_mass: 0.1
   caster_wheel_radius: 0.05
-  laser1_model_x: 0.192
-  laser_model_z: 0.0
+  laser_pos_x: 0.192
+  laser_pos_z: 0.0
   laser_frame_z: 0.03
 drive:
   wheel_layout: omni

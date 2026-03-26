@@ -31,7 +31,7 @@ REQUIRED_XACRO_KEYS = (
     "wheel_radius",
     "caster_wheel_mass",
     "caster_wheel_radius",
-    "laser_model_z",
+    "laser_pos_z",
     "laser_frame_z",
 )
 
