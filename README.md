@@ -110,11 +110,11 @@ ros2 launch studica_vmxpi_ros2 bringup.launch.py \
 ```bash
 ros2 launch studica_vmxpi_ros2 bringup.launch.py \
   mode:=gz_sim robot_profile:=class_4wd gui:=true \
-  gz_headless:=true \
+  gz_headless:=false \
   sim_camera_width:=320 sim_camera_height:=240 sim_camera_update_rate:=10.0 \
   sim_lidar_samples:=120 sim_lidar_update_rate:=10.0 sim_lidar_visualize:=false \
   sim_imu_update_rate:=50.0 \
-  use_joystick:=false use_ground_truth_odom_tf:=false
+  use_joystick:=true use_ground_truth_odom_tf:=false
 ```
 
 

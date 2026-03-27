@@ -10,6 +10,12 @@ xacro:
   caster_wheel_radius: 0.05
   laser_pos_z: 0.1
   laser_frame_z: 0.05
+  cam_pos_x: 0.192
+  cam_pos_y: 0.0
+  cam_pos_z: 0.1
+  cam_roll: 0.0
+  cam_pitch: 0.0
+  cam_yaw: 0.0
 
 drive:
   wheel_layout: diff
