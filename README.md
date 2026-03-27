@@ -64,7 +64,7 @@ git clone https://github.com/MohammadRobot/OrbbecSDK_ROS2.git
 
 ```bash
 cd ~/ros2_ws
-colcon build --packages-select ydlidar_ros2_driver studica_drivers studica_ros2_control studica_vmxpi_ros2
+colcon build --packages-select studica_drivers studica_ros2_control studica_vmxpi_ros2
 source install/setup.bash
 ```
 
@@ -72,7 +72,7 @@ For LIDAR stability, build the LiDAR package exactly as:
 
 ```bash
 cd ~/ros2_ws
-colcon build --packages-select ydlidar_ros2_driver --symlink-install
+colcon build --packages-select  --allow-overriding ydlidar_ros2_driver --symlink-install
 source ~/ros2_ws/install/setup.bash
 ```
 
@@ -402,7 +402,9 @@ cd /home/vmx/ros2_ws
 source /opt/ros/humble/setup.bash
 source install/setup.bash
 export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/usr/local/lib/vmxpi
-ros2 launch studica_vmxpi_ros2 bringup.launch.py mode:=hardware
+ros2 launch studica_vmxpi_ros2 bringup.launch.py \
+  mode:=hardware robot_profile:=class_mecanum \
+  use_lidar:=true use_camera:=true lidar_type:=x2
 '
 ```
 
@@ -428,6 +430,14 @@ Use a custom YDLIDAR params file from the main bringup:
 ros2 launch studica_vmxpi_ros2 bringup.launch.py \
   mode:=hardware \
   ydlidar_params_file:=/path/to/ydlidar.yaml
+```
+
+Use a YDLIDAR model preset from the main bringup (same style as `ydlidar_launch.py lidar_type:=...`):
+
+```bash
+ros2 launch studica_vmxpi_ros2 bringup.launch.py \
+  mode:=hardware \
+  lidar_type:=tmini
 ```
 
 Use custom Orbbec camera options from the main bringup:

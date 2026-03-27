@@ -58,6 +58,7 @@ def _runtime_actions(context, *args, **kwargs):
     sim_lidar_update_rate = LaunchConfiguration("sim_lidar_update_rate").perform(context)
     sim_lidar_visualize = LaunchConfiguration("sim_lidar_visualize").perform(context)
     sim_imu_update_rate = LaunchConfiguration("sim_imu_update_rate").perform(context)
+    lidar_type = LaunchConfiguration("lidar_type").perform(context)
     ydlidar_params_file = LaunchConfiguration("ydlidar_params_file").perform(context)
     orbbec_launch_file = LaunchConfiguration("orbbec_launch_file").perform(context)
     orbbec_camera_name = LaunchConfiguration("orbbec_camera_name").perform(context)
@@ -154,6 +155,7 @@ def _runtime_actions(context, *args, **kwargs):
         "sim_imu_update_rate": sim_imu_update_rate,
         "use_joystick": use_joystick,
         "use_lidar": use_lidar,
+        "lidar_type": lidar_type,
         "ydlidar_params_file": ydlidar_params_file,
         "use_camera": use_camera,
         "orbbec_launch_file": orbbec_launch_file,
@@ -316,9 +318,14 @@ def generate_launch_description():
                 "Leave empty to auto-select (true in hardware mode).",
             ),
             _declare_arg(
+                "lidar_type",
+                "tmini",
+                "YDLIDAR model preset (hardware mode only). Ignored if ydlidar_params_file is set.",
+            ),
+            _declare_arg(
                 "ydlidar_params_file",
                 "",
-                "Optional YDLIDAR params YAML file (hardware mode only; empty uses ydlidar_ros2_driver/params/Tmini.yaml).",
+                "Optional YDLIDAR params YAML file (hardware mode only; overrides lidar_type when set).",
             ),
             _declare_arg(
                 "use_camera",

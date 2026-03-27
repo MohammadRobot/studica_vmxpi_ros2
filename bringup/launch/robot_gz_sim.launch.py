@@ -165,13 +165,12 @@ def _maybe_include_lidar(context, *args, **kwargs):
     except PackageNotFoundError:
         return [LogInfo(msg="studica_vmxpi_ros2 not found; skipping LiDAR launch.")]
     try:
-        ydlidar_pkg = get_package_share_directory("ydlidar_ros2_driver")
+        get_package_share_directory("ydlidar_ros2_driver")
     except PackageNotFoundError:
         return [LogInfo(msg="ydlidar_ros2_driver not found; skipping LiDAR launch.")]
 
     ydlidar_params_file = LaunchConfiguration("ydlidar_params_file").perform(context).strip()
-    if not ydlidar_params_file:
-        ydlidar_params_file = os.path.join(ydlidar_pkg, "params", "Tmini.yaml")
+    lidar_type = LaunchConfiguration("lidar_type").perform(context).strip()
 
     return [
         IncludeLaunchDescription(
@@ -179,6 +178,7 @@ def _maybe_include_lidar(context, *args, **kwargs):
                 os.path.join(studica_pkg, "launch", "lidar_hw.launch.py")
             ),
             launch_arguments={
+                "lidar_type": lidar_type,
                 "ydlidar_params_file": ydlidar_params_file,
                 "lidar_parent_frame": LaunchConfiguration("lidar_parent_frame").perform(context),
                 "lidar_child_frame": LaunchConfiguration("lidar_child_frame").perform(context),
@@ -685,7 +685,12 @@ def generate_launch_description():
         _declare_arg(
             "ydlidar_params_file",
             "",
-            "Optional YDLIDAR params YAML. Empty uses ydlidar_ros2_driver/params/Tmini.yaml.",
+            "Optional YDLIDAR params YAML. When set, this overrides lidar_type.",
+        ),
+        _declare_arg(
+            "lidar_type",
+            "tmini",
+            "YDLIDAR model preset (example: tmini, x4, g4, gs2, sdm15). Used when ydlidar_params_file is empty.",
         ),
         _declare_arg(
             "lidar_parent_frame",

@@ -70,9 +70,14 @@ def generate_launch_description():
             description="Launch YDLIDAR from studica_vmxpi_ros2 hardware LiDAR launch.",
         ),
         DeclareLaunchArgument(
+            "lidar_type",
+            default_value="tmini",
+            description="YDLIDAR model preset (example: tmini, x4, g4, gs2, sdm15).",
+        ),
+        DeclareLaunchArgument(
             "ydlidar_params_file",
             default_value="",
-            description="Optional YDLIDAR params YAML. Empty uses ydlidar_ros2_driver/params/Tmini.yaml.",
+            description="Optional YDLIDAR params YAML. Overrides lidar_type when set.",
         ),
         DeclareLaunchArgument(
             "use_camera",
@@ -181,6 +186,7 @@ def generate_launch_description():
     use_sim_time = LaunchConfiguration("use_sim_time")
     use_joystick = LaunchConfiguration("use_joystick")
     use_lidar = LaunchConfiguration("use_lidar")
+    lidar_type = LaunchConfiguration("lidar_type")
     ydlidar_params_file = LaunchConfiguration("ydlidar_params_file")
     use_camera = LaunchConfiguration("use_camera")
     orbbec_launch_file = LaunchConfiguration("orbbec_launch_file")
@@ -210,6 +216,7 @@ def generate_launch_description():
             "use_sim_time": use_sim_time,
             "use_joystick": use_joystick,
             "use_lidar": use_lidar,
+            "lidar_type": lidar_type,
             "ydlidar_params_file": ydlidar_params_file,
             "use_camera": use_camera,
             "orbbec_launch_file": orbbec_launch_file,

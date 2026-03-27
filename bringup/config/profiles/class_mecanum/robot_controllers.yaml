@@ -26,7 +26,7 @@ mecanum_base_controller:
     rear_left_wheel_state_joint_name: "rear_left_wheel_joint"
 
     kinematics.wheels_radius: 0.05
-    kinematics.sum_of_robot_center_projection_on_X_Y_axis: 0.35
+    kinematics.sum_of_robot_center_projection_on_X_Y_axis: 0.319
     kinematics.base_frame_offset.x: 0.0
     kinematics.base_frame_offset.y: 0.0
     kinematics.base_frame_offset.theta: 0.0

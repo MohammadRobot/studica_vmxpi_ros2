@@ -44,5 +44,5 @@ hardware:
 
   invert_left_front_encoder: false
   invert_left_rear_encoder: false
-  invert_right_front_encoder: false
-  invert_right_rear_encoder: false
+  invert_right_front_encoder: true
+  invert_right_rear_encoder: true
