@@ -5,6 +5,7 @@
 import math
 import os
 import shlex
+import yaml
 
 from ament_index_python.packages import PackageNotFoundError, get_package_prefix, get_package_share_directory
 from launch import LaunchDescription
@@ -116,6 +117,46 @@ def _profile_assets(profile_name: str):
     return profile_file, controllers_file
 
 
+def _profile_camera_tf_base_link(profile_name: str):
+    """
+    Resolve base_link -> camera_link transform using the same defaults as robot URDF.
+
+    URDF chain:
+      base_link -> chassis_link: z = wheel_radius - wheel_z_offset
+      chassis_link -> camera_link: (cam_pos_x, cam_pos_y, cam_pos_z, cam_rpy)
+    """
+    profile_file, _ = _profile_assets(profile_name)
+    with open(profile_file, "r", encoding="utf-8") as stream:
+        profile_data = yaml.safe_load(stream) or {}
+
+    xacro_cfg = profile_data.get("xacro")
+    if not isinstance(xacro_cfg, dict):
+        raise ValueError(f"Missing xacro mapping in profile: {profile_file}")
+
+    # Keep defaults synchronized with description/robot/urdf/robot_description.urdf.xacro.
+    base_length = float(xacro_cfg.get("base_length", 0.4))
+    base_height = float(xacro_cfg.get("base_height", 0.1))
+    wheel_radius = float(xacro_cfg.get("wheel_radius", 0.05))
+    wheel_z_offset = float(xacro_cfg.get("wheel_z_offset", -0.027))
+
+    cam_pos_x = float(xacro_cfg.get("cam_pos_x", base_length / 2.0))
+    cam_pos_y = float(xacro_cfg.get("cam_pos_y", 0.0))
+    cam_pos_z = float(xacro_cfg.get("cam_pos_z", base_height / 2.0))
+    cam_roll = float(xacro_cfg.get("cam_roll", 0.0))
+    cam_pitch = float(xacro_cfg.get("cam_pitch", 0.0))
+    cam_yaw = float(xacro_cfg.get("cam_yaw", 0.0))
+
+    base_to_chassis_z = wheel_radius - wheel_z_offset
+    return {
+        "x": f"{cam_pos_x:.6f}",
+        "y": f"{cam_pos_y:.6f}",
+        "z": f"{(base_to_chassis_z + cam_pos_z):.6f}",
+        "roll": f"{cam_roll:.6f}",
+        "pitch": f"{cam_pitch:.6f}",
+        "yaw": f"{cam_yaw:.6f}",
+    }
+
+
 def _maybe_include_gamepad(context, *args, **kwargs):
     use_joystick = LaunchConfiguration("use_joystick").perform(context)
     if not _is_true(use_joystick):
@@ -214,29 +255,103 @@ def _maybe_include_camera(context, *args, **kwargs):
     except PackageNotFoundError:
         return [LogInfo(msg="orbbec_camera not found; skipping camera launch.")]
 
-    return [
+    camera_name = LaunchConfiguration("orbbec_camera_name").perform(context).strip() or "camera"
+    camera_parent_frame = LaunchConfiguration("camera_parent_frame").perform(context).strip() or "base_link"
+    camera_child_frame = LaunchConfiguration("camera_child_frame").perform(context).strip()
+    if not camera_child_frame:
+        camera_child_frame = f"{camera_name}_link"
+
+    robot_profile = LaunchConfiguration("robot_profile").perform(context).strip() or "training_4wd"
+    camera_tf = None
+    camera_tf_error = None
+    try:
+        camera_tf = _profile_camera_tf_base_link(robot_profile)
+    except Exception as exc:  # pylint: disable=broad-except
+        camera_tf_error = str(exc)
+
+    launch_arguments = {
+        "orbbec_launch_file": LaunchConfiguration("orbbec_launch_file").perform(context),
+        "orbbec_camera_name": camera_name,
+        "orbbec_serial_number": LaunchConfiguration("orbbec_serial_number").perform(context),
+        "orbbec_enable_point_cloud": LaunchConfiguration("orbbec_enable_point_cloud").perform(context),
+        "orbbec_enable_color": LaunchConfiguration("orbbec_enable_color").perform(context),
+        "orbbec_enable_depth": LaunchConfiguration("orbbec_enable_depth").perform(context),
+        "orbbec_enable_ir": LaunchConfiguration("orbbec_enable_ir").perform(context),
+        "orbbec_color_width": LaunchConfiguration("orbbec_color_width").perform(context),
+        "orbbec_color_height": LaunchConfiguration("orbbec_color_height").perform(context),
+        "orbbec_color_fps": LaunchConfiguration("orbbec_color_fps").perform(context),
+        "orbbec_depth_width": LaunchConfiguration("orbbec_depth_width").perform(context),
+        "orbbec_depth_height": LaunchConfiguration("orbbec_depth_height").perform(context),
+        "orbbec_depth_fps": LaunchConfiguration("orbbec_depth_fps").perform(context),
+        # Align gemini_e static TF with robot URDF camera frame by default.
+        "orbbec_base_frame_id": camera_parent_frame,
+        "orbbec_camera_link_frame_id": camera_child_frame,
+        "publish_camera_tf": LaunchConfiguration("publish_camera_tf").perform(context),
+        "camera_parent_frame": camera_parent_frame,
+        "camera_child_frame": camera_child_frame,
+        "camera_tf_x": LaunchConfiguration("camera_tf_x").perform(context),
+        "camera_tf_y": LaunchConfiguration("camera_tf_y").perform(context),
+        "camera_tf_z": LaunchConfiguration("camera_tf_z").perform(context),
+        "camera_tf_qx": LaunchConfiguration("camera_tf_qx").perform(context),
+        "camera_tf_qy": LaunchConfiguration("camera_tf_qy").perform(context),
+        "camera_tf_qz": LaunchConfiguration("camera_tf_qz").perform(context),
+        "camera_tf_qw": LaunchConfiguration("camera_tf_qw").perform(context),
+    }
+    if camera_tf is not None:
+        launch_arguments.update(
+            {
+                "orbbec_base_to_camera_x": camera_tf["x"],
+                "orbbec_base_to_camera_y": camera_tf["y"],
+                "orbbec_base_to_camera_z": camera_tf["z"],
+                "orbbec_base_to_camera_roll": camera_tf["roll"],
+                "orbbec_base_to_camera_pitch": camera_tf["pitch"],
+                "orbbec_base_to_camera_yaw": camera_tf["yaw"],
+            }
+        )
+
+    actions = []
+    if camera_tf is not None:
+        actions.append(
+            LogInfo(
+                msg=[
+                    "Orbbec base->camera TF from profile ",
+                    robot_profile,
+                    ": xyz=(",
+                    camera_tf["x"],
+                    ",",
+                    camera_tf["y"],
+                    ",",
+                    camera_tf["z"],
+                    "), rpy=(",
+                    camera_tf["roll"],
+                    ",",
+                    camera_tf["pitch"],
+                    ",",
+                    camera_tf["yaw"],
+                    ")",
+                ]
+            )
+        )
+    elif camera_tf_error:
+        actions.append(
+            LogInfo(
+                msg=[
+                    "Failed to compute profile camera TF for Orbbec alignment: ",
+                    camera_tf_error,
+                    " (using Orbbec launch defaults).",
+                ]
+            )
+        )
+
+    actions.append(
         IncludeLaunchDescription(
             PythonLaunchDescriptionSource(
                 os.path.join(studica_pkg, "launch", "camera_hw.launch.py")
             ),
-            launch_arguments={
-                "orbbec_launch_file": LaunchConfiguration("orbbec_launch_file").perform(context),
-                "orbbec_camera_name": LaunchConfiguration("orbbec_camera_name").perform(context),
-                "orbbec_serial_number": LaunchConfiguration("orbbec_serial_number").perform(context),
-                "orbbec_enable_point_cloud": LaunchConfiguration("orbbec_enable_point_cloud").perform(context),
-                "publish_camera_tf": LaunchConfiguration("publish_camera_tf").perform(context),
-                "camera_parent_frame": LaunchConfiguration("camera_parent_frame").perform(context),
-                "camera_child_frame": LaunchConfiguration("camera_child_frame").perform(context),
-                "camera_tf_x": LaunchConfiguration("camera_tf_x").perform(context),
-                "camera_tf_y": LaunchConfiguration("camera_tf_y").perform(context),
-                "camera_tf_z": LaunchConfiguration("camera_tf_z").perform(context),
-                "camera_tf_qx": LaunchConfiguration("camera_tf_qx").perform(context),
-                "camera_tf_qy": LaunchConfiguration("camera_tf_qy").perform(context),
-                "camera_tf_qz": LaunchConfiguration("camera_tf_qz").perform(context),
-                "camera_tf_qw": LaunchConfiguration("camera_tf_qw").perform(context),
-            }.items(),
+            launch_arguments=launch_arguments.items(),
         )
-    ]
+    )
+    return actions
 
 
 def _maybe_include_gz_sim(context, *args, **kwargs):
@@ -737,6 +852,51 @@ def generate_launch_description():
             "orbbec_enable_point_cloud",
             "false",
             "Enable Orbbec point cloud output.",
+        ),
+        _declare_arg(
+            "orbbec_enable_color",
+            "",
+            "Optional override for Orbbec launch arg enable_color.",
+        ),
+        _declare_arg(
+            "orbbec_enable_depth",
+            "",
+            "Optional override for Orbbec launch arg enable_depth.",
+        ),
+        _declare_arg(
+            "orbbec_enable_ir",
+            "",
+            "Optional override for Orbbec launch arg enable_ir.",
+        ),
+        _declare_arg(
+            "orbbec_color_width",
+            "",
+            "Optional override for Orbbec launch arg color_width.",
+        ),
+        _declare_arg(
+            "orbbec_color_height",
+            "",
+            "Optional override for Orbbec launch arg color_height.",
+        ),
+        _declare_arg(
+            "orbbec_color_fps",
+            "",
+            "Optional override for Orbbec launch arg color_fps.",
+        ),
+        _declare_arg(
+            "orbbec_depth_width",
+            "",
+            "Optional override for Orbbec launch arg depth_width.",
+        ),
+        _declare_arg(
+            "orbbec_depth_height",
+            "",
+            "Optional override for Orbbec launch arg depth_height.",
+        ),
+        _declare_arg(
+            "orbbec_depth_fps",
+            "",
+            "Optional override for Orbbec launch arg depth_fps.",
         ),
         _declare_arg(
             "publish_camera_tf",

@@ -29,6 +29,23 @@ def _runtime_actions(context, *args, **kwargs):
     enable_point_cloud = (
         LaunchConfiguration("orbbec_enable_point_cloud").perform(context).strip() or "false"
     )
+    enable_color = LaunchConfiguration("orbbec_enable_color").perform(context).strip()
+    enable_depth = LaunchConfiguration("orbbec_enable_depth").perform(context).strip()
+    enable_ir = LaunchConfiguration("orbbec_enable_ir").perform(context).strip()
+    color_width = LaunchConfiguration("orbbec_color_width").perform(context).strip()
+    color_height = LaunchConfiguration("orbbec_color_height").perform(context).strip()
+    color_fps = LaunchConfiguration("orbbec_color_fps").perform(context).strip()
+    depth_width = LaunchConfiguration("orbbec_depth_width").perform(context).strip()
+    depth_height = LaunchConfiguration("orbbec_depth_height").perform(context).strip()
+    depth_fps = LaunchConfiguration("orbbec_depth_fps").perform(context).strip()
+    base_frame_id = LaunchConfiguration("orbbec_base_frame_id").perform(context).strip()
+    camera_link_frame_id = LaunchConfiguration("orbbec_camera_link_frame_id").perform(context).strip()
+    base_to_camera_x = LaunchConfiguration("orbbec_base_to_camera_x").perform(context).strip()
+    base_to_camera_y = LaunchConfiguration("orbbec_base_to_camera_y").perform(context).strip()
+    base_to_camera_z = LaunchConfiguration("orbbec_base_to_camera_z").perform(context).strip()
+    base_to_camera_roll = LaunchConfiguration("orbbec_base_to_camera_roll").perform(context).strip()
+    base_to_camera_pitch = LaunchConfiguration("orbbec_base_to_camera_pitch").perform(context).strip()
+    base_to_camera_yaw = LaunchConfiguration("orbbec_base_to_camera_yaw").perform(context).strip()
 
     camera_parent_frame = LaunchConfiguration("camera_parent_frame").perform(context).strip()
     camera_child_frame = LaunchConfiguration("camera_child_frame").perform(context).strip()
@@ -52,15 +69,48 @@ def _runtime_actions(context, *args, **kwargs):
     if not os.path.exists(launch_path):
         return [LogInfo(msg=f"Orbbec launch file not found: {launch_path}")]
 
+    launch_arguments = {
+        "camera_name": camera_name,
+        "serial_number": serial_number,
+        "enable_point_cloud": enable_point_cloud,
+    }
+
+    optional_orbbec_arguments = {
+        "enable_color": enable_color,
+        "enable_depth": enable_depth,
+        "enable_ir": enable_ir,
+        "color_width": color_width,
+        "color_height": color_height,
+        "color_fps": color_fps,
+        "depth_width": depth_width,
+        "depth_height": depth_height,
+        "depth_fps": depth_fps,
+    }
+    for key, value in optional_orbbec_arguments.items():
+        if value:
+            launch_arguments[key] = value
+
+    # gemini_e.launch.py publishes base->camera static TF internally. Override it to match URDF.
+    if os.path.basename(orbbec_launch_file) == "gemini_e.launch.py":
+        gemini_e_tf_arguments = {
+            "base_frame_id": base_frame_id,
+            "camera_link_frame_id": camera_link_frame_id,
+            "base_to_camera_x": base_to_camera_x,
+            "base_to_camera_y": base_to_camera_y,
+            "base_to_camera_z": base_to_camera_z,
+            "base_to_camera_roll": base_to_camera_roll,
+            "base_to_camera_pitch": base_to_camera_pitch,
+            "base_to_camera_yaw": base_to_camera_yaw,
+        }
+        for key, value in gemini_e_tf_arguments.items():
+            if value:
+                launch_arguments[key] = value
+
     actions = [
         LogInfo(msg=["Using Orbbec launch: ", launch_path]),
         IncludeLaunchDescription(
             PythonLaunchDescriptionSource(launch_path),
-            launch_arguments={
-                "camera_name": camera_name,
-                "serial_number": serial_number,
-                "enable_point_cloud": enable_point_cloud,
-            }.items(),
+            launch_arguments=launch_arguments.items(),
         ),
     ]
 
@@ -128,6 +178,91 @@ def generate_launch_description():
             "orbbec_enable_point_cloud",
             default_value="false",
             description="Enable Orbbec point cloud output.",
+        ),
+        DeclareLaunchArgument(
+            "orbbec_enable_color",
+            default_value="",
+            description="Optional override for Orbbec launch arg enable_color.",
+        ),
+        DeclareLaunchArgument(
+            "orbbec_enable_depth",
+            default_value="",
+            description="Optional override for Orbbec launch arg enable_depth.",
+        ),
+        DeclareLaunchArgument(
+            "orbbec_enable_ir",
+            default_value="",
+            description="Optional override for Orbbec launch arg enable_ir.",
+        ),
+        DeclareLaunchArgument(
+            "orbbec_color_width",
+            default_value="",
+            description="Optional override for Orbbec launch arg color_width.",
+        ),
+        DeclareLaunchArgument(
+            "orbbec_color_height",
+            default_value="",
+            description="Optional override for Orbbec launch arg color_height.",
+        ),
+        DeclareLaunchArgument(
+            "orbbec_color_fps",
+            default_value="",
+            description="Optional override for Orbbec launch arg color_fps.",
+        ),
+        DeclareLaunchArgument(
+            "orbbec_depth_width",
+            default_value="",
+            description="Optional override for Orbbec launch arg depth_width.",
+        ),
+        DeclareLaunchArgument(
+            "orbbec_depth_height",
+            default_value="",
+            description="Optional override for Orbbec launch arg depth_height.",
+        ),
+        DeclareLaunchArgument(
+            "orbbec_depth_fps",
+            default_value="",
+            description="Optional override for Orbbec launch arg depth_fps.",
+        ),
+        DeclareLaunchArgument(
+            "orbbec_base_frame_id",
+            default_value="",
+            description="Optional override for gemini_e launch arg base_frame_id.",
+        ),
+        DeclareLaunchArgument(
+            "orbbec_camera_link_frame_id",
+            default_value="",
+            description="Optional override for gemini_e launch arg camera_link_frame_id.",
+        ),
+        DeclareLaunchArgument(
+            "orbbec_base_to_camera_x",
+            default_value="",
+            description="Optional override for gemini_e launch arg base_to_camera_x.",
+        ),
+        DeclareLaunchArgument(
+            "orbbec_base_to_camera_y",
+            default_value="",
+            description="Optional override for gemini_e launch arg base_to_camera_y.",
+        ),
+        DeclareLaunchArgument(
+            "orbbec_base_to_camera_z",
+            default_value="",
+            description="Optional override for gemini_e launch arg base_to_camera_z.",
+        ),
+        DeclareLaunchArgument(
+            "orbbec_base_to_camera_roll",
+            default_value="",
+            description="Optional override for gemini_e launch arg base_to_camera_roll.",
+        ),
+        DeclareLaunchArgument(
+            "orbbec_base_to_camera_pitch",
+            default_value="",
+            description="Optional override for gemini_e launch arg base_to_camera_pitch.",
+        ),
+        DeclareLaunchArgument(
+            "orbbec_base_to_camera_yaw",
+            default_value="",
+            description="Optional override for gemini_e launch arg base_to_camera_yaw.",
         ),
         DeclareLaunchArgument(
             "publish_camera_tf",

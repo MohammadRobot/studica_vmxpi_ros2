@@ -85,6 +85,50 @@ colcon build --packages-select orbbec_camera orbbec_camera_msgs orbbec_descripti
 
 If you use Conda, make sure `colcon` resolves to system Python, or install missing Python ROS deps in the active Conda env (for example `catkin_pkg`).
 
+## Raspberry Pi USB Buffer (Persistent)
+
+On Raspberry Pi, increase USBFS memory permanently (useful for stable high-bandwidth USB sensors):
+
+```bash
+FILE=/boot/firmware/cmdline.txt
+[ -f /boot/cmdline.txt ] && FILE=/boot/cmdline.txt
+
+grep -q 'usbcore.usbfs_memory_mb=' "$FILE" \
+  && sudo sed -i 's/usbcore\.usbfs_memory_mb=[^ ]*/usbcore.usbfs_memory_mb=128/' "$FILE" \
+  || sudo sed -i '1 s|$| usbcore.usbfs_memory_mb=128|' "$FILE"
+
+sudo reboot
+```
+
+After reboot, verify:
+
+```bash
+cat /sys/module/usbcore/parameters/usbfs_memory_mb
+```
+
+Expected output: `128`
+
+Disable USB autosuspend permanently (recommended for unstable USB cameras/sensors):
+
+```bash
+FILE=/boot/firmware/cmdline.txt
+[ -f /boot/cmdline.txt ] && FILE=/boot/cmdline.txt
+
+grep -q 'usbcore.autosuspend=' "$FILE" \
+  && sudo sed -i 's/usbcore\.autosuspend=[^ ]*/usbcore.autosuspend=-1/' "$FILE" \
+  || sudo sed -i '1 s|$| usbcore.autosuspend=-1|' "$FILE"
+
+sudo reboot
+```
+
+After reboot, verify:
+
+```bash
+cat /sys/module/usbcore/parameters/autosuspend
+```
+
+Expected output: `-1`
+
 ## Student Quick Path (Simulation First)
 
 If you are new to ROS 2, follow this section first.
@@ -403,10 +447,20 @@ source /opt/ros/humble/setup.bash
 source install/setup.bash
 export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/usr/local/lib/vmxpi
 ros2 launch studica_vmxpi_ros2 bringup.launch.py \
-  mode:=hardware robot_profile:=class_mecanum \
-  use_lidar:=true use_camera:=true lidar_type:=x2
+  mode:=hardware robot_profile:=class_4wd \
+  use_lidar:=true lidar_type:=x2 \
+  use_camera:=true \
+  orbbec_launch_file:=gemini_e.launch.py \
+  orbbec_enable_point_cloud:=false \
+  orbbec_enable_ir:=false \
+  orbbec_color_width:=320 orbbec_color_height:=240 orbbec_color_fps:=5 \
+  orbbec_depth_width:=320 orbbec_depth_height:=240 orbbec_depth_fps:=5
 '
 ```
+
+When using `gemini_e.launch.py`, bringup now forwards `base_to_camera_*` values
+from the selected `robot_profile`, so the Orbbec `base_link -> camera_link` TF
+matches the URDF camera mount by default.
 
 In this real-hardware mode, LiDAR and Orbbec camera start automatically by default
 (`use_lidar:=true` and `use_camera:=true` when `mode:=hardware`).
@@ -449,6 +503,35 @@ ros2 launch studica_vmxpi_ros2 bringup.launch.py \
   orbbec_camera_name:=camera \
   orbbec_serial_number:=<serial_number> \
   orbbec_enable_point_cloud:=true
+```
+
+TF alignment note:
+- For `orbbec_launch_file:=gemini_e.launch.py`, `bringup.launch.py` auto-aligns
+  Orbbec `base_link -> camera_link` TF from the selected `robot_profile`.
+- You do not need to set `base_to_camera_*` manually in normal usage.
+
+For USB2 links that are unstable at full bandwidth, use a low-load profile:
+
+```bash
+ros2 launch studica_vmxpi_ros2 bringup.launch.py \
+  mode:=hardware \
+  orbbec_launch_file:=gemini_e.launch.py \
+  orbbec_enable_point_cloud:=false \
+  orbbec_enable_ir:=false \
+  orbbec_color_width:=320 orbbec_color_height:=240 orbbec_color_fps:=5 \
+  orbbec_depth_width:=320 orbbec_depth_height:=240 orbbec_depth_fps:=5
+```
+
+If USB2 still disconnects, use depth-only fallback:
+
+```bash
+ros2 launch studica_vmxpi_ros2 bringup.launch.py \
+  mode:=hardware \
+  orbbec_launch_file:=gemini_e.launch.py \
+  orbbec_enable_point_cloud:=false \
+  orbbec_enable_color:=false \
+  orbbec_enable_ir:=false \
+  orbbec_depth_width:=320 orbbec_depth_height:=240 orbbec_depth_fps:=5
 ```
 
 ## Known-Good Hardware Checklist
@@ -701,6 +784,35 @@ ros2 launch studica_vmxpi_ros2 bringup.launch.py \
   orbbec_camera_name:=camera \
   orbbec_serial_number:=<serial_number> \
   orbbec_enable_point_cloud:=true
+```
+
+TF alignment note:
+- For `orbbec_launch_file:=gemini_e.launch.py`, `bringup.launch.py` auto-aligns
+  Orbbec `base_link -> camera_link` TF from the selected `robot_profile`.
+- You do not need to set `base_to_camera_*` manually in normal usage.
+
+For USB2 links that are unstable at full bandwidth, use a low-load profile:
+
+```bash
+ros2 launch studica_vmxpi_ros2 bringup.launch.py \
+  mode:=hardware \
+  orbbec_launch_file:=gemini_e.launch.py \
+  orbbec_enable_point_cloud:=false \
+  orbbec_enable_ir:=false \
+  orbbec_color_width:=320 orbbec_color_height:=240 orbbec_color_fps:=5 \
+  orbbec_depth_width:=320 orbbec_depth_height:=240 orbbec_depth_fps:=5
+```
+
+If USB2 still disconnects, use depth-only fallback:
+
+```bash
+ros2 launch studica_vmxpi_ros2 bringup.launch.py \
+  mode:=hardware \
+  orbbec_launch_file:=gemini_e.launch.py \
+  orbbec_enable_point_cloud:=false \
+  orbbec_enable_color:=false \
+  orbbec_enable_ir:=false \
+  orbbec_depth_width:=320 orbbec_depth_height:=240 orbbec_depth_fps:=5
 ```
 
 Known-good standalone camera bringup flow:

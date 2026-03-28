@@ -64,6 +64,15 @@ def _runtime_actions(context, *args, **kwargs):
     orbbec_camera_name = LaunchConfiguration("orbbec_camera_name").perform(context)
     orbbec_serial_number = LaunchConfiguration("orbbec_serial_number").perform(context)
     orbbec_enable_point_cloud = LaunchConfiguration("orbbec_enable_point_cloud").perform(context)
+    orbbec_enable_color = LaunchConfiguration("orbbec_enable_color").perform(context)
+    orbbec_enable_depth = LaunchConfiguration("orbbec_enable_depth").perform(context)
+    orbbec_enable_ir = LaunchConfiguration("orbbec_enable_ir").perform(context)
+    orbbec_color_width = LaunchConfiguration("orbbec_color_width").perform(context)
+    orbbec_color_height = LaunchConfiguration("orbbec_color_height").perform(context)
+    orbbec_color_fps = LaunchConfiguration("orbbec_color_fps").perform(context)
+    orbbec_depth_width = LaunchConfiguration("orbbec_depth_width").perform(context)
+    orbbec_depth_height = LaunchConfiguration("orbbec_depth_height").perform(context)
+    orbbec_depth_fps = LaunchConfiguration("orbbec_depth_fps").perform(context)
     publish_camera_tf = LaunchConfiguration("publish_camera_tf").perform(context)
     camera_parent_frame = LaunchConfiguration("camera_parent_frame").perform(context)
     camera_child_frame = LaunchConfiguration("camera_child_frame").perform(context)
@@ -162,6 +171,15 @@ def _runtime_actions(context, *args, **kwargs):
         "orbbec_camera_name": orbbec_camera_name,
         "orbbec_serial_number": orbbec_serial_number,
         "orbbec_enable_point_cloud": orbbec_enable_point_cloud,
+        "orbbec_enable_color": orbbec_enable_color,
+        "orbbec_enable_depth": orbbec_enable_depth,
+        "orbbec_enable_ir": orbbec_enable_ir,
+        "orbbec_color_width": orbbec_color_width,
+        "orbbec_color_height": orbbec_color_height,
+        "orbbec_color_fps": orbbec_color_fps,
+        "orbbec_depth_width": orbbec_depth_width,
+        "orbbec_depth_height": orbbec_depth_height,
+        "orbbec_depth_fps": orbbec_depth_fps,
         "publish_camera_tf": publish_camera_tf,
         "camera_parent_frame": camera_parent_frame,
         "camera_child_frame": camera_child_frame,
@@ -351,6 +369,51 @@ def generate_launch_description():
                 "orbbec_enable_point_cloud",
                 "false",
                 "Enable Orbbec point cloud output.",
+            ),
+            _declare_arg(
+                "orbbec_enable_color",
+                "",
+                "Optional override for Orbbec launch arg enable_color (hardware mode only).",
+            ),
+            _declare_arg(
+                "orbbec_enable_depth",
+                "",
+                "Optional override for Orbbec launch arg enable_depth (hardware mode only).",
+            ),
+            _declare_arg(
+                "orbbec_enable_ir",
+                "",
+                "Optional override for Orbbec launch arg enable_ir (hardware mode only).",
+            ),
+            _declare_arg(
+                "orbbec_color_width",
+                "",
+                "Optional override for Orbbec launch arg color_width (hardware mode only).",
+            ),
+            _declare_arg(
+                "orbbec_color_height",
+                "",
+                "Optional override for Orbbec launch arg color_height (hardware mode only).",
+            ),
+            _declare_arg(
+                "orbbec_color_fps",
+                "",
+                "Optional override for Orbbec launch arg color_fps (hardware mode only).",
+            ),
+            _declare_arg(
+                "orbbec_depth_width",
+                "",
+                "Optional override for Orbbec launch arg depth_width (hardware mode only).",
+            ),
+            _declare_arg(
+                "orbbec_depth_height",
+                "",
+                "Optional override for Orbbec launch arg depth_height (hardware mode only).",
+            ),
+            _declare_arg(
+                "orbbec_depth_fps",
+                "",
+                "Optional override for Orbbec launch arg depth_fps (hardware mode only).",
             ),
             _declare_arg(
                 "publish_camera_tf",
