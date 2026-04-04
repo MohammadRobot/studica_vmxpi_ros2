@@ -451,10 +451,10 @@ ros2 launch studica_vmxpi_ros2 bringup.launch.py \
   use_lidar:=true lidar_type:=x2 \
   use_camera:=true \
   orbbec_launch_file:=gemini_e.launch.py \
-  orbbec_enable_point_cloud:=false \
-  orbbec_enable_ir:=false \
-  orbbec_color_width:=320 orbbec_color_height:=240 orbbec_color_fps:=5 \
-  orbbec_depth_width:=320 orbbec_depth_height:=240 orbbec_depth_fps:=5
+  orbbec_enable_point_cloud:=true \
+  orbbec_enable_ir:=true \
+  orbbec_color_width:=640 orbbec_color_height:=480 orbbec_color_fps:=5 \
+  orbbec_depth_width:=640 orbbec_depth_height:=480 orbbec_depth_fps:=5
 '
 ```
 
