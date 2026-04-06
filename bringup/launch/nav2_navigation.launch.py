@@ -1,15 +1,15 @@
 # Copyright (c) 2026 studica_vmxpi_ros2 contributors
 # SPDX-License-Identifier: Apache-2.0
-"""Legacy Gazebo Classic navigation wrapper (Nav2 + base bringup)."""
+"""Legacy navigation wrapper (Nav2 + base bringup)."""
 
 import os
 
 from ament_index_python.packages import PackageNotFoundError, get_package_share_directory
 from launch import LaunchDescription
-from launch.actions import DeclareLaunchArgument, IncludeLaunchDescription, LogInfo, OpaqueFunction
+from launch.actions import DeclareLaunchArgument, GroupAction, IncludeLaunchDescription, LogInfo, OpaqueFunction
 from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch.substitutions import LaunchConfiguration, PathJoinSubstitution, PythonExpression
-from launch_ros.actions import Node
+from launch_ros.actions import Node, SetParameter
 from launch_ros.substitutions import FindPackageShare
 import yaml
 
@@ -68,9 +68,9 @@ def _resolve_profile_drive_topics(profile_name: str):
 
 
 def _build_nav2_bridge(context, *args, **kwargs):
-    use_gazebo_classic = _is_true(LaunchConfiguration("use_gazebo_classic").perform(context))
+    use_gz_sim = _is_true(LaunchConfiguration("use_gz_sim").perform(context))
     use_hardware = _is_true(LaunchConfiguration("use_hardware").perform(context))
-    bridge_needed = use_gazebo_classic or not use_hardware
+    bridge_needed = use_gz_sim or not use_hardware
     if not bridge_needed:
         return []
 
@@ -118,20 +118,31 @@ def _maybe_include_nav2(context, *args, **kwargs):
     except PackageNotFoundError:
         return [LogInfo(msg="nav2_bringup not found; install ros-humble-nav2-bringup.")]
 
+    use_sim_time_bool = _is_true(LaunchConfiguration("use_sim_time").perform(context))
+    use_sim_time_value = "true" if use_sim_time_bool else "false"
+
     return [
-        IncludeLaunchDescription(
-            PythonLaunchDescriptionSource(os.path.join(nav2_share, "launch", "bringup_launch.py")),
-            launch_arguments={
-                "slam": "False",
-                "use_composition": "False",
-                "map": map_path,
-                "params_file": (
-                    LaunchConfiguration("nav2_params_file").perform(context).strip()
-                    or os.path.join(nav2_share, "params", "nav2_params.yaml")
+        GroupAction(
+            actions=[
+                # Force sim time in the Nav2 scope even if upstream defaults leak through.
+                SetParameter(name="use_sim_time", value=use_sim_time_bool),
+                IncludeLaunchDescription(
+                    PythonLaunchDescriptionSource(
+                        os.path.join(nav2_share, "launch", "bringup_launch.py")
+                    ),
+                    launch_arguments={
+                        "slam": "False",
+                        "use_composition": "False",
+                        "map": map_path,
+                        "params_file": (
+                            LaunchConfiguration("nav2_params_file").perform(context).strip()
+                            or os.path.join(nav2_share, "params", "nav2_params.yaml")
+                        ),
+                        "use_sim_time": use_sim_time_value,
+                        "autostart": LaunchConfiguration("autostart").perform(context),
+                    }.items(),
                 ),
-                "use_sim_time": LaunchConfiguration("use_sim_time").perform(context),
-                "autostart": LaunchConfiguration("autostart").perform(context),
-            }.items(),
+            ]
         )
     ]
 
@@ -154,21 +165,21 @@ def generate_launch_description():
             description="Use Titan hardware instead of mock system.",
         ),
         DeclareLaunchArgument(
-            "use_gazebo_classic",
+            "use_gz_sim",
             default_value="true",
-            description="Start Gazebo Classic simulation.",
+            description="Start Gazebo Sim simulation.",
         ),
         DeclareLaunchArgument(
             "world",
             default_value=PathJoinSubstitution(
-                [FindPackageShare("studica_vmxpi_ros2"), "description/gazebo/worlds", "diff_drive_world.world"]
+                [FindPackageShare("studica_vmxpi_ros2"), "description/gz/worlds", "diff_drive_world.sdf"]
             ),
-            description="Absolute path to Gazebo world file.",
+            description="Absolute path to Gazebo Sim world file (.sdf).",
         ),
         DeclareLaunchArgument(
             "use_sim_time",
-            default_value=LaunchConfiguration("use_gazebo_classic"),
-            description="Use simulation time (defaults to use_gazebo_classic).",
+            default_value=LaunchConfiguration("use_gz_sim"),
+            description="Use simulation time (defaults to use_gz_sim).",
         ),
         DeclareLaunchArgument(
             "use_joystick",
@@ -205,14 +216,14 @@ def generate_launch_description():
     gui = LaunchConfiguration("gui")
     robot_profile = LaunchConfiguration("robot_profile")
     use_hardware = LaunchConfiguration("use_hardware")
-    use_gazebo_classic = LaunchConfiguration("use_gazebo_classic")
+    use_gz_sim = LaunchConfiguration("use_gz_sim")
     world = LaunchConfiguration("world")
     use_sim_time = LaunchConfiguration("use_sim_time")
     use_joystick = LaunchConfiguration("use_joystick")
     mode = PythonExpression(
         [
-            "'gazebo_classic' if ('",
-            use_gazebo_classic,
+            "'gz_sim' if ('",
+            use_gz_sim,
             "').lower() in ['true','1','yes','on'] else "
             "('hardware' if ('",
             use_hardware,

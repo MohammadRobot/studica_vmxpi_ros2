@@ -17,24 +17,41 @@ Use these docs in order for classroom/lab onboarding:
 
 ## Dependencies
 
+Core runtime + Gazebo Sim:
+
 ```bash
 sudo apt install -y \
   ros-humble-backward-ros \
   ros-humble-hardware-interface \
   ros-humble-ros2-control \
   ros-humble-ros2-controllers \
+  ros-humble-controller-manager \
   ros-humble-diff-drive-controller \
   ros-humble-mecanum-drive-controller \
+  ros-humble-imu-sensor-broadcaster \
+  ros-humble-joint-state-broadcaster \
   ros-humble-gz-ros2-control \
   ros-humble-ros-gzharmonic-sim \
   ros-humble-ros-gzharmonic-bridge \
   ros-humble-xacro \
+  ros-humble-robot-state-publisher \
+  ros-humble-joint-state-publisher-gui \
+  ros-humble-tf2-ros \
+  ros-humble-rviz2 \
+  ros-humble-ros2controlcli \
   ros-humble-teleop-twist-keyboard \
   ros-humble-joy \
+  ros-humble-rmw-cyclonedds-cpp \
+  python3-yaml
+```
+
+Mapping and navigation launches (`nav2_mapping_gz_sim.launch.py`, `nav2_navigation_gz_sim.launch.py`):
+
+```bash
+sudo apt install -y \
   ros-humble-navigation2 \
   ros-humble-nav2-bringup \
-  ros-humble-slam-toolbox \
-  ros-humble-rmw-cyclonedds-cpp
+  ros-humble-slam-toolbox
 ```
 
 You can also install the Gazebo Harmonic meta package:
@@ -42,17 +59,6 @@ You can also install the Gazebo Harmonic meta package:
 ```bash
 sudo apt install -y ros-humble-ros-gzharmonic
 ```
-
-Legacy Gazebo Classic support (optional):
-
-```bash
-sudo apt install -y \
-  ros-humble-gazebo-ros \
-  ros-humble-gazebo-ros2-control \
-  ros-humble-gazebo-plugins
-```
-
-Note: Gazebo Classic packages conflict with the Harmonic `gz-*` stack on the same host. Keep Classic in a separate container/VM if needed.
 
 Source dependencies (clone into the same workspace):
 
@@ -63,6 +69,30 @@ git clone https://github.com/MohammadRobot/studica_ros2_control.git
 git clone https://github.com/MohammadRobot/ydlidar_ros2_driver.git
 git clone https://github.com/MohammadRobot/OrbbecSDK_ROS2.git
 ```
+
+
+## Humble + Gazebo Harmonic
+
+On ROS 2 Humble, `gz_ros2_control` for Harmonic must be built from source overlay.
+
+```bash
+cd ~/ros2_ws/src
+git clone --branch humble --depth 1 https://github.com/ros-controls/gz_ros2_control.git
+
+cd ~/ros2_ws
+export GZ_VERSION=harmonic
+colcon build --packages-select gz_ros2_control --cmake-clean-cache --cmake-args -DPython3_EXECUTABLE=/usr/bin/python3
+source install/setup.bash
+```
+
+Verify overlay is active:
+
+```bash
+ros2 pkg prefix gz_ros2_control
+```
+
+Expected output should be inside your workspace, for example:
+`/home/<user>/ros2_ws/install/gz_ros2_control`
 
 ## Build
 
@@ -133,7 +163,7 @@ cat /sys/module/usbcore/parameters/autosuspend
 
 Expected output: `-1`
 
-## Student Quick Path (Simulation First)
+## Quick Start (Simulation First)
 
 If you are new to ROS 2, follow this section first.
 The rest of this README has deeper details for customization and hardware.
@@ -158,7 +188,7 @@ ros2 launch studica_vmxpi_ros2 bringup.launch.py \
 ```bash
 ros2 launch studica_vmxpi_ros2 bringup.launch.py \
   mode:=gz_sim robot_profile:=class_4wd gui:=true \
-  gz_headless:=false \
+  gz_headless:=true \
   sim_camera_width:=320 sim_camera_height:=240 sim_camera_update_rate:=10.0 \
   sim_lidar_samples:=120 sim_lidar_update_rate:=10.0 sim_lidar_visualize:=false \
   sim_imu_update_rate:=50.0 \
@@ -167,6 +197,16 @@ ros2 launch studica_vmxpi_ros2 bringup.launch.py \
 
 
 3. Build a map (SLAM):
+
+If this command fails with `package 'slam_toolbox' not found`, install Nav2 + SLAM first:
+
+```bash
+sudo apt update
+sudo apt install -y ros-humble-slam-toolbox ros-humble-navigation2 ros-humble-nav2-bringup
+source /opt/ros/humble/setup.bash
+source ~/ros2_ws/install/setup.bash
+ros2 pkg prefix slam_toolbox
+```
 
 ```bash
 WORLD_SDF="$(ros2 pkg prefix studica_vmxpi_ros2)/share/studica_vmxpi_ros2/description/gz/worlds/office_map.sdf"
@@ -188,7 +228,7 @@ ros2 service call /slam_toolbox/save_map slam_toolbox/srv/SaveMap "{name: {data:
 ```bash
 WORLD_SDF="$(ros2 pkg prefix studica_vmxpi_ros2)/share/studica_vmxpi_ros2/description/gz/worlds/office_map.sdf"
 ros2 launch studica_vmxpi_ros2 nav2_navigation_gz_sim.launch.py \
-  robot_profile:=class_4wd gui:=true use_joystick:=true \
+  robot_profile:=class_4wd gui:=true use_joystick:=false \
   use_ground_truth_odom_tf:=false \
   world:="${WORLD_SDF}" \
   map:="$HOME/ros2_ws/src/studica_vmxpi_ros2/maps/my_map.yaml"
@@ -199,29 +239,19 @@ ros2 launch studica_vmxpi_ros2 nav2_navigation_gz_sim.launch.py \
 - Click `2D Pose Estimate` once to initialize AMCL.
 - Then use `Nav2 Goal`.
 - If `Map` looks empty right after startup, toggle the `Map` display once in RViz.
-
-## Humble + Harmonic
-
-On ROS 2 Humble, `gz_ros2_control` for Harmonic must be built from source overlay.
-
+- Keep `use_joystick:=false` while testing autonomous goals.
+- If goals instantly show `Goal succeeded` but the robot does not move, verify RViz is on sim time:
 ```bash
-cd ~/ros2_ws/src
-git clone --branch humble --depth 1 https://github.com/ros-controls/gz_ros2_control.git
-
-cd ~/ros2_ws
-export GZ_VERSION=harmonic
-colcon build --packages-select gz_ros2_control --cmake-clean-cache --cmake-args -DPython3_EXECUTABLE=/usr/bin/python3
-source install/setup.bash
+ros2 param get /rviz2 use_sim_time
+ros2 param set /rviz2 use_sim_time true
+```
+- Also verify Nav2 nodes are on sim time:
+```bash
+ros2 param get /controller_server use_sim_time
+ros2 param get /planner_server use_sim_time
+ros2 param get /bt_navigator use_sim_time
 ```
 
-Verify overlay is active:
-
-```bash
-ros2 pkg prefix gz_ros2_control
-```
-
-Expected output should be inside your workspace, for example:
-`/home/<user>/ros2_ws/install/gz_ros2_control`
 
 ## Quick Start
 
@@ -274,7 +304,7 @@ Profile template source files are provided in:
 
 - `bringup/config/profile_template/`
 
-Compatibility launch wrappers (`robot_gz_sim.launch.py`, `robot_gazebo_classic.launch.py`, `robot_bringup.launch.py`) are still available.
+Compatibility launch wrappers (`robot_gz_sim.launch.py`, `robot_bringup.launch.py`) are still available.
 
 ## Package Structure
 
@@ -289,7 +319,6 @@ studica_vmxpi_ros2/
 |   |-- launch/
 |   |   |-- bringup.launch.py
 |   |   |-- robot_gz_sim.launch.py
-|   |   |-- robot_gazebo_classic.launch.py
 |   |   |-- robot_bringup.launch.py
 |   |   |-- nav2_mapping*.launch.py
 |   |   |-- nav2_navigation*.launch.py
@@ -311,7 +340,6 @@ studica_vmxpi_ros2/
 |   |-- robot/urdf/
 |   |-- ros2_control/
 |   |-- gz/ + gz/worlds/
-|   |-- gazebo/ + gazebo/worlds/
 |   `-- meshes/
 |-- hardware/
 |   |-- vmx_system.cpp                # Titan/VMX hardware interface
@@ -336,14 +364,13 @@ studica_vmxpi_ros2/
 
 Runtime flow:
 
-1. Start from `bringup.launch.py` with `mode:=<gz_sim|hardware|mock|gazebo_classic>` and `robot_profile:=<name>`.
+1. Start from `bringup.launch.py` with `mode:=<gz_sim|hardware|mock>` and `robot_profile:=<name>`.
 2. The launch validates the selected profile (`robot_profile.yaml` + `robot_controllers.yaml`) before starting nodes.
 3. URDF is generated from Xacro (`description/urdf/robot.urdf.xacro`) using profile values and controller config.
 4. Mode-specific startup:
    - `gz_sim`: starts Gazebo Sim, spawns the robot, bridges `/clock`, `/scan`, and simulated camera topics (`/camera/color/*`, `/camera/depth/*`), and relays `/scan_raw -> /scan` with normalized frame id.
    - `hardware`: starts `ros2_control_node` with VMX/Titan hardware plugin (`vmx_system.cpp`), then controllers.
    - `mock`: starts `ros2_control_node` without real hardware for software-only testing.
-   - `gazebo_classic`: routes through the Classic compatibility launch.
 5. Common control layer runs `joint_state_broadcaster`, `imu_sensor_broadcaster`, and the selected drive controller from profile (`diff_drive_controller` or `mecanum_drive_controller`).
 6. `topic_adapter_node` provides API compatibility:
    - IMU alias: `/imu_sensor_broadcaster/imu -> /imu` (with odom fallback in sim when needed).
@@ -369,8 +396,7 @@ Use `bringup.launch.py` as the single launch entry point for new labs and new ro
 |---|---|
 | `ros2 launch studica_vmxpi_ros2 robot_gz_sim.launch.py gui:=true use_gz_sim:=true` | `ros2 launch studica_vmxpi_ros2 bringup.launch.py mode:=gz_sim gui:=true` |
 | `ros2 launch studica_vmxpi_ros2 robot_gz_sim.launch.py use_hardware:=true use_gz_sim:=false` | `ros2 launch studica_vmxpi_ros2 bringup.launch.py mode:=hardware` |
-| `ros2 launch studica_vmxpi_ros2 robot_gazebo_classic.launch.py use_gazebo_classic:=true` | `ros2 launch studica_vmxpi_ros2 bringup.launch.py mode:=gazebo_classic` |
-| `ros2 launch studica_vmxpi_ros2 robot_bringup.launch.py ...` | `ros2 launch studica_vmxpi_ros2 bringup.launch.py mode:=<gz_sim|hardware|mock|gazebo_classic> ...` |
+| `ros2 launch studica_vmxpi_ros2 robot_bringup.launch.py ...` | `ros2 launch studica_vmxpi_ros2 bringup.launch.py mode:=<gz_sim|hardware|mock> ...` |
 
 Deprecation policy:
 
@@ -672,7 +698,7 @@ Why `sudo` is required for hardware mode:
 
 - `mode:=hardware` loads VMX/Titan hardware drivers (pigpio + SPI/CAN access).
 - These low-level interfaces require root privileges on the current VMX HAL setup.
-- Simulation modes (`mode:=gz_sim` or `mode:=gazebo_classic`) do not require `sudo`.
+- Simulation mode (`mode:=gz_sim`) does not require `sudo`.
 
 If you must run as `root`, add equivalent ROS environment to `/root/.bashrc`:
 
@@ -861,7 +887,7 @@ ros2 launch studica_vmxpi_ros2 bringup.launch.py \
   - `/camera/color/camera_info` (`sensor_msgs/CameraInfo`)
   - `/camera/depth/image_raw` (`sensor_msgs/Image`)
   - `/camera/depth/camera_info` (`sensor_msgs/CameraInfo`)
-- Gazebo Classic compatibility launches are still available (`robot_gazebo_classic.launch.py`, `nav2_mapping.launch.py`, `nav2_navigation.launch.py`).
+- Legacy wrappers `nav2_mapping.launch.py` and `nav2_navigation.launch.py` are still available.
 
 ## System Architecture (Best Performance)
 
@@ -1211,6 +1237,16 @@ Gazebo Sim launch fails with missing package errors:
 - `ros-humble-ros-gzharmonic-sim`
 - `ros-humble-ros-gzharmonic-bridge`
 
+`nav2_mapping_gz_sim.launch.py` fails with `package 'slam_toolbox' not found`:
+
+- Install mapping/navigation packages:
+- `ros-humble-slam-toolbox`
+- `ros-humble-navigation2`
+- `ros-humble-nav2-bringup`
+- Re-source environment:
+- `source /opt/ros/humble/setup.bash`
+- `source ~/ros2_ws/install/setup.bash`
+
 `/scan` is empty and bridge logs `Unknown message type [8]` / `[9]`:
 
 - Cause: mixed Gazebo bridge packages (legacy `ros-humble-ros-gz-*` using ignition transport with Harmonic `gz sim` runtime).
@@ -1219,7 +1255,11 @@ Gazebo Sim launch fails with missing package errors:
 
 Gazebo Sim launch fails with `libgazebo_ros2_control.so` / `libgazebo_ros_*` plugin errors:
 
-- You launched a Gazebo Classic `.world` file in `gz sim`.
+- Cause: stale legacy Gazebo artifacts in your overlay (old launch/world/plugin files from earlier revisions).
+- Fix:
+- Remove stale build/install outputs for this package, then rebuild:
+  - `rm -rf ~/ros2_ws/build/studica_vmxpi_ros2 ~/ros2_ws/install/studica_vmxpi_ros2`
+  - `cd ~/ros2_ws && colcon build --packages-select studica_vmxpi_ros2`
 - Use a Gazebo Sim `.sdf` world, for example:
 - `$(ros2 pkg prefix studica_vmxpi_ros2)/share/studica_vmxpi_ros2/description/gz/worlds/office_map.sdf`
 

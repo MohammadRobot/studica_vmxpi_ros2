@@ -15,21 +15,26 @@
 #include "studica_vmxpi_ros2/vmx_system.hpp"
 
 #include <algorithm>
-#include <chrono>
 #include <cctype>
 #include <cmath>
 #include <cstddef>
-#include <iomanip>
 #include <limits>
 #include <memory>
-#include <sstream>
 #include <string>
 #include <vector>
-#include <math.h>
 
 #include "hardware_interface/lexical_casts.hpp"
 #include "hardware_interface/types/hardware_interface_type_values.hpp"
 #include "rclcpp/rclcpp.hpp"
+
+namespace
+{
+constexpr double kPi = 3.14159265358979323846;
+constexpr double kRpmToRadPerSec = 2.0 * kPi / 60.0;
+constexpr double kDegreesToRadians = kPi / 180.0;
+constexpr double kGToMetersPerSecondSquared = 9.80665;
+constexpr double kSaturationWarnEpsilon = 1e-9;
+}  // namespace
 
 namespace studica_vmxpi_ros2
 {
@@ -201,7 +206,7 @@ hardware_interface::CallbackReturn VmxSystemHardware::on_init(
     return hardware_interface::CallbackReturn::ERROR;
   }
 
-  dist_per_tick_ = 2.0 * M_PI * wheel_radius_ / static_cast<double>(ticks_per_rotation_);
+  dist_per_tick_ = 2.0 * kPi * wheel_radius_ / static_cast<double>(ticks_per_rotation_);
 
   if (!info_.sensors.empty()) {
     if (info_.sensors.size() > 1) {
@@ -358,36 +363,41 @@ hardware_interface::CallbackReturn VmxSystemHardware::on_init(
     titan_driver_->ResetEncoder(static_cast<uint8_t>(motor));
   };
 
-  configure_encoder(left_front_motor_);
-  configure_encoder(left_rear_motor_);
-  configure_encoder(right_front_motor_);
-  configure_encoder(right_rear_motor_);
-
-  if (invert_left_front_encoder_ && left_front_motor_ >= 0) {
-    titan_driver_->InvertEncoderDirection(static_cast<uint8_t>(left_front_motor_));
-  }
-  if (invert_left_rear_encoder_ && left_rear_motor_ >= 0) {
-    titan_driver_->InvertEncoderDirection(static_cast<uint8_t>(left_rear_motor_));
-  }
-  if (invert_right_front_encoder_ && right_front_motor_ >= 0) {
-    titan_driver_->InvertEncoderDirection(static_cast<uint8_t>(right_front_motor_));
-  }
-  if (invert_right_rear_encoder_ && right_rear_motor_ >= 0) {
-    titan_driver_->InvertEncoderDirection(static_cast<uint8_t>(right_rear_motor_));
+  for (const int motor : {left_front_motor_, left_rear_motor_, right_front_motor_, right_rear_motor_}) {
+    configure_encoder(motor);
   }
 
-  if (invert_left_front_motor_ && left_front_motor_ >= 0) {
-    titan_driver_->InvertMotor(static_cast<uint8_t>(left_front_motor_));
-  }
-  if (invert_left_rear_motor_ && left_rear_motor_ >= 0) {
-    titan_driver_->InvertMotor(static_cast<uint8_t>(left_rear_motor_));
-  }
-  if (invert_right_front_motor_ && right_front_motor_ >= 0) {
-    titan_driver_->InvertMotor(static_cast<uint8_t>(right_front_motor_));
-  }
-  if (invert_right_rear_motor_ && right_rear_motor_ >= 0) {
-    titan_driver_->InvertMotor(static_cast<uint8_t>(right_rear_motor_));
-  }
+  auto apply_if_enabled = [&](bool enabled, int motor, const auto & operation) {
+    if (enabled && motor >= 0) {
+      operation(static_cast<uint8_t>(motor));
+    }
+  };
+
+  apply_if_enabled(
+    invert_left_front_encoder_, left_front_motor_,
+    [this](uint8_t motor) { titan_driver_->InvertEncoderDirection(motor); });
+  apply_if_enabled(
+    invert_left_rear_encoder_, left_rear_motor_,
+    [this](uint8_t motor) { titan_driver_->InvertEncoderDirection(motor); });
+  apply_if_enabled(
+    invert_right_front_encoder_, right_front_motor_,
+    [this](uint8_t motor) { titan_driver_->InvertEncoderDirection(motor); });
+  apply_if_enabled(
+    invert_right_rear_encoder_, right_rear_motor_,
+    [this](uint8_t motor) { titan_driver_->InvertEncoderDirection(motor); });
+
+  apply_if_enabled(
+    invert_left_front_motor_, left_front_motor_,
+    [this](uint8_t motor) { titan_driver_->InvertMotor(motor); });
+  apply_if_enabled(
+    invert_left_rear_motor_, left_rear_motor_,
+    [this](uint8_t motor) { titan_driver_->InvertMotor(motor); });
+  apply_if_enabled(
+    invert_right_front_motor_, right_front_motor_,
+    [this](uint8_t motor) { titan_driver_->InvertMotor(motor); });
+  apply_if_enabled(
+    invert_right_rear_motor_, right_rear_motor_,
+    [this](uint8_t motor) { titan_driver_->InvertMotor(motor); });
 
   return hardware_interface::CallbackReturn::SUCCESS;
 }
@@ -523,7 +533,6 @@ hardware_interface::return_type VmxSystemHardware::read(
     return 0.0;
   };
 
-  const double rpm_to_rad_s = 2.0 * M_PI / 60.0;
   if (is_holonomic_layout_) {
     for (size_t i = 0; i < hw_positions_.size(); ++i) {
       const int motor = (i < joint_motor_indices_.size()) ? joint_motor_indices_[i] : -1;
@@ -531,7 +540,7 @@ hardware_interface::return_type VmxSystemHardware::read(
       const double rpm = motor_rpm(motor);
 
       hw_positions_[i] = (wheel_radius_ > 0.0) ? (distance / wheel_radius_) : 0.0;
-      hw_velocities_[i] = rpm * rpm_to_rad_s;
+      hw_velocities_[i] = rpm * kRpmToRadPerSec;
     }
   } else {
     const double left_distance = average_pair(
@@ -547,23 +556,20 @@ hardware_interface::return_type VmxSystemHardware::read(
     }
 
     if (hw_velocities_.size() >= 2) {
-      hw_velocities_[0] = left_rpm * rpm_to_rad_s;
-      hw_velocities_[1] = right_rpm * rpm_to_rad_s;
+      hw_velocities_[0] = left_rpm * kRpmToRadPerSec;
+      hw_velocities_[1] = right_rpm * kRpmToRadPerSec;
     }
   }
 
   if (imu_enabled_ && imu_driver_) {
-    constexpr double kDegToRad = M_PI / 180.0;
-    constexpr double kGToMetersPerSecondSquared = 9.80665;
-
     imu_orientation_x_ = imu_driver_->GetQuaternionX();
     imu_orientation_y_ = imu_driver_->GetQuaternionY();
     imu_orientation_z_ = imu_driver_->GetQuaternionZ();
     imu_orientation_w_ = imu_driver_->GetQuaternionW();
 
-    imu_angular_velocity_x_ = imu_driver_->GetRawGyroX() * kDegToRad;
-    imu_angular_velocity_y_ = imu_driver_->GetRawGyroY() * kDegToRad;
-    imu_angular_velocity_z_ = imu_driver_->GetRawGyroZ() * kDegToRad;
+    imu_angular_velocity_x_ = imu_driver_->GetRawGyroX() * kDegreesToRadians;
+    imu_angular_velocity_y_ = imu_driver_->GetRawGyroY() * kDegreesToRadians;
+    imu_angular_velocity_z_ = imu_driver_->GetRawGyroZ() * kDegreesToRadians;
 
     imu_linear_acceleration_x_ = imu_driver_->GetWorldLinearAccelX() * kGToMetersPerSecondSquared;
     imu_linear_acceleration_y_ = imu_driver_->GetWorldLinearAccelY() * kGToMetersPerSecondSquared;
@@ -573,7 +579,7 @@ hardware_interface::return_type VmxSystemHardware::read(
   return hardware_interface::return_type::OK;
 }
 
-hardware_interface::return_type studica_vmxpi_ros2 ::VmxSystemHardware::write(
+hardware_interface::return_type VmxSystemHardware::write(
   const rclcpp::Time & /*time*/, const rclcpp::Duration & /*period*/)
 {
   if (!titan_driver_) {
@@ -609,7 +615,7 @@ hardware_interface::return_type studica_vmxpi_ros2 ::VmxSystemHardware::write(
         (cmd_rad_s / max_wheel_angular_velocity_rad_s_) * speed_scale_;
       const double cmd = std::clamp(cmd_scaled, -1.0, 1.0);
 
-      if (std::abs(cmd_scaled - cmd) > 1e-9) {
+      if (std::abs(cmd_scaled - cmd) > kSaturationWarnEpsilon) {
         RCLCPP_WARN_THROTTLE(
           get_logger(), *get_clock(), 2000,
           "Holonomic wheel command saturated for joint index %zu: raw=%.3f scaled=%.3f "
@@ -638,7 +644,10 @@ hardware_interface::return_type studica_vmxpi_ros2 ::VmxSystemHardware::write(
     const double left_cmd = std::clamp(left_cmd_scaled, -1.0, 1.0);
     const double right_cmd = std::clamp(right_cmd_scaled, -1.0, 1.0);
 
-    if (std::abs(left_cmd_scaled - left_cmd) > 1e-9 || std::abs(right_cmd_scaled - right_cmd) > 1e-9) {
+    if (
+      std::abs(left_cmd_scaled - left_cmd) > kSaturationWarnEpsilon ||
+      std::abs(right_cmd_scaled - right_cmd) > kSaturationWarnEpsilon)
+    {
       RCLCPP_WARN_THROTTLE(
         get_logger(), *get_clock(), 2000,
         "Wheel command saturated to Titan range [-1, 1]: raw(rad/s) left=%.3f right=%.3f, "
@@ -656,7 +665,7 @@ hardware_interface::return_type studica_vmxpi_ros2 ::VmxSystemHardware::write(
   return hardware_interface::return_type::OK;
 }
 
-}// namespace studica_vmxpi_ros2
+}  // namespace studica_vmxpi_ros2
 
 #include "pluginlib/class_list_macros.hpp"
 PLUGINLIB_EXPORT_CLASS(

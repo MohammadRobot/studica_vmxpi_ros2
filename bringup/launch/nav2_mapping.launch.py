@@ -1,6 +1,6 @@
 # Copyright (c) 2026 studica_vmxpi_ros2 contributors
 # SPDX-License-Identifier: Apache-2.0
-"""Legacy Gazebo Classic mapping wrapper (SLAM + base bringup)."""
+"""Legacy mapping wrapper (SLAM + base bringup)."""
 
 from launch import LaunchDescription
 from launch.actions import DeclareLaunchArgument, IncludeLaunchDescription
@@ -27,21 +27,21 @@ def generate_launch_description():
             description="Use Titan hardware instead of mock system.",
         ),
         DeclareLaunchArgument(
-            "use_gazebo_classic",
+            "use_gz_sim",
             default_value="true",
-            description="Start Gazebo Classic simulation.",
+            description="Start Gazebo Sim simulation.",
         ),
         DeclareLaunchArgument(
             "world",
             default_value=PathJoinSubstitution(
-                [FindPackageShare("studica_vmxpi_ros2"), "description/gazebo/worlds", "diff_drive_world.world"]
+                [FindPackageShare("studica_vmxpi_ros2"), "description/gz/worlds", "diff_drive_world.sdf"]
             ),
-            description="Absolute path to Gazebo world file.",
+            description="Absolute path to Gazebo Sim world file (.sdf).",
         ),
         DeclareLaunchArgument(
             "use_sim_time",
-            default_value=LaunchConfiguration("use_gazebo_classic"),
-            description="Use simulation time (defaults to use_gazebo_classic).",
+            default_value=LaunchConfiguration("use_gz_sim"),
+            description="Use simulation time (defaults to use_gz_sim).",
         ),
         DeclareLaunchArgument(
             "use_joystick",
@@ -60,15 +60,15 @@ def generate_launch_description():
     gui = LaunchConfiguration("gui")
     robot_profile = LaunchConfiguration("robot_profile")
     use_hardware = LaunchConfiguration("use_hardware")
-    use_gazebo_classic = LaunchConfiguration("use_gazebo_classic")
+    use_gz_sim = LaunchConfiguration("use_gz_sim")
     world = LaunchConfiguration("world")
     use_sim_time = LaunchConfiguration("use_sim_time")
     use_joystick = LaunchConfiguration("use_joystick")
     slam_params_file = LaunchConfiguration("slam_params_file")
     mode = PythonExpression(
         [
-            "'gazebo_classic' if ('",
-            use_gazebo_classic,
+            "'gz_sim' if ('",
+            use_gz_sim,
             "').lower() in ['true','1','yes','on'] else "
             "('hardware' if ('",
             use_hardware,

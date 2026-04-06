@@ -1,24 +1,19 @@
 <?xml version="1.0"?>
 <robot xmlns:xacro="http://www.ros.org/wiki/xacro">
 
-  <xacro:macro name="robot_ros2_control" params="name prefix use_hardware use_gazebo_classic use_gz_sim profile_file wheel_layout:=diff">
+  <xacro:macro name="robot_ros2_control" params="name prefix use_hardware use_gz_sim profile_file wheel_layout:=diff">
 
     <xacro:property name="profile" value="${xacro.load_yaml(profile_file)}"/>
     <xacro:property name="hardware_cfg" value="${profile['hardware']}"/>
     <xacro:property name="wheel_layout_resolved" value="${wheel_layout if wheel_layout in ['diff', 'diff_4wd', 'mecanum', 'omni'] else 'diff'}"/>
 
     <ros2_control name="${name}" type="system">
-      <xacro:if value="${use_gazebo_classic}">
-        <hardware>
-          <plugin>gazebo_ros2_control/GazeboSystem</plugin>
-        </hardware>
-      </xacro:if>
       <xacro:if value="${use_gz_sim}">
         <hardware>
           <plugin>gz_ros2_control/GazeboSimSystem</plugin>
         </hardware>
       </xacro:if>
-      <xacro:unless value="${use_gazebo_classic or use_gz_sim}">
+      <xacro:unless value="${use_gz_sim}">
       <xacro:if value="${use_hardware}">
         <hardware>
           <plugin>studica_vmxpi_ros2/VmxSystemHardware</plugin>
@@ -87,7 +82,7 @@
           <state_interface name="velocity"/>
         </joint>
       </xacro:unless>
-      <xacro:if value="${use_hardware and not use_gazebo_classic and not use_gz_sim}">
+      <xacro:if value="${use_hardware and not use_gz_sim}">
         <sensor name="imu_sensor">
           <state_interface name="orientation.x"/>
           <state_interface name="orientation.y"/>

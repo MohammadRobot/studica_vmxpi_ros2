@@ -504,7 +504,6 @@ def _maybe_add_gz_sim_runtime_nodes(context, *args, **kwargs):
         "set -e; "
         "TMP_URDF=/tmp/robot_spawn.urdf; "
         f"xacro {shlex.quote(xacro_file)} "
-        "use_gazebo_classic:=false "
         "use_gz_sim:=true "
         f"use_hardware:={shlex.quote(use_hardware)} "
         f"gz_version:={shlex.quote(gz_version)} "
@@ -963,6 +962,7 @@ def generate_launch_description():
     use_hardware = LaunchConfiguration("use_hardware")
     use_gz_sim = LaunchConfiguration("use_gz_sim")
     use_sim_time = LaunchConfiguration("use_sim_time")
+    use_sim_time_param = ParameterValue(use_sim_time, value_type=bool)
     use_ground_truth_odom_tf = LaunchConfiguration("use_ground_truth_odom_tf")
     robot_profile = LaunchConfiguration("robot_profile")
     rviz_start_delay = LaunchConfiguration("rviz_start_delay")
@@ -995,8 +995,6 @@ def generate_launch_description():
             " ",
             PathJoinSubstitution([FindPackageShare("studica_vmxpi_ros2"), "description/urdf", "robot.urdf.xacro"]),
             " ",
-            "use_gazebo_classic:=false",
-            " ",
             "use_gz_sim:=", use_gz_sim,
             " ",
             "use_hardware:=", use_hardware,
@@ -1026,7 +1024,7 @@ def generate_launch_description():
     )
     robot_description = {
         "robot_description": ParameterValue(robot_description_content, value_type=str),
-        "use_sim_time": use_sim_time,
+        "use_sim_time": use_sim_time_param,
     }
 
     rviz_config_file = LaunchConfiguration("rviz_config_file")
@@ -1069,7 +1067,7 @@ def generate_launch_description():
         output="screen",
         parameters=[
             {
-                "use_sim_time": use_sim_time,
+                "use_sim_time": use_sim_time_param,
                 "enable_imu_relay": True,
                 "imu_input_topic": "/imu_sensor_broadcaster/imu",
                 "imu_output_topic": "/imu",
@@ -1098,7 +1096,7 @@ def generate_launch_description():
         output="screen",
         parameters=[
                 {
-                    "use_sim_time": use_sim_time,
+                    "use_sim_time": use_sim_time_param,
                     "enable_nav2_bridge": True,
                     "input_cmd_vel_topic": "/cmd_vel",
                     "output_cmd_vel_topic": drive_cmd_topic,
@@ -1123,7 +1121,7 @@ def generate_launch_description():
         output="screen",
         parameters=[
             {
-                "use_sim_time": use_sim_time,
+                "use_sim_time": use_sim_time_param,
                 "enable_nav2_bridge": True,
                 "input_cmd_vel_topic": "/cmd_vel",
                 "output_cmd_vel_topic": drive_cmd_topic,
@@ -1152,7 +1150,7 @@ def generate_launch_description():
         output="screen",
         parameters=[
             {
-                "use_sim_time": use_sim_time,
+                "use_sim_time": use_sim_time_param,
                 "enable_tf_relay": True,
                 "tf_input_topic": "/ground_truth/tf",
                 "tf_output_topic": "/tf",
@@ -1174,7 +1172,7 @@ def generate_launch_description():
         output="screen",
         parameters=[
             {
-                "use_sim_time": use_sim_time,
+                "use_sim_time": use_sim_time_param,
                 "enable_tf_relay": True,
                 "tf_input_topic": PythonExpression(
                     ["'/' + '", drive_controller_name, "' + '/tf_odometry'"]
@@ -1209,7 +1207,7 @@ def generate_launch_description():
         executable="rviz2",
         name="rviz2",
         output="log",
-        parameters=[{"use_sim_time": use_sim_time}],
+        parameters=[{"use_sim_time": use_sim_time_param}],
         arguments=["-d", rviz_config_file],
         additional_env=rviz_env,
         condition=IfCondition(gui),
@@ -1225,7 +1223,7 @@ def generate_launch_description():
         package="tf2_ros",
         executable="static_transform_publisher",
         output="screen",
-        parameters=[{"use_sim_time": use_sim_time}],
+        parameters=[{"use_sim_time": use_sim_time_param}],
         arguments=[
             "--x",
             "0",
@@ -1251,7 +1249,7 @@ def generate_launch_description():
         package="controller_manager",
         executable="ros2_control_node",
         namespace="",
-        parameters=[robot_description, robot_controllers, {"use_sim_time": use_sim_time}],
+        parameters=[robot_description, robot_controllers, {"use_sim_time": use_sim_time_param}],
         output="screen",
         condition=UnlessCondition(use_gz_sim),
     )

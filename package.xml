@@ -17,13 +17,11 @@
   <depend>urdf</depend>
   <depend>xacro</depend>
   <depend>ros2_control</depend>
-  <depend>gazebo_ros2_control</depend>
   <depend>gz_ros2_control</depend>
   <depend>joint_state_broadcaster</depend>
   <depend>diff_drive_controller</depend>
   <depend>mecanum_drive_controller</depend>
   <depend>imu_sensor_broadcaster</depend>
-  <depend>gazebo_ros</depend>
   <depend>geometry_msgs</depend>
   <depend>nav_msgs</depend>
   <depend>sensor_msgs</depend>

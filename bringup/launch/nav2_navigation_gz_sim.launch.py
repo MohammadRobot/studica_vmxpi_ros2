@@ -6,9 +6,10 @@ import os
 
 from ament_index_python.packages import PackageNotFoundError, get_package_share_directory
 from launch import LaunchDescription
-from launch.actions import DeclareLaunchArgument, IncludeLaunchDescription, LogInfo, OpaqueFunction
+from launch.actions import DeclareLaunchArgument, GroupAction, IncludeLaunchDescription, LogInfo, OpaqueFunction
 from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch.substitutions import LaunchConfiguration, PathJoinSubstitution
+from launch_ros.actions import SetParameter
 from launch_ros.substitutions import FindPackageShare
 
 
@@ -18,6 +19,10 @@ def _resolve_nav2_params_file(context, nav2_share: str) -> str:
     if configured:
         return configured
     return os.path.join(nav2_share, "params", "nav2_params.yaml")
+
+
+def _is_true(value: str) -> bool:
+    return value.strip().lower() in ("true", "1", "yes", "on")
 
 
 def _maybe_include_nav2(context, *args, **kwargs):
@@ -33,20 +38,30 @@ def _maybe_include_nav2(context, *args, **kwargs):
         return [LogInfo(msg="nav2_bringup not found; install ros-humble-nav2-bringup.")]
 
     use_sim_time = LaunchConfiguration("use_sim_time").perform(context)
+    use_sim_time_bool = _is_true(use_sim_time)
+    use_sim_time_value = "true" if use_sim_time_bool else "false"
     autostart = LaunchConfiguration("autostart").perform(context)
     params_file = _resolve_nav2_params_file(context, nav2_share)
     return [
-        IncludeLaunchDescription(
-            PythonLaunchDescriptionSource(os.path.join(nav2_share, "launch", "bringup_launch.py")),
-            launch_arguments={
-                "slam": "False",
-                # Disable composition to keep node graph transparent for students.
-                "use_composition": "False",
-                "map": map_path,
-                "params_file": params_file,
-                "use_sim_time": use_sim_time,
-                "autostart": autostart,
-            }.items(),
+        GroupAction(
+            actions=[
+                # Force sim time in the Nav2 scope even if upstream defaults leak through.
+                SetParameter(name="use_sim_time", value=use_sim_time_bool),
+                IncludeLaunchDescription(
+                    PythonLaunchDescriptionSource(
+                        os.path.join(nav2_share, "launch", "bringup_launch.py")
+                    ),
+                    launch_arguments={
+                        "slam": "False",
+                        # Disable composition to keep node graph transparent for students.
+                        "use_composition": "False",
+                        "map": map_path,
+                        "params_file": params_file,
+                        "use_sim_time": use_sim_time_value,
+                        "autostart": autostart,
+                    }.items(),
+                ),
+            ]
         )
     ]
 

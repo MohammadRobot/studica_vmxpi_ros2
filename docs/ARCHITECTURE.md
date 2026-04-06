@@ -36,8 +36,6 @@ flowchart TD
     MK --> CM3[ros2_control_node]
     CM3 --> DF[sim_system mock plugin]
 
-    M -->|gazebo_classic| GC[robot_gazebo_classic.launch.py]
-
     CM1 --> C[Controllers]
     CM2 --> C
     CM3 --> C
@@ -65,7 +63,6 @@ flowchart TD
 | `gz_sim` | Gazebo Sim | Gazebo (`gz_ros2_control`) | simulation system | Classroom simulation and rapid testing |
 | `hardware` | none | local ROS node (`ros2_control_node`) | `vmx_system` | Real Titan/VMX robot |
 | `mock` | none | local ROS node (`ros2_control_node`) | `sim_system` | Software-only tests without robot |
-| `gazebo_classic` | Gazebo Classic | Classic stack | Classic path | Legacy compatibility only |
 
 ## 4) Profile-Based Robot Variants
 

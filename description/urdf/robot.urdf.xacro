@@ -3,7 +3,6 @@
 <robot xmlns:xacro="http://www.ros.org/wiki/xacro" name="diffdrive_robot">
   <xacro:arg name="prefix" default="" />
   <xacro:arg name="use_hardware" default="false" />
-  <xacro:arg name="use_gazebo_classic" default="false" />
   <xacro:arg name="use_gz_sim" default="false" />
   <xacro:arg name="gz_version" default="8" />
   <xacro:arg name="sim_enable_camera" default="true" />
@@ -61,19 +60,9 @@
     name="Robot"
     prefix="$(arg prefix)"
     use_hardware="$(arg use_hardware)"
-    use_gazebo_classic="$(arg use_gazebo_classic)"
     use_gz_sim="$(arg use_gz_sim)"
     profile_file="$(arg profile_file)"
     wheel_layout="${wheel_layout}"/>
-
-  <xacro:if value="$(arg use_gazebo_classic)">
-    <!-- Import Gazebo Classic definitions + plugin -->
-    <xacro:include filename="$(find studica_vmxpi_ros2)/description/gazebo/robot.gazebo.xacro" />
-    <xacro:robot_gazebo
-      prefix="$(arg prefix)"
-      controllers_file="$(arg controllers_file)"
-      wheel_layout="${wheel_layout}"/>
-  </xacro:if>
 
   <xacro:if value="$(arg use_gz_sim)">
     <!-- Import Gazebo Sim definitions + plugin -->

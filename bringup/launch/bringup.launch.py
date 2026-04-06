@@ -95,16 +95,13 @@ def _runtime_actions(context, *args, **kwargs):
         _controllers_file,
         drive_controller_name,
         drive_controller_type,
-        drive_wheel_layout,
+        _drive_wheel_layout,
     ) = validate_profile_for_launch(pkg_share, robot_profile)
     drive_cmd_topic, drive_odom_topic = drive_topics(
         drive_controller_name, drive_controller_type
     )
     if not world:
-        if mode == "gazebo_classic":
-            world = os.path.join(pkg_share, "description", "gazebo", "worlds", "diff_drive_world.world")
-        else:
-            world = os.path.join(pkg_share, "description", "gz", "worlds", "diff_drive_world.sdf")
+        world = os.path.join(pkg_share, "description", "gz", "worlds", "diff_drive_world.sdf")
 
     if not use_sim_time:
         use_sim_time = "true" if mode == "gz_sim" else "false"
@@ -113,30 +110,8 @@ def _runtime_actions(context, *args, **kwargs):
     if not use_camera:
         use_camera = "true" if mode == "hardware" else "false"
 
-    if mode == "gazebo_classic":
-        if drive_wheel_layout not in ("diff", "diff_4wd"):
-            raise RuntimeError(
-                "gazebo_classic mode currently supports only diff or diff_4wd wheel layouts."
-            )
-        return [
-            IncludeLaunchDescription(
-                PythonLaunchDescriptionSource(
-                    os.path.join(pkg_share, "launch", "robot_gazebo_classic.launch.py")
-                ),
-                launch_arguments={
-                    "gui": gui,
-                    "use_hardware": "false",
-                    "use_gazebo_classic": "true",
-                    "use_sim_time": use_sim_time,
-                    "world": world,
-                    "use_joystick": use_joystick,
-                    "robot_profile": robot_profile,
-                }.items(),
-            )
-        ]
-
     if mode not in ("gz_sim", "hardware", "mock"):
-        raise RuntimeError("Invalid mode. Use one of: gz_sim, hardware, mock, gazebo_classic.")
+        raise RuntimeError("Invalid mode. Use one of: gz_sim, hardware, mock.")
 
     use_gz_sim = "true" if mode == "gz_sim" else "false"
     use_hardware = "true" if mode == "hardware" else "false"
@@ -216,7 +191,7 @@ def generate_launch_description():
             _declare_arg(
                 "mode",
                 "gz_sim",
-                "Runtime mode: gz_sim | hardware | mock | gazebo_classic",
+                "Runtime mode: gz_sim | hardware | mock",
             ),
             _declare_arg(
                 "gui",
