@@ -23,12 +23,14 @@ jobs:
         uses: actions/checkout@v5
         with:
           repository: MohammadRobot/studica_drivers
+          ref: main
           path: ros2_ws/src/studica_drivers
 
       - name: Checkout studica_ros2_control dependency
         uses: actions/checkout@v5
         with:
           repository: MohammadRobot/studica_ros2_control
+          ref: main
           path: ros2_ws/src/studica_ros2_control
 
       - name: Setup ROS 2 Humble
