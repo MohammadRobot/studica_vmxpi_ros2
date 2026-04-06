@@ -14,15 +14,19 @@
 """Gazebo Classic compatibility launch for the robot base stack."""
 
 import os
+
+from ament_index_python.packages import (
+    PackageNotFoundError,
+    get_package_prefix,
+    get_package_share_directory,
+)
 from launch import LaunchDescription
 from launch.actions import DeclareLaunchArgument, IncludeLaunchDescription, LogInfo, OpaqueFunction
-from launch.conditions import IfCondition
+from launch.conditions import IfCondition, UnlessCondition
 from launch.launch_description_sources import PythonLaunchDescriptionSource
-from launch.substitutions import Command, FindExecutable, PathJoinSubstitution, LaunchConfiguration
+from launch.substitutions import Command, FindExecutable, LaunchConfiguration, PathJoinSubstitution
 from launch_ros.actions import Node
 from launch_ros.substitutions import FindPackageShare
-from launch.conditions import UnlessCondition
-from ament_index_python.packages import PackageNotFoundError, get_package_prefix, get_package_share_directory
 
 
 def _maybe_include_gamepad(context, *args, **kwargs):
@@ -52,6 +56,7 @@ def _maybe_include_gamepad(context, *args, **kwargs):
             }.items(),
         )
     ]
+
 
 def generate_launch_description():
     declared_arguments = [
@@ -111,31 +116,26 @@ def generate_launch_description():
     robot_profile = LaunchConfiguration("robot_profile")
     world = LaunchConfiguration("world")
 
-# Gazebo Configration 
-    # pkg_gazebo_ros = get_package_share_directory('gazebo_ros')
-    pkg_studica_vmxpi_ros2_gazebo = get_package_share_directory('studica_vmxpi_ros2')
+    # Gazebo environment paths.
+    pkg_studica_vmxpi_ros2_gazebo = get_package_share_directory("studica_vmxpi_ros2")
 
-    # We get the whole install dir
-    # We do this to avoid having to copy or softlink manually the packages so that gazebo can find them
     description_package_name = "studica_vmxpi_ros2"
     install_dir = get_package_prefix(description_package_name)
 
-    # Set the path to the WORLD model files. Is to find the models inside the models folder in my_box_bot_gazebo package
-    gazebo_models_path = os.path.join(pkg_studica_vmxpi_ros2_gazebo, 'description/models')
-    # os.environ["GAZEBO_MODEL_PATH"] = gazebo_models_path
+    gazebo_models_path = os.path.join(pkg_studica_vmxpi_ros2_gazebo, "description/models")
 
-    if 'GAZEBO_MODEL_PATH' in os.environ:
-        os.environ['GAZEBO_MODEL_PATH'] =  os.environ['GAZEBO_MODEL_PATH'] + ':' + install_dir + '/share' + ':' + gazebo_models_path
+    if "GAZEBO_MODEL_PATH" in os.environ:
+        os.environ["GAZEBO_MODEL_PATH"] += f":{install_dir}/share:{gazebo_models_path}"
     else:
-        os.environ['GAZEBO_MODEL_PATH'] =  install_dir + "/share" + ':' + gazebo_models_path
+        os.environ["GAZEBO_MODEL_PATH"] = f"{install_dir}/share:{gazebo_models_path}"
 
-    if 'GAZEBO_PLUGIN_PATH' in os.environ:
-        os.environ['GAZEBO_PLUGIN_PATH'] = os.environ['GAZEBO_PLUGIN_PATH'] + ':' + install_dir + '/lib'
+    if "GAZEBO_PLUGIN_PATH" in os.environ:
+        os.environ["GAZEBO_PLUGIN_PATH"] += f":{install_dir}/lib"
     else:
-        os.environ['GAZEBO_PLUGIN_PATH'] = install_dir + '/lib'
+        os.environ["GAZEBO_PLUGIN_PATH"] = f"{install_dir}/lib"
 
-    print("GAZEBO MODELS PATH=="+str(os.environ["GAZEBO_MODEL_PATH"]))
-    print("GAZEBO PLUGINS PATH=="+str(os.environ["GAZEBO_PLUGIN_PATH"]))
+    print(f"GAZEBO MODELS PATH=={os.environ['GAZEBO_MODEL_PATH']}")
+    print(f"GAZEBO PLUGINS PATH=={os.environ['GAZEBO_PLUGIN_PATH']}")
 
     # Gazebo launch
     gazebo = IncludeLaunchDescription(
@@ -161,21 +161,32 @@ def generate_launch_description():
         [
             PathJoinSubstitution([FindExecutable(name="xacro")]),
             " ",
-            PathJoinSubstitution([FindPackageShare("studica_vmxpi_ros2"), "description/urdf", "robot.urdf.xacro"]),
+            PathJoinSubstitution(
+                [FindPackageShare("studica_vmxpi_ros2"), "description/urdf", "robot.urdf.xacro"]
+            ),
             " ",
-            "use_gazebo_classic:=", use_gazebo_classic,
+            "use_gazebo_classic:=",
+            use_gazebo_classic,
             " ",
-            "use_hardware:=", use_hardware,
+            "use_hardware:=",
+            use_hardware,
             " ",
-            "profile_file:=", profile_file,
+            "profile_file:=",
+            profile_file,
             " ",
-            "controllers_file:=", robot_controllers,
+            "controllers_file:=",
+            robot_controllers,
         ]
     )
-    robot_description = {"robot_description": robot_description_content, "use_sim_time": use_sim_time} 
+    robot_description = {
+        "robot_description": robot_description_content,
+        "use_sim_time": use_sim_time,
+    }
 
-    rviz_config_file = PathJoinSubstitution([FindPackageShare("studica_vmxpi_ros2"), "description/robot/rviz", "robot.rviz"])
-          
+    rviz_config_file = PathJoinSubstitution(
+        [FindPackageShare("studica_vmxpi_ros2"), "description/robot/rviz", "robot.rviz"]
+    )
+
     node_robot_state_publisher = Node(
         package="robot_state_publisher",
         executable="robot_state_publisher",
@@ -231,15 +242,19 @@ def generate_launch_description():
         arguments=["0", "0", "0.10", "0", "0", "0", "base_footprint", "base_link"],
     )
 
+    # Run ros2_control_node only outside Gazebo Classic mode.
     control_node = Node(
-        package='controller_manager', # Or the correct package name for your control_node executable
-        executable='ros2_control_node', # Or the correct executable name
-        namespace='',
-        parameters=[robot_description, robot_controllers, {"use_sim_time": use_sim_time}], # robot_controllers is your PathJoinSubstitution to the YAML file
-        output='screen',
-        condition=UnlessCondition(use_gazebo_classic) # Launch only when not using Gazebo Classic
+        package="controller_manager",
+        executable="ros2_control_node",
+        namespace="",
+        parameters=[
+            robot_description,
+            robot_controllers,
+            {"use_sim_time": use_sim_time},
+        ],
+        output="screen",
+        condition=UnlessCondition(use_gazebo_classic),
     )
-
 
     nodes = [
         LogInfo(msg=["Robot profile: ", robot_profile]),

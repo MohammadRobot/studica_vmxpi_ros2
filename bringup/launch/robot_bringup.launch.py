@@ -24,7 +24,10 @@ def _maybe_include_studica(context, *args, **kwargs):
 
     return [
         LogInfo(
-            msg="Launching legacy studica_ros2_control sensors_only alongside ros2_control (not recommended for production)."
+            msg=(
+                "Launching legacy studica_ros2_control sensors_only alongside ros2_control "
+                "(not recommended for production)."
+            )
         ),
         IncludeLaunchDescription(
             PythonLaunchDescriptionSource(

@@ -219,12 +219,12 @@ if(BUILD_TESTING)
   option(STUDICA_STRICT_LINT "Enable full strict lint checks" OFF)
   find_package(ament_lint_auto REQUIRED)
   find_package(ament_lint_common REQUIRED)
+  set(ament_cmake_flake8_CONFIG_FILE "${CMAKE_CURRENT_SOURCE_DIR}/.flake8")
   if(NOT STUDICA_STRICT_LINT)
     # Legacy codebase: enable lint infrastructure first, then tighten checks incrementally.
     set(AMENT_LINT_AUTO_EXCLUDE
       ament_cmake_copyright
       ament_cmake_cpplint
-      ament_cmake_flake8
       ament_cmake_uncrustify
     )
   endif()

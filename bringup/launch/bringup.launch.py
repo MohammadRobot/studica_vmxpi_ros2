@@ -17,8 +17,6 @@ _THIS_DIR = Path(__file__).resolve().parent
 if str(_THIS_DIR) not in sys.path:
     sys.path.insert(0, str(_THIS_DIR))
 
-from profile_validation import drive_topics, validate_profile_for_launch
-
 
 def _declare_arg(name: str, default_value, description: str = ""):
     """Create a launch argument with optional description text."""
@@ -33,6 +31,8 @@ def _declare_arg(name: str, default_value, description: str = ""):
 
 def _runtime_actions(context, *args, **kwargs):
     """Resolve runtime mode and forward normalized arguments to the selected launch."""
+    from profile_validation import drive_topics, validate_profile_for_launch
+
     mode = LaunchConfiguration("mode").perform(context).strip().lower()
     use_joystick = LaunchConfiguration("use_joystick").perform(context)
     gui = LaunchConfiguration("gui").perform(context)

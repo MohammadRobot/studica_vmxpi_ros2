@@ -40,8 +40,6 @@ def _prepare_profile_validation_import() -> None:
 
 _prepare_profile_validation_import()
 
-from profile_validation import validate_profile_directory  # pylint: disable=wrong-import-position
-
 
 def _parse_args() -> argparse.Namespace:
     script_dir = Path(__file__).resolve().parent
@@ -73,6 +71,8 @@ def _parse_args() -> argparse.Namespace:
 
 
 def main() -> int:
+    from profile_validation import validate_profile_directory
+
     args = _parse_args()
     profiles_dir = Path(args.profiles_dir).resolve()
     template_dir = Path(args.template_dir).resolve()

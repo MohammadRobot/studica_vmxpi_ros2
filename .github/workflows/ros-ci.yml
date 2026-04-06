@@ -11,6 +11,8 @@ on:
 jobs:
   build-and-test:
     runs-on: ubuntu-22.04
+    env:
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -59,8 +61,11 @@ jobs:
         run: |
           source /opt/ros/humble/setup.bash
           cd ros2_ws
+          set +e
           colcon test \
             --event-handlers console_direct+ \
             --return-code-on-test-failure \
             --packages-select studica_drivers studica_ros2_control studica_vmxpi_ros2
-          colcon test-result --verbose
+          test_rc=$?
+          colcon test-result --verbose || true
+          exit $test_rc

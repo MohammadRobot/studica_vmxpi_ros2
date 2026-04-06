@@ -494,7 +494,12 @@ def _maybe_add_gz_sim_runtime_nodes(context, *args, **kwargs):
 
     spawn_entity_name = LaunchConfiguration("spawn_entity_name").perform(context).strip() or "robot_system_position"
 
-    xacro_file = os.path.join(get_package_share_directory("studica_vmxpi_ros2"), "description", "urdf", "robot.urdf.xacro")
+    xacro_file = os.path.join(
+        get_package_share_directory("studica_vmxpi_ros2"),
+        "description",
+        "urdf",
+        "robot.urdf.xacro",
+    )
     spawn_script = (
         "set -e; "
         "TMP_URDF=/tmp/robot_spawn.urdf; "
@@ -515,7 +520,8 @@ def _maybe_add_gz_sim_runtime_nodes(context, *args, **kwargs):
         f"controllers_file:={shlex.quote(controllers_file)} "
         "> \"$TMP_URDF\"; "
         f"REQ=\"sdf_filename: \\\"$TMP_URDF\\\" name: \\\"{spawn_entity_name}\\\" "
-        f"pose {{ position {{ x: {spawn_x} y: {spawn_y} z: {spawn_z} }} orientation {{ z: {spawn_qz} w: {spawn_qw} }} }}\"; "
+        f"pose {{ position {{ x: {spawn_x} y: {spawn_y} z: {spawn_z} }} "
+        f"orientation {{ z: {spawn_qz} w: {spawn_qw} }} }}\"; "
         f"echo \"[spawn-gz-service] world={world_name} yaw={spawn_yaw} entity={spawn_entity_name}\"; "
         f"gz service -s /world/{world_name}/create "
         "--reqtype gz.msgs.EntityFactory "
@@ -579,7 +585,8 @@ run_spawner() {{
     return 0
   fi
 
-  output="$(ros2 run controller_manager spawner "$name" --controller-manager "$cm" --controller-manager-timeout 20 2>&1)"
+  output="$(ros2 run controller_manager spawner "$name" --controller-manager "$cm" \
+    --controller-manager-timeout 20 2>&1)"
   rc=$?
 
   if [ "$rc" -eq 0 ]; then
@@ -595,7 +602,7 @@ run_spawner() {{
   # "already loaded" alone is not enough, because configuration may still fail
   # when hardware interfaces are not ready yet.
   if echo "$output" | grep -Eq \
-    "Controller already active|already in state 'active'|already running|can not be configured from 'active' state"; then
+    "Controller already active|already in state 'active'|already running|cannot be configured from 'active' state"; then
     return 0
   fi
 
