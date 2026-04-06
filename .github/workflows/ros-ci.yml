@@ -15,18 +15,18 @@ jobs:
       FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           path: ros2_ws/src/studica_vmxpi_ros2
 
       - name: Checkout studica_drivers dependency
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           repository: MohammadRobot/studica_drivers
           path: ros2_ws/src/studica_drivers
 
       - name: Checkout studica_ros2_control dependency
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           repository: MohammadRobot/studica_ros2_control
           path: ros2_ws/src/studica_ros2_control
