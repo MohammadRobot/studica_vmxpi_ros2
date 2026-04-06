@@ -2,6 +2,14 @@
 
 ROS 2 Humble package for Titan/VMX hardware and Gazebo Sim (`gz sim`) simulation of the robot platform.
 
+## Maintainer
+
+- Mohammad Alshamsi (`alshamsi.mohammad@gmail.com`)
+
+## Contributors
+
+- Mohammad Alshamsi (`@MohammadRobot`) - ROS 2 integration and maintenance
+
 ## Training Material
 
 Use these docs in order for classroom/lab onboarding:
