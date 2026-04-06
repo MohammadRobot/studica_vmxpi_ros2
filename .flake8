@@ -1,3 +1,3 @@
 [flake8]
 max-line-length = 120
-extend-ignore = Q000,B902,D103
+extend-ignore = Q000,B902,D100,D103,I100,I201
