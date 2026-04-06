@@ -34,17 +34,21 @@ if(studica_drivers_FOUND)
     set(VMXPI_INCLUDE_DIRS "")
   endif()
 else()
-  find_library(VMXPI_LIBRARY
+  find_library(
+    VMXPI_LIBRARY
     NAMES studica_drivers
-    HINTS /usr/local/lib/studica_drivers
-          /usr/local/lib
-    )
+    HINTS
+      /usr/local/lib/studica_drivers
+      /usr/local/lib
+  )
 
-  find_path(VMXPI_INCLUDE_DIR
+  find_path(
+    VMXPI_INCLUDE_DIR
     NAMES titan.h
-    HINTS /usr/local/include/studica_drivers
-          /usr/local/include
-    )
+    HINTS
+      /usr/local/include/studica_drivers
+      /usr/local/include
+  )
 
   if(VMXPI_LIBRARY AND VMXPI_INCLUDE_DIR)
     message(STATUS "VMXPi library and headers FOUND: Using system driver library.")
@@ -132,15 +136,14 @@ add_library(
 )
 
 if(VMXPI_FOUND)
-  include_directories(
-    include
-    ${VMXPI_INCLUDE_DIRS}
-    /usr/local/include/vmxpi
-  )
-
   target_sources(studica_vmxpi_ros2
     PRIVATE
     hardware/vmx_system.cpp
+  )
+
+  target_include_directories(studica_vmxpi_ros2 PRIVATE
+    ${VMXPI_INCLUDE_DIRS}
+    /usr/local/include/vmxpi
   )
 
   target_link_libraries(studica_vmxpi_ros2
@@ -148,7 +151,6 @@ if(VMXPI_FOUND)
     ${VMXPI_LIBRARIES}
   )
 else()
-  include_directories(include)
   message(WARNING "Skipping compilation of hardware interface code.")
 endif()
 
@@ -194,15 +196,17 @@ install(PROGRAMS
 
 add_executable(robot_patrol_node src/patrol.cpp)
 ament_target_dependencies(robot_patrol_node rclcpp sensor_msgs geometry_msgs)
+target_compile_features(robot_patrol_node PUBLIC cxx_std_17)
 
 add_executable(topic_adapter_node src/topic_adapter_node.cpp)
 ament_target_dependencies(topic_adapter_node rclcpp geometry_msgs nav_msgs sensor_msgs tf2_msgs)
+target_compile_features(topic_adapter_node PUBLIC cxx_std_17)
 
 install(TARGETS
-   robot_patrol_node
-   topic_adapter_node
-   DESTINATION lib/${PROJECT_NAME}
- )
+  robot_patrol_node
+  topic_adapter_node
+  DESTINATION lib/${PROJECT_NAME}
+)
 
 install(TARGETS studica_vmxpi_ros2
   EXPORT export_studica_vmxpi_ros2
@@ -212,6 +216,20 @@ install(TARGETS studica_vmxpi_ros2
 )
 
 if(BUILD_TESTING)
+  option(STUDICA_STRICT_LINT "Enable full strict lint checks" OFF)
+  find_package(ament_lint_auto REQUIRED)
+  find_package(ament_lint_common REQUIRED)
+  if(NOT STUDICA_STRICT_LINT)
+    # Legacy codebase: enable lint infrastructure first, then tighten checks incrementally.
+    set(AMENT_LINT_AUTO_EXCLUDE
+      ament_cmake_copyright
+      ament_cmake_cpplint
+      ament_cmake_flake8
+      ament_cmake_uncrustify
+    )
+  endif()
+  ament_lint_auto_find_test_dependencies()
+
   find_package(ament_cmake_test REQUIRED)
   ament_add_test(
     validate_robot_profiles

@@ -1,0 +1,66 @@
+name: ROS CI
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+      - master
+  workflow_dispatch:
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          path: ros2_ws/src/studica_vmxpi_ros2
+
+      - name: Checkout studica_drivers dependency
+        uses: actions/checkout@v4
+        with:
+          repository: MohammadRobot/studica_drivers
+          path: ros2_ws/src/studica_drivers
+
+      - name: Checkout studica_ros2_control dependency
+        uses: actions/checkout@v4
+        with:
+          repository: MohammadRobot/studica_ros2_control
+          path: ros2_ws/src/studica_ros2_control
+
+      - name: Setup ROS 2 Humble
+        uses: ros-tooling/setup-ros@v0.7
+        with:
+          required-ros-distributions: humble
+
+      - name: Install package dependencies
+        run: |
+          sudo apt-get update
+          sudo rosdep init 2>/dev/null || true
+          rosdep update
+          cd ros2_ws
+          rosdep install \
+            --from-paths src \
+            --ignore-src \
+            --rosdistro humble \
+            --dependency-types build buildtool test \
+            -r -y
+
+      - name: Build
+        run: |
+          source /opt/ros/humble/setup.bash
+          cd ros2_ws
+          colcon build \
+            --event-handlers console_direct+ \
+            --packages-select studica_drivers studica_ros2_control studica_vmxpi_ros2
+
+      - name: Test
+        run: |
+          source /opt/ros/humble/setup.bash
+          cd ros2_ws
+          colcon test \
+            --event-handlers console_direct+ \
+            --return-code-on-test-failure \
+            --packages-select studica_drivers studica_ros2_control studica_vmxpi_ros2
+          colcon test-result --verbose

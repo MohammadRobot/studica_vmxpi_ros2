@@ -3,15 +3,12 @@
 <package format="3">
   <name>studica_vmxpi_ros2</name>
   <version>0.1.0</version>
-  <description>Demo package of `studica_vmxpi_ros2` simulation with Stdica Robot and VMXPI based on ros2_control.</description>
+  <description>Demo package for `studica_vmxpi_ros2` simulation with Studica Robot and VMXPI based on ros2_control.</description>
 
   <maintainer email="denis.stogl@stoglrobotics.de">Dr.-Ing. Denis Štogl</maintainer>
   <maintainer email="bence.magyar.robotics@gmail.com">Bence Magyar</maintainer>
   <maintainer email="christoph.froehlich@ait.ac.at">Christoph Froehlich</maintainer>
   <maintainer email="alshamsi.mohammad@gmail.com">Mohammad Alshamsi</maintainer>
-
-  <author email="denis.stogl@stoglrobotics.de">Dr.-Ing. Denis Štogl</author>
-  <author email="christoph.froehlich@ait.ac.at">Christoph Froehlich</author>
 
   <license>Apache-2.0</license>
 
@@ -32,9 +29,6 @@
   <depend>sensor_msgs</depend>
   <depend>tf2_msgs</depend>
   <depend>studica_drivers</depend>
-
-
-
   <depend>backward_ros</depend>
   <depend>hardware_interface</depend>
   <depend>pluginlib</depend>
