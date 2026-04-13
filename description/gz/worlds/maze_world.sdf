@@ -1,0 +1,267 @@
+<?xml version="1.0" ?>
+<!--
+  6 m x 6 m three-chamber maze for studica_vmxpi_ros2 classroom demos.
+
+  Layout (top-down, Y = north):
+
+       x -3          -1.5   0    1.5          +3
+  y=3.0 ├───────────────────────────────────────┤  outer_north (solid)
+        │           north chamber               │
+        │                ★ goal (0, 2.5)        │
+  y=1.0 ├──────────┤                ├───────────┤  maze_h2
+        │  1.5 m gap (west)         │           │
+        │       middle chamber      │ east side │
+  y=-1.0├──────────────────┤        ├───────────┤  maze_h1
+        │                  │ 1.5 m gap (east)   │
+        │       south chamber                   │
+  y=-3.0├────────┤       ├───────────────────────┤  outer_south (0.8 m center gap)
+                  entry
+
+  Path: enter south (x≈0) → traverse south chamber east → pass H1 east gap (x > 1.5)
+        → cross middle chamber west → pass H2 west gap (x < -1.5)
+        → reach goal marker in north chamber
+
+  Recommended spawn for this world:
+    ros2 launch studica_vmxpi_ros2 bringup.launch.py mode:=gz_sim \
+        world:=maze spawn_y:=-2.5
+-->
+<sdf version="1.9">
+  <world name="maze">
+    <plugin filename="gz-sim-physics-system"        name="gz::sim::systems::Physics" />
+    <plugin filename="gz-sim-user-commands-system"  name="gz::sim::systems::UserCommands" />
+    <plugin filename="gz-sim-scene-broadcaster-system" name="gz::sim::systems::SceneBroadcaster" />
+    <plugin filename="gz-sim-sensors-system"        name="gz::sim::systems::Sensors">
+      <render_engine>ogre2</render_engine>
+    </plugin>
+
+    <physics name="100hz" type="ignored">
+      <max_step_size>0.01</max_step_size>
+      <real_time_update_rate>100</real_time_update_rate>
+      <real_time_factor>1.0</real_time_factor>
+    </physics>
+
+    <gravity>0 0 -9.8</gravity>
+
+    <!-- Top-down view camera, centred on the 6 m maze -->
+    <gui fullscreen="0">
+      <camera name="user_camera">
+        <pose>0 0 12 0 -1.2 -1.57</pose>
+        <view_controller>orbit</view_controller>
+        <projection_type>perspective</projection_type>
+      </camera>
+    </gui>
+
+    <scene>
+      <ambient>0.6 0.6 0.6 1.0</ambient>
+      <background>0.85 0.85 0.85 1.0</background>
+      <shadows>true</shadows>
+    </scene>
+
+    <light name="sun" type="directional">
+      <cast_shadows>true</cast_shadows>
+      <pose>0 0 10 0 0 0</pose>
+      <diffuse>0.8 0.8 0.8 1</diffuse>
+      <specular>0.2 0.2 0.2 1</specular>
+      <attenuation>
+        <range>1000</range>
+        <constant>0.9</constant>
+        <linear>0.01</linear>
+        <quadratic>0.001</quadratic>
+      </attenuation>
+      <direction>-0.5 0.1 -0.9</direction>
+    </light>
+
+    <model name="ground_plane">
+      <static>true</static>
+      <link name="link">
+        <collision name="collision">
+          <geometry>
+            <plane><normal>0 0 1</normal><size>100 100</size></plane>
+          </geometry>
+        </collision>
+        <visual name="visual">
+          <geometry>
+            <plane><normal>0 0 1</normal><size>100 100</size></plane>
+          </geometry>
+          <material>
+            <ambient>0.8 0.8 0.8 1</ambient>
+            <diffuse>0.8 0.8 0.8 1</diffuse>
+            <specular>0.1 0.1 0.1 1</specular>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+    <!-- ═══════════════════════════════════════════
+         Outer boundary  (grey, 0.1 m thick, 1.0 m tall)
+         ═══════════════════════════════════════════ -->
+
+    <!-- North wall: solid (no exit — goal is a marker inside) -->
+    <model name="outer_north">
+      <static>true</static>
+      <pose>0 3.0 0.5 0 0 0</pose>
+      <link name="link">
+        <collision name="collision">
+          <geometry><box><size>6.0 0.1 1.0</size></box></geometry>
+        </collision>
+        <visual name="visual">
+          <geometry><box><size>6.0 0.1 1.0</size></box></geometry>
+          <material>
+            <ambient>0.85 0.85 0.85 1</ambient>
+            <diffuse>0.85 0.85 0.85 1</diffuse>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+    <!-- West wall: full 6 m (rotated 90° so box X-axis aligns with world Y-axis) -->
+    <model name="outer_west">
+      <static>true</static>
+      <pose>-3.0 0 0.5 0 0 1.5708</pose>
+      <link name="link">
+        <collision name="collision">
+          <geometry><box><size>6.0 0.1 1.0</size></box></geometry>
+        </collision>
+        <visual name="visual">
+          <geometry><box><size>6.0 0.1 1.0</size></box></geometry>
+          <material>
+            <ambient>0.85 0.85 0.85 1</ambient>
+            <diffuse>0.85 0.85 0.85 1</diffuse>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+    <!-- East wall: full 6 m -->
+    <model name="outer_east">
+      <static>true</static>
+      <pose>3.0 0 0.5 0 0 1.5708</pose>
+      <link name="link">
+        <collision name="collision">
+          <geometry><box><size>6.0 0.1 1.0</size></box></geometry>
+        </collision>
+        <visual name="visual">
+          <geometry><box><size>6.0 0.1 1.0</size></box></geometry>
+          <material>
+            <ambient>0.85 0.85 0.85 1</ambient>
+            <diffuse>0.85 0.85 0.85 1</diffuse>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+    <!--
+      South wall: 0.8 m centre gap (entry).
+        Left piece:  x = -3.0 to -0.4  → length 2.6 m, centre at x = -1.7
+        Right piece: x =  0.4 to  3.0  → length 2.6 m, centre at x =  1.7
+    -->
+    <model name="outer_south_left">
+      <static>true</static>
+      <pose>-1.7 -3.0 0.5 0 0 0</pose>
+      <link name="link">
+        <collision name="collision">
+          <geometry><box><size>2.6 0.1 1.0</size></box></geometry>
+        </collision>
+        <visual name="visual">
+          <geometry><box><size>2.6 0.1 1.0</size></box></geometry>
+          <material>
+            <ambient>0.85 0.85 0.85 1</ambient>
+            <diffuse>0.85 0.85 0.85 1</diffuse>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+    <model name="outer_south_right">
+      <static>true</static>
+      <pose>1.7 -3.0 0.5 0 0 0</pose>
+      <link name="link">
+        <collision name="collision">
+          <geometry><box><size>2.6 0.1 1.0</size></box></geometry>
+        </collision>
+        <visual name="visual">
+          <geometry><box><size>2.6 0.1 1.0</size></box></geometry>
+          <material>
+            <ambient>0.85 0.85 0.85 1</ambient>
+            <diffuse>0.85 0.85 0.85 1</diffuse>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+    <!-- ═══════════════════════════════════════════
+         Internal walls  (blue, 0.1 m thick, 1.0 m tall)
+         ═══════════════════════════════════════════
+
+         maze_h1  y = -1.0:  x = -3.0 to +1.5  (4.5 m)
+                             gap: x = 1.5 to 3.0  (1.5 m, east side)
+                             centre pose: x = (-3.0 + 1.5)/2 = -0.75
+
+         maze_h2  y = +1.0:  x = -1.5 to +3.0  (4.5 m)
+                             gap: x = -3.0 to -1.5  (1.5 m, west side)
+                             centre pose: x = (-1.5 + 3.0)/2 = 0.75
+    -->
+    <model name="maze_h1">
+      <static>true</static>
+      <pose>-0.75 -1.0 0.5 0 0 0</pose>
+      <link name="link">
+        <collision name="collision">
+          <geometry><box><size>4.5 0.1 1.0</size></box></geometry>
+        </collision>
+        <visual name="visual">
+          <geometry><box><size>4.5 0.1 1.0</size></box></geometry>
+          <material>
+            <ambient>0.2 0.45 0.75 1</ambient>
+            <diffuse>0.2 0.45 0.75 1</diffuse>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+    <model name="maze_h2">
+      <static>true</static>
+      <pose>0.75 1.0 0.5 0 0 0</pose>
+      <link name="link">
+        <collision name="collision">
+          <geometry><box><size>4.5 0.1 1.0</size></box></geometry>
+        </collision>
+        <visual name="visual">
+          <geometry><box><size>4.5 0.1 1.0</size></box></geometry>
+          <material>
+            <ambient>0.2 0.45 0.75 1</ambient>
+            <diffuse>0.2 0.45 0.75 1</diffuse>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+    <!-- ═══════════════════════════════════════════
+         Goal marker — bright yellow cylinder
+         Placed in the north chamber at (0, 2.5).
+         Visible to LiDAR and camera at z = 0 – 0.5 m.
+         ═══════════════════════════════════════════ -->
+    <model name="goal_marker">
+      <static>true</static>
+      <pose>0 2.5 0.25 0 0 0</pose>
+      <link name="link">
+        <collision name="collision">
+          <geometry>
+            <cylinder><radius>0.15</radius><length>0.5</length></cylinder>
+          </geometry>
+        </collision>
+        <visual name="visual">
+          <geometry>
+            <cylinder><radius>0.15</radius><length>0.5</length></cylinder>
+          </geometry>
+          <material>
+            <ambient>1.0 0.85 0.0 1</ambient>
+            <diffuse>1.0 0.85 0.0 1</diffuse>
+            <specular>0.5 0.5 0.5 1</specular>
+            <emissive>0.3 0.25 0.0 1</emissive>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+  </world>
+</sdf>

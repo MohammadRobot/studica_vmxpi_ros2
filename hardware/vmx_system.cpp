@@ -269,7 +269,7 @@ hardware_interface::CallbackReturn VmxSystemHardware::on_init(
   hw_velocities_.resize(info_.joints.size(), std::numeric_limits<double>::quiet_NaN());
   hw_commands_.resize(info_.joints.size(), std::numeric_limits<double>::quiet_NaN());
   joint_motor_indices_.assign(info_.joints.size(), -1);
-  is_holonomic_layout_ = info_.joints.size() == 4;
+  is_independent_motor_layout_ = info_.joints.size() == 4;
 
   const int left_primary_motor =
     (left_front_motor_ >= 0) ? left_front_motor_ : left_rear_motor_;
@@ -345,7 +345,7 @@ hardware_interface::CallbackReturn VmxSystemHardware::on_init(
     }
 
     joint_motor_indices_[i] = map_joint_to_motor(joint.name);
-    if (is_holonomic_layout_ && joint_motor_indices_[i] < 0) {
+    if (is_independent_motor_layout_ && joint_motor_indices_[i] < 0) {
       RCLCPP_FATAL(
         get_logger(),
         "Failed to map holonomic joint '%s' to a Titan motor index. "
@@ -533,7 +533,7 @@ hardware_interface::return_type VmxSystemHardware::read(
     return 0.0;
   };
 
-  if (is_holonomic_layout_) {
+  if (is_independent_motor_layout_) {
     for (size_t i = 0; i < hw_positions_.size(); ++i) {
       const int motor = (i < joint_motor_indices_.size()) ? joint_motor_indices_[i] : -1;
       const double distance = motor_distance(motor);
@@ -599,7 +599,7 @@ hardware_interface::return_type VmxSystemHardware::write(
     titan_driver_->SetSpeed(static_cast<uint8_t>(motor), value);
   };
 
-  if (is_holonomic_layout_) {
+  if (is_independent_motor_layout_) {
     for (size_t i = 0; i < hw_commands_.size(); ++i) {
       const int motor = (i < joint_motor_indices_.size()) ? joint_motor_indices_[i] : -1;
       if (motor < 0) {

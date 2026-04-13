@@ -14,7 +14,6 @@
 
 #include "studica_vmxpi_ros2/robot_system.hpp"
 
-#include <chrono>
 #include <cmath>
 #include <cstddef>
 #include <iomanip>
@@ -42,12 +41,22 @@ hardware_interface::CallbackReturn RobotSystemHardware::on_init(
     rclcpp::get_logger("controller_manager.resource_manager.hardware_component.system.Robot"));
   clock_ = std::make_shared<rclcpp::Clock>(rclcpp::Clock());
 
-  // BEGIN: This part here is for exemplary purposes - Please do not copy to your production code
-  hw_start_sec_ =
-    hardware_interface::stod(info_.hardware_parameters["example_param_hw_start_duration_sec"]);
-  hw_stop_sec_ =
-    hardware_interface::stod(info_.hardware_parameters["example_param_hw_stop_duration_sec"]);
-  // END: This part here is for exemplary purposes - Please do not copy to your production code
+  auto get_sim_param = [&](const std::string & name, double & out, double default_val) {
+    auto it = info_.hardware_parameters.find(name);
+    if (it == info_.hardware_parameters.end()) {
+      out = default_val;
+      return;
+    }
+    try {
+      out = hardware_interface::stod(it->second);
+    } catch (const std::exception & ex) {
+      RCLCPP_WARN(get_logger(), "Invalid value for '%s': %s — using default %.1f",
+                  name.c_str(), ex.what(), default_val);
+      out = default_val;
+    }
+  };
+  get_sim_param("example_param_hw_start_duration_sec", hw_start_sec_, 0.0);
+  get_sim_param("example_param_hw_stop_duration_sec", hw_stop_sec_, 0.0);
   hw_positions_.resize(info_.joints.size(), std::numeric_limits<double>::quiet_NaN());
   hw_velocities_.resize(info_.joints.size(), std::numeric_limits<double>::quiet_NaN());
   hw_commands_.resize(info_.joints.size(), std::numeric_limits<double>::quiet_NaN());
@@ -131,16 +140,6 @@ std::vector<hardware_interface::CommandInterface> RobotSystemHardware::export_co
 hardware_interface::CallbackReturn RobotSystemHardware::on_activate(
   const rclcpp_lifecycle::State & /*previous_state*/)
 {
-  // BEGIN: This part here is for exemplary purposes - Please do not copy to your production code
-  RCLCPP_INFO(get_logger(), "Activating ...please wait...");
-
-  for (auto i = 0; i < hw_start_sec_; i++)
-  {
-    rclcpp::sleep_for(std::chrono::seconds(1));
-    RCLCPP_INFO(get_logger(), "%.1f seconds left...", hw_start_sec_ - i);
-  }
-  // END: This part here is for exemplary purposes - Please do not copy to your production code
-
   // set some default values
   for (auto i = 0u; i < hw_positions_.size(); i++)
   {
@@ -160,16 +159,6 @@ hardware_interface::CallbackReturn RobotSystemHardware::on_activate(
 hardware_interface::CallbackReturn RobotSystemHardware::on_deactivate(
   const rclcpp_lifecycle::State & /*previous_state*/)
 {
-  // BEGIN: This part here is for exemplary purposes - Please do not copy to your production code
-  RCLCPP_INFO(get_logger(), "Deactivating ...please wait...");
-
-  for (auto i = 0; i < hw_stop_sec_; i++)
-  {
-    rclcpp::sleep_for(std::chrono::seconds(1));
-    RCLCPP_INFO(get_logger(), "%.1f seconds left...", hw_stop_sec_ - i);
-  }
-  // END: This part here is for exemplary purposes - Please do not copy to your production code
-
   RCLCPP_INFO(get_logger(), "Successfully deactivated!");
 
   return hardware_interface::CallbackReturn::SUCCESS;
@@ -194,7 +183,7 @@ hardware_interface::return_type RobotSystemHardware::read(
        << hw_positions_[i] << " and velocity " << hw_velocities_[i] << " for '"
        << info_.joints[i].name.c_str() << "'!";
   }
-  RCLCPP_INFO_THROTTLE(get_logger(), *get_clock(), 500, "%s", ss.str().c_str());
+  RCLCPP_DEBUG_THROTTLE(get_logger(), *get_clock(), 500, "%s", ss.str().c_str());
   // END: This part here is for exemplary purposes - Please do not copy to your production code
 
   return hardware_interface::return_type::OK;
@@ -214,7 +203,7 @@ hardware_interface::return_type studica_vmxpi_ros2::RobotSystemHardware::write(
     ss << std::fixed << std::setprecision(2) << std::endl
        << "\t" << "command " << hw_commands_[i] << " for '" << info_.joints[i].name.c_str() << "'!";
   }
-  RCLCPP_INFO_THROTTLE(get_logger(), *get_clock(), 500, "%s", ss.str().c_str());
+  RCLCPP_DEBUG_THROTTLE(get_logger(), *get_clock(), 500, "%s", ss.str().c_str());
   // END: This part here is for exemplary purposes - Please do not copy to your production code
 
   return hardware_interface::return_type::OK;

@@ -71,8 +71,8 @@ public:
 
 private:
   // Parameters for the robot simulation
-  double hw_start_sec_;
-  double hw_stop_sec_;
+  double hw_start_sec_{0.0};
+  double hw_stop_sec_{0.0};
 
   // Objects for logging
   std::shared_ptr<rclcpp::Logger> logger_;

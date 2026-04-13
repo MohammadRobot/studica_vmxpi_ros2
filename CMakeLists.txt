@@ -190,6 +190,7 @@ install(PROGRAMS
   scripts/motor_smoke_test.sh
   scripts/create_profile.sh
   scripts/install_git_hooks.sh
+  scripts/check_project.sh
   scripts/validate_profiles.py
   DESTINATION lib/${PROJECT_NAME}
 )

@@ -33,6 +33,7 @@ constexpr double kMediumObstacleDistanceMeters = 2.0;
 constexpr double kSlowLinearSpeedMetersPerSecond = 0.2;
 constexpr double kCruiseLinearSpeedMetersPerSecond = 0.5;
 constexpr int kDebugLogThrottleMs = 2000;
+constexpr double kScanTimeoutSeconds = 1.0;
 }  // namespace
 
 class Patrol : public rclcpp::Node
@@ -91,6 +92,19 @@ private:
 
   void timer_callback()
   {
+    // Zero velocity if scan data has gone stale.
+    if (last_scan_time_.nanoseconds() > 0) {
+      const double age = (this->now() - last_scan_time_).seconds();
+      if (age > kScanTimeoutSeconds) {
+        linear_velocity_x_ = 0.0;
+        angular_velocity_z_ = 0.0;
+        direction_radians_ = 0.0;
+        RCLCPP_WARN_THROTTLE(
+          this->get_logger(), *this->get_clock(), kDebugLogThrottleMs,
+          "No scan data for %.1f s — stopping robot.", age);
+      }
+    }
+
     geometry_msgs::msg::TwistStamped message;
     message.header.stamp = this->now();
     message.header.frame_id = "base_link";
@@ -112,7 +126,8 @@ private:
       return;
     }
 
-    laser_scan_points_ = std::max(1, range_count - 1);
+    laser_scan_points_ = range_count;
+    last_scan_time_ = this->now();
 
     double front_min_distance = scan_msg->range_max;
     double front_min_distance_angle = 0.0;
@@ -172,6 +187,7 @@ private:
   double angular_velocity_z_{0.0};
 
   int laser_scan_points_{1};
+  rclcpp::Time last_scan_time_{0, 0, RCL_ROS_TIME};
 
   rclcpp::TimerBase::SharedPtr timer_;
   rclcpp::Publisher<geometry_msgs::msg::TwistStamped>::SharedPtr publisher_;

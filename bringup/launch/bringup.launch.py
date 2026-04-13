@@ -17,6 +17,20 @@ _THIS_DIR = Path(__file__).resolve().parent
 if str(_THIS_DIR) not in sys.path:
     sys.path.insert(0, str(_THIS_DIR))
 
+# Short-name aliases for bundled worlds.
+# Maps user-facing short name → (sdf_filename, world_name_in_sdf).
+# Allows `world:=maze` instead of a full path.
+_KNOWN_WORLDS = {
+    "diff_drive": ("diff_drive_world.sdf", "default"),
+    "diff_drive_world": ("diff_drive_world.sdf", "default"),
+    "diff_drive_world.sdf": ("diff_drive_world.sdf", "default"),
+    "office_map": ("office_map.sdf", "default"),
+    "office_map.sdf": ("office_map.sdf", "default"),
+    "maze": ("maze_world.sdf", "maze"),
+    "maze_world": ("maze_world.sdf", "maze"),
+    "maze_world.sdf": ("maze_world.sdf", "maze"),
+}
+
 
 def _declare_arg(name: str, default_value, description: str = ""):
     """Create a launch argument with optional description text."""
@@ -102,6 +116,12 @@ def _runtime_actions(context, *args, **kwargs):
     )
     if not world:
         world = os.path.join(pkg_share, "description", "gz", "worlds", "diff_drive_world.sdf")
+    elif world in _KNOWN_WORLDS:
+        sdf_filename, sdf_world_name = _KNOWN_WORLDS[world]
+        world = os.path.join(pkg_share, "description", "gz", "worlds", sdf_filename)
+        # Only override world_name when the user left it at the launch-arg default.
+        if world_name == "default":
+            world_name = sdf_world_name
 
     if not use_sim_time:
         use_sim_time = "true" if mode == "gz_sim" else "false"
@@ -223,7 +243,8 @@ def generate_launch_description():
             _declare_arg(
                 "world",
                 "",
-                "World file path. Leave empty to use mode default world.",
+                "World file path or short name (maze, diff_drive, office_map). "
+                "Leave empty to use mode default world.",
             ),
             _declare_arg(
                 "world_name",

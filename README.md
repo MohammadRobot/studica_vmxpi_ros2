@@ -1,23 +1,52 @@
 # studica_vmxpi_ros2
 
-ROS 2 Humble package for Titan/VMX hardware and Gazebo Sim (`gz sim`) simulation of the robot platform.
+ROS 2 Humble package for Titan/VMX hardware and Gazebo Sim simulation of the robot platform.  
+Supports 2WD, 4WD, Mecanum, and Omni robot configurations with a unified launch entry point.
 
-## Maintainer
+**Maintainer:** Mohammad Alshamsi (`alshamsi.mohammad@gmail.com`)
 
-- Mohammad Alshamsi (`alshamsi.mohammad@gmail.com`)
+---
+
+## Table of Contents
+
+1. [Training Material](#training-material)
+2. [Dependencies](#dependencies)
+3. [Build](#build)
+4. [Quick Start — Simulation](#quick-start--simulation)
+5. [Available Worlds](#available-worlds)
+6. [Robot Profiles](#robot-profiles)
+7. [Mapping (SLAM)](#mapping-slam)
+8. [Navigation (Nav2)](#navigation-nav2)
+9. [Hardware — Real Robot](#hardware--real-robot)
+   - [Raspberry Pi USB buffer](#raspberry-pi-usb-buffer-persistent)
+   - [Raspberry Pi performance tuning](#raspberry-pi-4-performance-tuning)
+10. [Remote Control](#remote-control)
+11. [Package Structure](#package-structure)
+12. [How It Works](#how-it-works)
+13. [Launch Migration](#launch-migration)
+14. [Profile Automation](#profile-automation)
+15. [Gazebo Sim Notes](#gazebo-sim-notes)
+16. [System Architecture](#system-architecture-best-performance)
+17. [Motor Smoke Test](#motor-smoke-test)
+18. [Troubleshooting](#troubleshooting)
+19. [License](#license)
+
+---
 
 ## Training Material
 
 Use these docs in order for classroom/lab onboarding:
 
-1. `docs/ROS2_TRAINING.md` (hands-on labs: bringup, teleop, SLAM, Nav2, debugging)
-2. `docs/ARCHITECTURE.md` (runtime architecture and data flow)
-3. `docs/PROFILE_AUTHORING.md` (create and validate new robot profiles)
-4. `docs/LAUNCH_MIGRATION.md` (legacy launch command migration)
+1. `docs/ROS2_TRAINING.md` — hands-on labs: bringup, teleop, SLAM, Nav2, debugging
+2. `docs/ARCHITECTURE.md` — runtime architecture and data flow
+3. `docs/PROFILE_AUTHORING.md` — create and validate new robot profiles
+4. `docs/LAUNCH_MIGRATION.md` — legacy launch command migration
+
+---
 
 ## Dependencies
 
-Core runtime + Gazebo Sim:
+### Core runtime + Gazebo Sim
 
 ```bash
 sudo apt install -y \
@@ -45,7 +74,9 @@ sudo apt install -y \
   python3-yaml
 ```
 
-Mapping and navigation launches (`nav2_mapping_gz_sim.launch.py`, `nav2_navigation_gz_sim.launch.py`):
+### Mapping and navigation
+
+Required for `nav2_mapping_gz_sim.launch.py` and `nav2_navigation_gz_sim.launch.py`:
 
 ```bash
 sudo apt install -y \
@@ -54,13 +85,15 @@ sudo apt install -y \
   ros-humble-slam-toolbox
 ```
 
-You can also install the Gazebo Harmonic meta package:
+Or install the full Gazebo Harmonic meta-package:
 
 ```bash
 sudo apt install -y ros-humble-ros-gzharmonic
 ```
 
-Source dependencies (clone into the same workspace):
+### Source dependencies
+
+Clone into the same workspace:
 
 ```bash
 cd ~/ros2_ws/src
@@ -70,10 +103,13 @@ git clone https://github.com/MohammadRobot/ydlidar_ros2_driver.git
 git clone https://github.com/MohammadRobot/OrbbecSDK_ROS2.git
 ```
 
+---
 
-## Humble + Gazebo Harmonic
+## Build
 
-On ROS 2 Humble, `gz_ros2_control` for Harmonic must be built from source overlay.
+### Gazebo Harmonic overlay (required for ROS 2 Humble)
+
+`gz_ros2_control` for Harmonic must be built from source:
 
 ```bash
 cd ~/ros2_ws/src
@@ -81,20 +117,19 @@ git clone --branch humble --depth 1 https://github.com/ros-controls/gz_ros2_cont
 
 cd ~/ros2_ws
 export GZ_VERSION=harmonic
-colcon build --packages-select gz_ros2_control --cmake-clean-cache --cmake-args -DPython3_EXECUTABLE=/usr/bin/python3
+colcon build --packages-select gz_ros2_control --cmake-clean-cache \
+  --cmake-args -DPython3_EXECUTABLE=/usr/bin/python3
 source install/setup.bash
 ```
 
-Verify overlay is active:
+Verify overlay is active (expected path should be inside your workspace):
 
 ```bash
 ros2 pkg prefix gz_ros2_control
+# Expected: /home/<user>/ros2_ws/install/gz_ros2_control
 ```
 
-Expected output should be inside your workspace, for example:
-`/home/<user>/ros2_ws/install/gz_ros2_control`
-
-## Build
+### Main build
 
 ```bash
 cd ~/ros2_ws
@@ -102,73 +137,33 @@ colcon build --packages-select studica_drivers studica_ros2_control studica_vmxp
 source install/setup.bash
 ```
 
-For LIDAR stability, build the LiDAR package exactly as:
+### Optional: LiDAR driver (for hardware stability)
 
 ```bash
 cd ~/ros2_ws
-colcon build --packages-select  --allow-overriding ydlidar_ros2_driver --symlink-install
-source ~/ros2_ws/install/setup.bash
+colcon build --packages-select ydlidar_ros2_driver \
+  --allow-overriding ydlidar_ros2_driver --symlink-install
+source install/setup.bash
 ```
 
-For camera stability, build Orbbec packages in `Release` exactly as:
+### Optional: Camera packages (Release build required)
 
 ```bash
-cd ~/ros2_ws/
-colcon build --packages-select orbbec_camera orbbec_camera_msgs orbbec_description --event-handlers console_direct+ --cmake-args -DCMAKE_BUILD_TYPE=Release
+cd ~/ros2_ws
+colcon build \
+  --packages-select orbbec_camera orbbec_camera_msgs orbbec_description \
+  --event-handlers console_direct+ \
+  --cmake-args -DCMAKE_BUILD_TYPE=Release
+source install/setup.bash
 ```
 
-If you use Conda, make sure `colcon` resolves to system Python, or install missing Python ROS deps in the active Conda env (for example `catkin_pkg`).
+> **Conda users:** make sure `colcon` resolves to system Python, or install missing ROS Python deps (e.g. `catkin_pkg`) in the active Conda env.
 
-## Raspberry Pi USB Buffer (Persistent)
+---
 
-On Raspberry Pi, increase USBFS memory permanently (useful for stable high-bandwidth USB sensors):
+## Quick Start — Simulation
 
-```bash
-FILE=/boot/firmware/cmdline.txt
-[ -f /boot/cmdline.txt ] && FILE=/boot/cmdline.txt
-
-grep -q 'usbcore.usbfs_memory_mb=' "$FILE" \
-  && sudo sed -i 's/usbcore\.usbfs_memory_mb=[^ ]*/usbcore.usbfs_memory_mb=128/' "$FILE" \
-  || sudo sed -i '1 s|$| usbcore.usbfs_memory_mb=128|' "$FILE"
-
-sudo reboot
-```
-
-After reboot, verify:
-
-```bash
-cat /sys/module/usbcore/parameters/usbfs_memory_mb
-```
-
-Expected output: `128`
-
-Disable USB autosuspend permanently (recommended for unstable USB cameras/sensors):
-
-```bash
-FILE=/boot/firmware/cmdline.txt
-[ -f /boot/cmdline.txt ] && FILE=/boot/cmdline.txt
-
-grep -q 'usbcore.autosuspend=' "$FILE" \
-  && sudo sed -i 's/usbcore\.autosuspend=[^ ]*/usbcore.autosuspend=-1/' "$FILE" \
-  || sudo sed -i '1 s|$| usbcore.autosuspend=-1|' "$FILE"
-
-sudo reboot
-```
-
-After reboot, verify:
-
-```bash
-cat /sys/module/usbcore/parameters/autosuspend
-```
-
-Expected output: `-1`
-
-## Quick Start (Simulation First)
-
-If you are new to ROS 2, follow this section first.
-The rest of this README has deeper details for customization and hardware.
-
-1. Build and source:
+**Step 1 — Build and source:**
 
 ```bash
 cd ~/ros2_ws
@@ -177,298 +172,250 @@ source /opt/ros/humble/setup.bash
 source ~/ros2_ws/install/setup.bash
 ```
 
-2. Start simulation bringup:
+**Step 2 — Launch Gazebo Sim:**
 
 ```bash
 ros2 launch studica_vmxpi_ros2 bringup.launch.py \
-  mode:=gz_sim robot_profile:=class_4wd gui:=true use_joystick:=true \
+  mode:=gz_sim world:=maze robot_profile:=class_4wd \
+  gui:=true use_joystick:=true \
   use_ground_truth_odom_tf:=false
 ```
-  - Low-Load Mode 
+
+On a slow machine, use low-load settings:
+
 ```bash
 ros2 launch studica_vmxpi_ros2 bringup.launch.py \
-  mode:=gz_sim robot_profile:=class_4wd gui:=true \
-  gz_headless:=true \
+  mode:=gz_sim world:=maze robot_profile:=class_4wd \
+  gui:=true gz_headless:=true \
   sim_camera_width:=320 sim_camera_height:=240 sim_camera_update_rate:=10.0 \
   sim_lidar_samples:=120 sim_lidar_update_rate:=10.0 sim_lidar_visualize:=false \
   sim_imu_update_rate:=50.0 \
   use_joystick:=true use_ground_truth_odom_tf:=false
 ```
 
+**Step 3 — Build a map with SLAM:**
 
-3. Build a map (SLAM):
-
-If this command fails with `package 'slam_toolbox' not found`, install Nav2 + SLAM first:
+Install Nav2 + SLAM if not already installed:
 
 ```bash
-sudo apt update
 sudo apt install -y ros-humble-slam-toolbox ros-humble-navigation2 ros-humble-nav2-bringup
-source /opt/ros/humble/setup.bash
-source ~/ros2_ws/install/setup.bash
-ros2 pkg prefix slam_toolbox
+source /opt/ros/humble/setup.bash && source ~/ros2_ws/install/setup.bash
 ```
+
+Launch mapping:
 
 ```bash
-WORLD_SDF="$(ros2 pkg prefix studica_vmxpi_ros2)/share/studica_vmxpi_ros2/description/gz/worlds/office_map.sdf"
 ros2 launch studica_vmxpi_ros2 nav2_mapping_gz_sim.launch.py \
-  robot_profile:=class_4wd gui:=true use_joystick:=true \
-  use_ground_truth_odom_tf:=false \
-  world:="${WORLD_SDF}"
+  robot_profile:=class_4wd world:=office_map \
+  gui:=true use_joystick:=true use_ground_truth_odom_tf:=false
 ```
 
-4. Save the map:
+**Step 4 — Save the map:**
 
 ```bash
 mkdir -p "$HOME/ros2_ws/src/studica_vmxpi_ros2/maps"
-ros2 service call /slam_toolbox/save_map slam_toolbox/srv/SaveMap "{name: {data: '$HOME/ros2_ws/src/studica_vmxpi_ros2/maps/my_map'}}"
+ros2 service call /slam_toolbox/save_map slam_toolbox/srv/SaveMap \
+  "{name: {data: '$HOME/ros2_ws/src/studica_vmxpi_ros2/maps/my_map'}}"
 ```
 
-5. Start navigation:
+**Step 5 — Launch navigation:**
 
 ```bash
-WORLD_SDF="$(ros2 pkg prefix studica_vmxpi_ros2)/share/studica_vmxpi_ros2/description/gz/worlds/office_map.sdf"
 ros2 launch studica_vmxpi_ros2 nav2_navigation_gz_sim.launch.py \
-  robot_profile:=class_4wd gui:=true use_joystick:=false \
-  use_ground_truth_odom_tf:=false \
-  world:="${WORLD_SDF}" \
+  robot_profile:=class_4wd world:=office_map \
+  gui:=true use_joystick:=false use_ground_truth_odom_tf:=false \
   map:="$HOME/ros2_ws/src/studica_vmxpi_ros2/maps/my_map.yaml"
 ```
 
-6. In RViz for navigation:
-- `nav2_navigation_gz_sim.launch.py` uses `nav2_navigation.rviz` by default (`Fixed Frame: map`).
-- Click `2D Pose Estimate` once to initialize AMCL.
-- Then use `Nav2 Goal`.
-- If `Map` looks empty right after startup, toggle the `Map` display once in RViz.
+**In RViz for navigation:**
+- `nav2_navigation_gz_sim.launch.py` loads `nav2_navigation.rviz` by default (Fixed Frame: `map`).
+- Click `2D Pose Estimate` once to initialize AMCL, then use `Nav2 Goal`.
+- If the map looks empty right after startup, toggle the `Map` display once.
 - Keep `use_joystick:=false` while testing autonomous goals.
-- If goals instantly show `Goal succeeded` but the robot does not move, verify RViz is on sim time:
+- If goals show `Goal succeeded` but the robot does not move, verify RViz is on sim time:
+
 ```bash
-ros2 param get /rviz2 use_sim_time
 ros2 param set /rviz2 use_sim_time true
 ```
-- Also verify Nav2 nodes are on sim time:
-```bash
-ros2 param get /controller_server use_sim_time
-ros2 param get /planner_server use_sim_time
-ros2 param get /bt_navigator use_sim_time
+
+---
+
+## Available Worlds
+
+Pass any of these short names as `world:=<name>` — no full path needed.
+
+| Short name | File | World name | Description |
+|---|---|---|---|
+| `diff_drive` | `diff_drive_world.sdf` | `default` | Simple open world for basic drive testing |
+| `office_map` | `office_map.sdf` | `default` | Office-style environment for SLAM and Nav2 |
+| `maze` | `maze_world.sdf` | `maze` | 4 m × 4 m three-chamber Z-path maze with goal marker |
+
+**Maze layout** (`world:=maze`):
+
+```
+  y=+3 ┌─────────────────────────────────────┐  (solid north wall)
+       │         north chamber               │
+       │              ★ goal (0, 2.5)        │
+  y=+1 ├──────────┤                ├─────────┤  H2 — gap on west side
+       │       middle chamber      │         │
+  y=-1 ├──────────────────┤        ├─────────┤  H1 — gap on east side
+       │       south chamber                 │
+  y=-3 ├────────┤       ├─────────────────────┤  south wall — 0.8 m entry gap
+                 enter here
 ```
 
-
-## Quick Start
-
-Unified bringup entry point (recommended):
+Spawn the robot at the entry point:
 
 ```bash
-# Gazebo Sim with default profile
-ros2 launch studica_vmxpi_ros2 bringup.launch.py mode:=gz_sim robot_profile:=class_2wd gui:=true use_joystick:=true
-
-# Switch robot profile (example: 4WD profile)
-ros2 launch studica_vmxpi_ros2 bringup.launch.py mode:=gz_sim robot_profile:=class_4wd gui:=true use_joystick:=true
-
-# Mecanum drive profile (holonomic)
-ros2 launch studica_vmxpi_ros2 bringup.launch.py mode:=gz_sim robot_profile:=class_mecanum gui:=true use_joystick:=true
-
-# Omni-wheel profile (holonomic)
-ros2 launch studica_vmxpi_ros2 bringup.launch.py mode:=gz_sim robot_profile:=class_omni gui:=true use_joystick:=true
-```
-
-Profiles live under:
-
-- `bringup/config/profiles/class_2wd/`
-- `bringup/config/profiles/class_4wd/`
-- `bringup/config/profiles/class_mecanum/`
-- `bringup/config/profiles/class_omni/`
-- `bringup/config/profiles/training_4wd/`
-- `bringup/config/profiles/training_2wd/`
-
-Each profile contains:
-
-- `robot_profile.yaml` (URDF geometry + hardware mapping)
-- `drive.*` section in `robot_profile.yaml` (`wheel_layout`, `controller_name`, `controller_type`)
-- `robot_controllers.yaml` (controller tuning)
-
-Wheel layout options:
-
-- `diff` (2-wheel differential drive)
-- `diff_4wd` (4-wheel differential drive)
-- `mecanum`
-- `omni` (X-drive wheel yaw in URDF)
-
-Holonomic profile note:
-
-- In ROS 2 Humble this package uses `mecanum_drive_controller` for both `wheel_layout: mecanum` and `wheel_layout: omni`.
-- `wheel_layout: omni` uses an X-drive wheel mounting in URDF (45 deg wheel yaw at each corner).
-- `class_4wd` uses `wheel_layout: diff_4wd` with `diff_drive_controller`.
-- For `diff_4wd`, `mecanum`, and `omni` layouts, all four motor indices must be active (`>= 0`).
-
-Profile template source files are provided in:
-
-- `bringup/config/profile_template/`
-
-Compatibility launch wrappers (`robot_gz_sim.launch.py`, `robot_bringup.launch.py`) are still available.
-
-## Package Structure
-
-The package is split so students can edit robot configs without changing launch internals or C++ code.
-
-```text
-studica_vmxpi_ros2/
-|-- CMakeLists.txt
-|-- package.xml
-|-- README.md
-|-- bringup/
-|   |-- launch/
-|   |   |-- bringup.launch.py
-|   |   |-- robot_gz_sim.launch.py
-|   |   |-- robot_bringup.launch.py
-|   |   |-- nav2_mapping*.launch.py
-|   |   |-- nav2_navigation*.launch.py
-|   |   |-- camera_hw.launch.py
-|   |   `-- lidar_hw.launch.py
-|   `-- config/
-|       |-- profiles/
-|       |   |-- class_2wd/
-|       |   |-- class_4wd/
-|       |   |-- class_mecanum/
-|       |   |-- class_omni/
-|       |   |-- training_2wd/
-|       |   `-- training_4wd/
-|       |-- profile_template/
-|       |-- slam_toolbox_mapper_params.yaml
-|       `-- ydlidar_x2_hw.yaml        # legacy optional config (default is ydlidar_ros2_driver/params/Tmini.yaml)
-|-- description/
-|   |-- urdf/
-|   |-- robot/urdf/
-|   |-- ros2_control/
-|   |-- gz/ + gz/worlds/
-|   `-- meshes/
-|-- hardware/
-|   |-- vmx_system.cpp                # Titan/VMX hardware interface
-|   |-- sim_system.cpp                # Mock/sim hardware interface
-|   `-- include/studica_vmxpi_ros2/
-|-- src/
-|   |-- topic_adapter_node.cpp        # Scan/IMU/Nav2 topic adapters
-|   `-- patrol.cpp
-|-- scripts/
-|   |-- create_profile.sh
-|   |-- validate_profiles.py
-|   |-- check_project.sh
-|   |-- install_git_hooks.sh
-|   `-- motor_smoke_test.sh
-`-- docs/
-    |-- ROS2_TRAINING.md
-    |-- PROFILE_AUTHORING.md
-    `-- LAUNCH_MIGRATION.md
-```
-
-## How It Works
-
-Runtime flow:
-
-1. Start from `bringup.launch.py` with `mode:=<gz_sim|hardware|mock>` and `robot_profile:=<name>`.
-2. The launch validates the selected profile (`robot_profile.yaml` + `robot_controllers.yaml`) before starting nodes.
-3. URDF is generated from Xacro (`description/urdf/robot.urdf.xacro`) using profile values and controller config.
-4. Mode-specific startup:
-   - `gz_sim`: starts Gazebo Sim, spawns the robot, bridges `/clock`, `/scan`, and simulated camera topics (`/camera/color/*`, `/camera/depth/*`), and relays `/scan_raw -> /scan` with normalized frame id.
-   - `hardware`: starts `ros2_control_node` with VMX/Titan hardware plugin (`vmx_system.cpp`), then controllers.
-   - `mock`: starts `ros2_control_node` without real hardware for software-only testing.
-5. Common control layer runs `joint_state_broadcaster`, `imu_sensor_broadcaster`, and the selected drive controller from profile (`diff_drive_controller` or `mecanum_drive_controller`).
-6. `topic_adapter_node` provides API compatibility:
-   - IMU alias: `/imu_sensor_broadcaster/imu -> /imu` (with odom fallback in sim when needed).
-   - Nav2 bridge (in Nav2 launches and hardware path): `/cmd_vel (Twist) -> /<drive_controller>/cmd_vel|reference (TwistStamped)` and odom aliasing.
-7. Optional features are composed on top:
-   - LiDAR launch in hardware mode (`use_lidar:=true`).
-   - Camera launch in hardware mode (`use_camera:=true`).
-   - Joystick teleop (`use_joystick:=true`).
-   - Mapping and navigation launches include bringup and then add SLAM/Nav2.
-
-How this supports different robot configurations:
-
-- Robot differences are encoded in profiles under `bringup/config/profiles/<profile_name>/`.
-- `robot_profile.yaml` controls geometry and hardware mapping (motors, inversions, scales, CAN, wheel params).
-- `robot_controllers.yaml` controls controller types and tuning.
-- Create a new profile, run `scripts/check_project.sh`, then launch with `robot_profile:=<new_profile>`.
-
-## Launch Migration
-
-Use `bringup.launch.py` as the single launch entry point for new labs and new robots.
-
-| Legacy command | Unified command |
-|---|---|
-| `ros2 launch studica_vmxpi_ros2 robot_gz_sim.launch.py gui:=true use_gz_sim:=true` | `ros2 launch studica_vmxpi_ros2 bringup.launch.py mode:=gz_sim gui:=true` |
-| `ros2 launch studica_vmxpi_ros2 robot_gz_sim.launch.py use_hardware:=true use_gz_sim:=false` | `ros2 launch studica_vmxpi_ros2 bringup.launch.py mode:=hardware` |
-| `ros2 launch studica_vmxpi_ros2 robot_bringup.launch.py ...` | `ros2 launch studica_vmxpi_ros2 bringup.launch.py mode:=<gz_sim|hardware|mock> ...` |
-
-Deprecation policy:
-
-- Since March 3, 2026, wrappers are compatibility paths only.
-- New features are added only to `bringup.launch.py`.
-- Wrapper removals are not planned before January 1, 2027.
-- Detailed migration examples: `docs/LAUNCH_MIGRATION.md`.
-- New profile checklist and schema guide: `docs/PROFILE_AUTHORING.md`.
-
-## Profile Automation
-
-Create a new robot profile from template:
-
-```bash
-cd ~/ros2_ws/src/studica_vmxpi_ros2
-scripts/create_profile.sh my_robot_4wd
-```
-
-Validate all profiles locally:
-
-```bash
-python3 scripts/validate_profiles.py --profiles-dir bringup/config/profiles
-```
-
-Run the full local maintenance checks (syntax + profile validation):
-
-```bash
-scripts/check_project.sh
-```
-
-Enable local pre-commit validation:
-
-```bash
-scripts/install_git_hooks.sh
-```
-
-When relevant launch/profile files are staged, pre-commit runs `scripts/check_project.sh` automatically.
-CI also validates profiles in `.github/workflows/profile-validation.yml`.
-
-Simulation:
-
-```bash
-ros2 launch studica_vmxpi_ros2 bringup.launch.py mode:=gz_sim gui:=true
-```
-
-If the robot appears partially below ground, spawn it slightly above zero:
-
-```bash
-ros2 launch studica_vmxpi_ros2 bringup.launch.py mode:=gz_sim gui:=true spawn_z:=0.10
-```
-
-Simulation with joystick:
-
-```bash
-ros2 launch studica_vmxpi_ros2 bringup.launch.py mode:=gz_sim gui:=true use_joystick:=true
-```
-
-This launch publishes joystick commands as `TwistStamped` on the active drive command topic:
-
-- diff profiles: `/<drive_controller>/cmd_vel`
-- mecanum/omni profiles: `/<drive_controller>/reference`
-
-Simulation with office world:
-
-```bash
-WORLD_SDF="$(ros2 pkg prefix studica_vmxpi_ros2)/share/studica_vmxpi_ros2/description/gz/worlds/office_map.sdf"
 ros2 launch studica_vmxpi_ros2 bringup.launch.py \
-  mode:=gz_sim gui:=true use_joystick:=true \
-  world:="${WORLD_SDF}"
+  mode:=gz_sim world:=maze robot_profile:=class_4wd \
+  spawn_y:=-2.5 gui:=true use_joystick:=true
 ```
 
-Real hardware (current VMX setup requires root; see full setup in `VMX Real Robot Setup` below):
+> When `world_name` is not specified, it is set automatically (`maze` world → `world_name:=maze`, others → `world_name:=default`).
+
+---
+
+## Robot Profiles
+
+Select a profile with `robot_profile:=<name>`:
+
+| Profile | Drive type | Use case |
+|---|---|---|
+| `class_2wd` | Differential (2-wheel) | Classroom, simple navigation |
+| `class_4wd` | Differential (4-wheel) | Classroom, general purpose |
+| `class_mecanum` | Mecanum (holonomic) | Strafing demos |
+| `class_omni` | Omni / X-drive (holonomic) | Full omnidirectional motion |
+| `training_2wd` | Differential (2-wheel) | Training exercises |
+| `training_4wd` | Differential (4-wheel) | Training exercises (default) |
+
+Profile files live under `bringup/config/profiles/<name>/`:
+- `robot_profile.yaml` — URDF geometry and hardware mapping
+- `robot_controllers.yaml` — controller types and tuning
+
+**Quick profile examples:**
+
+```bash
+# 2WD diff drive
+ros2 launch studica_vmxpi_ros2 bringup.launch.py \
+  mode:=gz_sim world:=maze robot_profile:=class_2wd gui:=true use_joystick:=true
+
+# 4WD diff drive (default classroom profile)
+ros2 launch studica_vmxpi_ros2 bringup.launch.py \
+  mode:=gz_sim world:=maze robot_profile:=class_4wd gui:=true use_joystick:=true
+
+# Mecanum (holonomic)
+ros2 launch studica_vmxpi_ros2 bringup.launch.py \
+  mode:=gz_sim world:=maze robot_profile:=class_mecanum gui:=true use_joystick:=true
+
+# Omni / X-drive (holonomic)
+ros2 launch studica_vmxpi_ros2 bringup.launch.py \
+  mode:=gz_sim world:=maze robot_profile:=class_omni gui:=true use_joystick:=true
+```
+
+Wheel layout options in `robot_profile.yaml`:
+- `diff` — 2-wheel differential drive
+- `diff_4wd` — 4-wheel differential drive
+- `mecanum` — Mecanum drive
+- `omni` — X-drive (45° wheel yaw at each corner)
+
+> In ROS 2 Humble, `mecanum_drive_controller` is used for both `mecanum` and `omni` layouts.
+> For `diff_4wd`, `mecanum`, and `omni`, all four motor indices must be active (≥ 0).
+
+---
+
+## Mapping (SLAM)
+
+Launch mapping in the office world:
+
+```bash
+ros2 launch studica_vmxpi_ros2 nav2_mapping_gz_sim.launch.py \
+  robot_profile:=class_4wd world:=office_map \
+  gui:=true use_joystick:=true use_ground_truth_odom_tf:=false
+```
+
+Launch mapping in the maze:
+
+```bash
+ros2 launch studica_vmxpi_ros2 nav2_mapping_gz_sim.launch.py \
+  robot_profile:=class_4wd world:=maze spawn_y:=-2.5 \
+  gui:=true use_joystick:=true use_ground_truth_odom_tf:=false
+```
+
+Save the map when done:
+
+```bash
+mkdir -p "$HOME/ros2_ws/src/studica_vmxpi_ros2/maps"
+ros2 service call /slam_toolbox/save_map slam_toolbox/srv/SaveMap \
+  "{name: {data: '$HOME/ros2_ws/src/studica_vmxpi_ros2/maps/my_map'}}"
+```
+
+---
+
+## Navigation (Nav2)
+
+Launch navigation in simulation with a saved map:
+
+```bash
+ros2 launch studica_vmxpi_ros2 nav2_navigation_gz_sim.launch.py \
+  robot_profile:=class_4wd world:=office_map \
+  gui:=true use_joystick:=false use_ground_truth_odom_tf:=false \
+  map:="$HOME/ros2_ws/src/studica_vmxpi_ros2/maps/my_map.yaml"
+```
+
+Launch navigation on the real robot with a saved map:
+
+```bash
+ros2 launch studica_vmxpi_ros2 nav2_navigation_hw.launch.py \
+  gui:=true \
+  map:="$HOME/ros2_ws/src/studica_vmxpi_ros2/maps/my_map.yaml"
+```
+
+**After launch in RViz:**
+
+1. Set fixed frame to `map` (if not already set).
+2. Click `2D Pose Estimate` once to initialize AMCL.
+3. Use `Nav2 Goal` to send goals.
+
+`topic_adapter_node` bridges Nav2 topics automatically (`enable_nav2_bridge:=true`):
+- `/cmd_vel` (Twist) → selected drive command topic
+- Selected drive odom topic → `/odom`
+
+Override the RViz config if needed:
+
+```bash
+ros2 launch studica_vmxpi_ros2 nav2_navigation_gz_sim.launch.py \
+  ... \
+  rviz_config_file:=/absolute/path/to/file.rviz
+```
+
+---
+
+## Hardware — Real Robot
+
+### Environment setup (`~/.bashrc`)
+
+Add to `~/.bashrc` on both robot host and remote PC:
+
+```bash
+source /opt/ros/humble/setup.bash
+export ROS_DOMAIN_ID=1
+export ROS_LOCALHOST_ONLY=0
+export RMW_IMPLEMENTATION=rmw_cyclonedds_cpp
+```
+
+Add these extra lines on the robot host:
+
+```bash
+source /home/vmx/ros2_ws/install/setup.bash
+export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/usr/local/lib/vmxpi
+```
+
+After editing, run `source ~/.bashrc` once (or open a new terminal).
+
+### Launch hardware mode
+
+VMX hardware requires root (`sudo`) for SPI/CAN/GPIO access:
 
 ```bash
 sudo -E bash -lc '
@@ -488,43 +435,34 @@ ros2 launch studica_vmxpi_ros2 bringup.launch.py \
 '
 ```
 
-When using `gemini_e.launch.py`, bringup now forwards `base_to_camera_*` values
-from the selected `robot_profile`, so the Orbbec `base_link -> camera_link` TF
-matches the URDF camera mount by default.
+> `mode:=gz_sim` does **not** require `sudo`.
 
-In this real-hardware mode, LiDAR and Orbbec camera start automatically by default
-(`use_lidar:=true` and `use_camera:=true` when `mode:=hardware`).
-IMU is published by `imu_sensor_broadcaster` in the same `ros2_control` stack (single VMX hardware owner), and relayed to `/imu` for compatibility.
+If you run as `root` persistently, add the same environment lines to `/root/.bashrc`.
 
-Disable LiDAR and camera auto-start if needed:
-
-```bash
-ros2 launch studica_vmxpi_ros2 bringup.launch.py mode:=hardware use_lidar:=false use_camera:=false
-```
-
-Check IMU data (published from `ros2_control`):
-
-```bash
-ros2 topic echo /imu --qos-profile sensor_data --once
-```
-
-Use a custom YDLIDAR params file from the main bringup:
+### Disable auto-start for LiDAR or camera
 
 ```bash
 ros2 launch studica_vmxpi_ros2 bringup.launch.py \
-  mode:=hardware \
-  ydlidar_params_file:=/path/to/ydlidar.yaml
+  mode:=hardware use_lidar:=false use_camera:=false
 ```
 
-Use a YDLIDAR model preset from the main bringup (same style as `ydlidar_launch.py lidar_type:=...`):
+### YDLIDAR options
+
+Use a model preset:
 
 ```bash
 ros2 launch studica_vmxpi_ros2 bringup.launch.py \
-  mode:=hardware \
-  lidar_type:=tmini
+  mode:=hardware lidar_type:=tmini
 ```
 
-Use custom Orbbec camera options from the main bringup:
+Use a custom params file (overrides `lidar_type`):
+
+```bash
+ros2 launch studica_vmxpi_ros2 bringup.launch.py \
+  mode:=hardware ydlidar_params_file:=/path/to/ydlidar.yaml
+```
+
+### Orbbec camera options
 
 ```bash
 ros2 launch studica_vmxpi_ros2 bringup.launch.py \
@@ -535,12 +473,9 @@ ros2 launch studica_vmxpi_ros2 bringup.launch.py \
   orbbec_enable_point_cloud:=true
 ```
 
-TF alignment note:
-- For `orbbec_launch_file:=gemini_e.launch.py`, `bringup.launch.py` auto-aligns
-  Orbbec `base_link -> camera_link` TF from the selected `robot_profile`.
-- You do not need to set `base_to_camera_*` manually in normal usage.
+> `bringup.launch.py` auto-aligns the Orbbec `base_link → camera_link` TF from the selected `robot_profile`. No need to set `base_to_camera_*` manually.
 
-For USB2 links that are unstable at full bandwidth, use a low-load profile:
+**USB2 low-bandwidth profile:**
 
 ```bash
 ros2 launch studica_vmxpi_ros2 bringup.launch.py \
@@ -552,7 +487,7 @@ ros2 launch studica_vmxpi_ros2 bringup.launch.py \
   orbbec_depth_width:=320 orbbec_depth_height:=240 orbbec_depth_fps:=5
 ```
 
-If USB2 still disconnects, use depth-only fallback:
+**USB2 depth-only fallback (if still disconnecting):**
 
 ```bash
 ros2 launch studica_vmxpi_ros2 bringup.launch.py \
@@ -564,15 +499,14 @@ ros2 launch studica_vmxpi_ros2 bringup.launch.py \
   orbbec_depth_width:=320 orbbec_depth_height:=240 orbbec_depth_fps:=5
 ```
 
-## Known-Good Hardware Checklist
-
-Use this sequence when setting up hardware to match the known-good LiDAR + camera workflow.
+### Known-good hardware checklist
 
 1. Build and source YDLIDAR driver:
 
 ```bash
 cd ~/ros2_ws
-colcon build --packages-select ydlidar_ros2_driver --symlink-install
+colcon build --packages-select ydlidar_ros2_driver \
+  --allow-overriding ydlidar_ros2_driver --symlink-install
 source ~/ros2_ws/install/setup.bash
 ```
 
@@ -580,7 +514,9 @@ source ~/ros2_ws/install/setup.bash
 
 ```bash
 cd ~/ros2_ws
-colcon build --packages-select orbbec_camera orbbec_camera_msgs orbbec_description --event-handlers console_direct+ --cmake-args -DCMAKE_BUILD_TYPE=Release
+colcon build \
+  --packages-select orbbec_camera orbbec_camera_msgs orbbec_description \
+  --event-handlers console_direct+ --cmake-args -DCMAKE_BUILD_TYPE=Release
 source ~/ros2_ws/install/setup.bash
 ```
 
@@ -588,9 +524,6 @@ source ~/ros2_ws/install/setup.bash
 
 ```bash
 ros2 launch ydlidar_ros2_driver ydlidar_tmini.launch.py
-```
-
-```bash
 ros2 launch orbbec_camera gemini_e.launch.py
 ```
 
@@ -600,497 +533,103 @@ ros2 launch orbbec_camera gemini_e.launch.py
 ros2 launch studica_vmxpi_ros2 bringup.launch.py mode:=hardware
 ```
 
-5. Quick verification:
+5. Verify topics and controllers:
 
 ```bash
 ros2 topic list | grep -E "^/scan$|^/imu$|^/camera/color/image_raw$|^/camera/depth/image_raw$"
 ros2 control list_controllers
 ```
 
-IMU broadcaster settings are configured in the selected profile controller file
-(`bringup/config/profiles/<profile>/robot_controllers.yaml`, `imu_sensor_broadcaster` block).
-
-## Production Health Check
-
-After launching hardware mode, run these checks:
+### Production health check
 
 ```bash
+# Core topics
 ros2 topic list | grep -E "^/cmd_vel$|^/odom$|^/imu$|^/scan$"
-```
 
-Expected: public API topics are present (`/cmd_vel`, `/odom`, `/imu`, `/scan`).
-
-If camera is enabled (`use_camera:=true`), verify camera topics:
-
-```bash
+# Camera topics (when use_camera:=true)
 ros2 topic list | grep -E "^/camera/color/image_raw$|^/camera/depth/image_raw$"
-```
 
-```bash
+# Controllers (expect joint_state_broadcaster, imu_sensor_broadcaster, and drive controller = active)
 ros2 control list_controllers
-```
 
-Expected: `joint_state_broadcaster`, `imu_sensor_broadcaster`, and the selected drive controller are `active`
-(for example: `robot_base_controller`, `mecanum_base_controller`, or `omni_base_controller`).
-
-```bash
+# IMU rate and data
 ros2 topic hz /imu
-```
-
-Expected: stable IMU publish rate (non-zero, continuous output).
-
-```bash
 ros2 topic echo /imu --qos-profile sensor_data --once
-```
 
-Expected: one `sensor_msgs/msg/Imu` message with orientation, angular velocity, and linear acceleration fields.
-
-```bash
+# Odometry
 ros2 topic echo /odom --once
 ```
 
-Expected: one `nav_msgs/msg/Odometry` message on `/odom` (aliased from the selected drive controller odom topic).
+### Raspberry Pi USB buffer (persistent)
 
-## VMX Real Robot Setup
-
-With ROS environment values in `~/.bashrc`, source your shell config plus workspace/runtime before launch:
+On Raspberry Pi, increase USBFS memory for stable high-bandwidth USB sensors (cameras, LiDAR):
 
 ```bash
-cd /home/vmx/ros2_ws
-source /home/vmx/.bashrc
-source install/setup.bash
-export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/usr/local/lib/vmxpi
-ros2 launch studica_vmxpi_ros2 bringup.launch.py mode:=hardware
+FILE=/boot/firmware/cmdline.txt
+[ -f /boot/cmdline.txt ] && FILE=/boot/cmdline.txt
+
+grep -q 'usbcore.usbfs_memory_mb=' "$FILE" \
+  && sudo sed -i 's/usbcore\.usbfs_memory_mb=[^ ]*/usbcore.usbfs_memory_mb=128/' "$FILE" \
+  || sudo sed -i '1 s|$| usbcore.usbfs_memory_mb=128|' "$FILE"
+
+sudo reboot
 ```
 
-Recommended `~/.bashrc` setup (both robot host and PC host):
+Verify after reboot (`128` expected):
 
 ```bash
-source /opt/ros/humble/setup.bash
-export ROS_DOMAIN_ID=1
-export ROS_LOCALHOST_ONLY=0
-export RMW_IMPLEMENTATION=rmw_cyclonedds_cpp
+cat /sys/module/usbcore/parameters/usbfs_memory_mb
 ```
 
-Optional robot-host additions in `~/.bashrc`:
+Disable USB autosuspend (recommended for unstable cameras/sensors):
 
 ```bash
-source /home/vmx/ros2_ws/install/setup.bash
-export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/usr/local/lib/vmxpi
+FILE=/boot/firmware/cmdline.txt
+[ -f /boot/cmdline.txt ] && FILE=/boot/cmdline.txt
+
+grep -q 'usbcore.autosuspend=' "$FILE" \
+  && sudo sed -i 's/usbcore\.autosuspend=[^ ]*/usbcore.autosuspend=-1/' "$FILE" \
+  || sudo sed -i '1 s|$| usbcore.autosuspend=-1|' "$FILE"
+
+sudo reboot
 ```
 
-After updating `.bashrc`, run `source ~/.bashrc` once (or open a new terminal).
-From then on, you do not need to re-run the ROS export lines in every terminal.
-
-Known-good hardware bringup (single command, runs as root):
+Verify after reboot (`-1` expected):
 
 ```bash
-sudo -E bash -lc '
-cd /home/vmx/ros2_ws
-source /opt/ros/humble/setup.bash
-source install/setup.bash
-export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/usr/local/lib/vmxpi
-ros2 launch studica_vmxpi_ros2 bringup.launch.py mode:=hardware
-'
+cat /sys/module/usbcore/parameters/autosuspend
 ```
 
-Why `sudo` is required for hardware mode:
+### Raspberry Pi 4 performance tuning
 
-- `mode:=hardware` loads VMX/Titan hardware drivers (pigpio + SPI/CAN access).
-- These low-level interfaces require root privileges on the current VMX HAL setup.
-- Simulation mode (`mode:=gz_sim`) does not require `sudo`.
+For lower control-loop jitter on real hardware:
 
-If you must run as `root`, add equivalent ROS environment to `/root/.bashrc`:
-
-```bash
-source /opt/ros/humble/setup.bash
-export ROS_DOMAIN_ID=1
-export ROS_LOCALHOST_ONLY=0
-export RMW_IMPLEMENTATION=rmw_cyclonedds_cpp
-```
-
-Optional robot-host additions for `/root/.bashrc`:
-
-```bash
-source /home/vmx/ros2_ws/install/setup.bash
-export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/usr/local/lib/vmxpi
-```
-
-## Optional Bringup
-
-Legacy combined bringup (not recommended for production single-runtime mode):
-
-```bash
-ros2 launch studica_vmxpi_ros2 robot_bringup.launch.py use_studica_sensors:=true
-```
-
-Use this only for compatibility testing.
-Production hardware mode should use `bringup.launch.py mode:=hardware`, where IMU is already inside `ros2_control`.
-
-## LiDAR (YDLIDAR)
-
-Recommended approach: keep `ydlidar_ros2_driver` as the LiDAR hardware driver, and keep `studica_ros2_control` for integration/bringup.
-
-Main hardware launch auto-starts LiDAR:
-
-```bash
-ros2 launch studica_vmxpi_ros2 bringup.launch.py mode:=hardware
-```
-
-Standalone driver test (known-good command):
-
-```bash
-ros2 launch ydlidar_ros2_driver ydlidar_tmini.launch.py
-```
-
-Known-good standalone LiDAR flow:
-
-```bash
-cd ~/ros2_ws
-colcon build --packages-select ydlidar_ros2_driver --symlink-install
-source ~/ros2_ws/install/setup.bash
-ros2 launch ydlidar_ros2_driver ydlidar_tmini.launch.py
-```
-
-Integrated launch from Studica stack:
-
-```bash
-ros2 launch studica_ros2_control lidar_launch.py
-```
-
-Use a custom YDLIDAR parameter file when needed:
-
-```bash
-ros2 launch studica_ros2_control lidar_launch.py ydlidar_params_file:=/path/to/ydlidar.yaml
-```
-
-Show LiDAR in RViz2:
-
-```bash
-# Terminal 1 (VMX)
-ros2 launch studica_ros2_control lidar_launch.py
-```
-
-```bash
-# Terminal 2 (Remote PC)
-rviz2
-```
-
-In RViz2:
-
-- Set `Fixed Frame` to `laser_frame` (or `base_link`).
-- Add display type `LaserScan`.
-- Set topic to `/scan`.
-
-One-command RViz launch from driver package (optional):
-
-```bash
-ros2 launch ydlidar_ros2_driver ydlidar_launch_view.py
-```
-
-## Camera (OrbbecSDK_ROS2)
-
-Recommended approach: keep `orbbec_camera` as the camera hardware driver, and let
-`studica_vmxpi_ros2` own system-level bringup and TF integration.
-
-Main hardware launch auto-starts camera:
-
-```bash
-ros2 launch studica_vmxpi_ros2 bringup.launch.py mode:=hardware
-```
-
-Standalone driver test (known-good command):
-
-```bash
-ros2 launch orbbec_camera gemini_e.launch.py
-```
-
-Use custom camera launch selection and device serial when needed:
-
-```bash
-ros2 launch studica_vmxpi_ros2 bringup.launch.py \
-  mode:=hardware \
-  orbbec_launch_file:=gemini_e.launch.py \
-  orbbec_camera_name:=camera \
-  orbbec_serial_number:=<serial_number> \
-  orbbec_enable_point_cloud:=true
-```
-
-TF alignment note:
-- For `orbbec_launch_file:=gemini_e.launch.py`, `bringup.launch.py` auto-aligns
-  Orbbec `base_link -> camera_link` TF from the selected `robot_profile`.
-- You do not need to set `base_to_camera_*` manually in normal usage.
-
-For USB2 links that are unstable at full bandwidth, use a low-load profile:
-
-```bash
-ros2 launch studica_vmxpi_ros2 bringup.launch.py \
-  mode:=hardware \
-  orbbec_launch_file:=gemini_e.launch.py \
-  orbbec_enable_point_cloud:=false \
-  orbbec_enable_ir:=false \
-  orbbec_color_width:=320 orbbec_color_height:=240 orbbec_color_fps:=5 \
-  orbbec_depth_width:=320 orbbec_depth_height:=240 orbbec_depth_fps:=5
-```
-
-If USB2 still disconnects, use depth-only fallback:
-
-```bash
-ros2 launch studica_vmxpi_ros2 bringup.launch.py \
-  mode:=hardware \
-  orbbec_launch_file:=gemini_e.launch.py \
-  orbbec_enable_point_cloud:=false \
-  orbbec_enable_color:=false \
-  orbbec_enable_ir:=false \
-  orbbec_depth_width:=320 orbbec_depth_height:=240 orbbec_depth_fps:=5
-```
-
-Known-good standalone camera bringup flow:
-
-```bash
-# Build (Release)
-cd ~/ros2_ws/
-colcon build --packages-select orbbec_camera orbbec_camera_msgs orbbec_description --event-handlers console_direct+ --cmake-args -DCMAKE_BUILD_TYPE=Release
-```
-
-```bash
-# Terminal 1
-source install/setup.bash
-ros2 launch orbbec_camera gemini_e.launch.py
-```
-
-```bash
-# Terminal 2
-. ./install/setup.bash
-rviz2
-```
-
-If you switch away from `gemini_e.launch.py` and need an extra camera TF from this package, enable:
-
-```bash
-ros2 launch studica_vmxpi_ros2 bringup.launch.py \
-  mode:=hardware \
-  publish_camera_tf:=true
-```
-
-## Gazebo Sim Notes
-
-- Unified Gazebo Sim launch: `bringup.launch.py mode:=gz_sim`
-- Gazebo Sim Nav2 launches:
-  - `nav2_mapping_gz_sim.launch.py`
-  - `nav2_navigation_gz_sim.launch.py` (simulation only)
-- Real robot Nav2 launch: `nav2_navigation_hw.launch.py`
-- Gazebo Sim sensor topics:
-  - `/scan` (`sensor_msgs/LaserScan`)
-  - `/imu` (`sensor_msgs/Imu`)
-  - `/camera/color/image_raw` (`sensor_msgs/Image`)
-  - `/camera/color/camera_info` (`sensor_msgs/CameraInfo`)
-  - `/camera/depth/image_raw` (`sensor_msgs/Image`)
-  - `/camera/depth/camera_info` (`sensor_msgs/CameraInfo`)
-- Legacy wrappers `nav2_mapping.launch.py` and `nav2_navigation.launch.py` are still available.
-
-## System Architecture (Best Performance)
-
-Recommended deployment is split across two machines:
-
-- VMX robot host: run hardware-critical nodes only (VMX/Titan drivers, ros2_control, motor controllers, hardware sensor drivers like LiDAR and depth cameras).
-- Remote PC host: run operator and high-CPU nodes (RViz2, teleop, Nav2 tools, SLAM tools, debugging/visualization tools).
-
-Why this split works better:
-
-- Motor/sensor timing stays local to hardware on the robot.
-- VMX CPU load is lower, so control loops are more stable.
-- UI and planning workloads run on a stronger PC without impacting robot control.
-
-Recommended runtime pattern:
-
-- On robot host: launch hardware stack and sensor drivers.
-- On PC host: launch remote control, RViz2, and any heavy analysis nodes.
-- Use the same ROS 2 networking settings on both hosts (`ROS_DOMAIN_ID`, `ROS_LOCALHOST_ONLY`, `RMW_IMPLEMENTATION`).
-
-Node placement reference:
-
-| Component / Node Group | Run Host | Why |
-|---|---|---|
-| `studica_drivers` + VMX/Titan hardware interfaces | Robot (VMX) | Direct hardware access (SPI/CAN/GPIO), lowest control latency. |
-| `controller_manager` + controllers (`diff_drive_controller`, `imu_sensor_broadcaster`) | Robot (VMX) | Keeps motor + IMU control loop local and stable. |
-| `studica_ros2_control` teleop/utilities (optional) | Robot or Remote PC | Use for optional tools (for example joystick helper), not primary hardware runtime. |
-| `ydlidar_ros2_driver` | Robot (VMX) | Serial LiDAR data capture should stay local to `/dev/ttyUSB*`. |
-| `orbbec_camera` | Robot (VMX) | USB camera capture should stay local to robot USB bus and sensor power domain. |
-| TF publishers tied to physical sensors | Robot (VMX) | Keeps robot frame tree synchronized with real sensors. |
-| Teleop nodes (`teleop_twist_keyboard`, gamepad client) | Remote PC | Operator input/UI runs offboard to reduce VMX load. |
-| `rviz2` | Remote PC | Visualization is GPU/CPU heavy and not control-critical. |
-| Nav2 planning/BT tools (recommended) | Remote PC | Planning is CPU-heavy; offloading improves VMX performance. |
-| SLAM (`slam_toolbox`) (recommended) | Remote PC | Mapping can be heavy; offloading preserves control responsiveness. |
-| Debug/record tools (`rqt`, `ros2 bag`, diagnostics UI) | Remote PC | Prevents debug workloads from stealing robot compute. |
-
-
-## Control (From Another PC)
-
-This section is for teleop from a second PC on the same network, while the robot stack runs on the robot host.
-Use the command topic that matches the selected robot profile:
-
-- `training_2wd`, `training_4wd`, `class_2wd`, `class_4wd`: `/robot_base_controller/cmd_vel`
-- `class_mecanum`: `/mecanum_base_controller/reference`
-- `class_omni` (X-drive): `/omni_base_controller/reference`
-
-On the remote PC, open a terminal and load your ROS networking setup from `~/.bashrc`:
-
-```bash
-source ~/.bashrc
-```
-
-Optional connectivity check:
-
-```bash
-ros2 topic list | grep -E "cmd_vel|reference|odom|odometry|base_controller"
-```
-
-Keyboard teleop (remote PC -> robot):
-
-```bash
-CMD_TOPIC=/robot_base_controller/cmd_vel
-# CMD_TOPIC=/mecanum_base_controller/reference
-# CMD_TOPIC=/omni_base_controller/reference
-ros2 run teleop_twist_keyboard teleop_twist_keyboard --ros-args -p stamped:=true -p frame_id:=base_link --remap cmd_vel:=${CMD_TOPIC}
-```
-
-Joystick teleop (remote PC -> robot):
-
-```bash
-# Required for gamepad_launch.py on the remote PC:
-source ~/ros2_ws/install/setup.bash
-CMD_TOPIC=/robot_base_controller/cmd_vel
-# CMD_TOPIC=/mecanum_base_controller/reference
-# CMD_TOPIC=/omni_base_controller/reference
-ros2 launch studica_ros2_control gamepad_launch.py \
-  cmd_vel_topic:=${CMD_TOPIC} \
-  publish_stamped:=true
-```
-
-If the real robot is too fast, use lower joystick scales:
-
-```bash
-# Required for gamepad_launch.py on the remote PC:
-source ~/ros2_ws/install/setup.bash
-CMD_TOPIC=/robot_base_controller/cmd_vel
-# CMD_TOPIC=/mecanum_base_controller/reference
-# CMD_TOPIC=/omni_base_controller/reference
-ros2 launch studica_ros2_control gamepad_launch.py \
-  cmd_vel_topic:=${CMD_TOPIC} \
-  publish_stamped:=true \
-  linear_scale:=0.20 \
-  angular_scale:=0.60 \
-  turbo_multiplier:=1.0 \
-  button_turbo:=-1
-```
-
-Joystick tuning parameters:
-
-- `linear_scale` (m/s at full stick)
-- `angular_scale` (rad/s at full stick)
-- `deadzone`
-- `turbo_multiplier`
-- `button_turbo` (`-1` disables turbo)
-
-Notes:
-
-- When launching `bringup.launch.py mode:=gz_sim` or `nav2_*_gz_sim.launch.py`, keep `use_joystick:=false` (default) if you drive from another PC, or you may have two joystick publishers.
-- `robot_bringup.launch.py` does not include a `use_joystick` argument.
-
-## Mapping (SLAM Toolbox)
-
-Launch mapping:
-
-```bash
-ros2 launch studica_vmxpi_ros2 nav2_mapping_gz_sim.launch.py \
-  gui:=true use_joystick:=true \
-  use_ground_truth_odom_tf:=false
-```
-
-Launch mapping with a specific world:
-
-```bash
-WORLD_SDF="$(ros2 pkg prefix studica_vmxpi_ros2)/share/studica_vmxpi_ros2/description/gz/worlds/office_map.sdf"
-ros2 launch studica_vmxpi_ros2 nav2_mapping_gz_sim.launch.py \
-  robot_profile:=class_4wd gui:=true use_joystick:=true \
-  use_ground_truth_odom_tf:=false \
-  world:="${WORLD_SDF}"
-```
-
-Save map:
-
-```bash
-mkdir -p "$HOME/ros2_ws/src/studica_vmxpi_ros2/maps"
-ros2 service call /slam_toolbox/save_map slam_toolbox/srv/SaveMap "{name: {data: '$HOME/ros2_ws/src/studica_vmxpi_ros2/maps/my_map'}}"
-```
-
-## Navigation (Nav2 + AMCL)
-
-Launch navigation in simulation with a saved map:
-
-```bash
-WORLD_SDF="$(ros2 pkg prefix studica_vmxpi_ros2)/share/studica_vmxpi_ros2/description/gz/worlds/office_map.sdf"
-ros2 launch studica_vmxpi_ros2 nav2_navigation_gz_sim.launch.py \
-  robot_profile:=class_4wd gui:=true use_joystick:=true \
-  use_ground_truth_odom_tf:=false \
-  world:="${WORLD_SDF}" \
-  map:="$HOME/ros2_ws/src/studica_vmxpi_ros2/maps/my_map.yaml"
-```
-
-`nav2_navigation_gz_sim.launch.py` defaults to
-`description/robot/rviz/nav2_navigation.rviz` (Fixed Frame: `map`).
-Use `rviz_config_file:=/absolute/path/to/file.rviz` to override.
-
-Launch navigation on the real robot with a saved map:
-
-```bash
-ros2 launch studica_vmxpi_ros2 nav2_navigation_hw.launch.py \
-  gui:=true \
-  map:="$HOME/ros2_ws/src/studica_vmxpi_ros2/maps/my_map.yaml"
-```
-
-After launch in RViz:
-
-1. Set fixed frame to `map` (if it is not already `map`).
-2. Click `2D Pose Estimate` once to initialize AMCL.
-3. Use `Nav2 Goal` to send goals.
-
-`topic_adapter_node` is started automatically for Nav2 launches with `enable_nav2_bridge:=true`:
-
-- `/cmd_vel` (`Twist`) -> selected drive command topic (`/<drive_controller>/cmd_vel` or `/<drive_controller>/reference`)
-- selected drive odom topic (`/<drive_controller>/odom` or `/<drive_controller>/odometry`) -> `/odom`
-
-## Raspberry Pi 4 Performance Tuning (VMX)
-
-For lower control-loop jitter and better runtime stability on real hardware:
-
-1. Switch to headless boot target:
+**1. Switch to headless boot:**
 
 ```bash
 sudo systemctl set-default multi-user.target
 ```
 
-2. Disable desktop/auxiliary services not needed on a robot:
+**2. Disable unused services:**
 
 ```bash
 sudo systemctl disable --now gdm cups cups-browsed avahi-daemon bluetooth hciuart ModemManager
 ```
 
-3. Set CPU governor to `performance`:
+**3. Set CPU governor to performance:**
 
 ```bash
 echo performance | sudo tee /sys/devices/system/cpu/cpu*/cpufreq/scaling_governor
 ```
 
-4. Reduce swap aggressiveness:
+**4. Reduce swap aggressiveness:**
 
 ```bash
 echo 'vm.swappiness=10' | sudo tee /etc/sysctl.d/99-robot-performance.conf
 sudo sysctl -p /etc/sysctl.d/99-robot-performance.conf
 ```
 
-5. Use Cyclone DDS consistently in every shell (normal user and `sudo`):
+**5. Use Cyclone DDS in every shell:**
 
 ```bash
 sudo apt install ros-humble-rmw-cyclonedds-cpp
@@ -1098,11 +637,12 @@ echo 'export RMW_IMPLEMENTATION=rmw_cyclonedds_cpp' >> ~/.bashrc
 source ~/.bashrc
 ```
 
-6. Optional: disable Snap background services on dedicated robot images:
+**6. Optional: disable Snap background services:**
 
 ```bash
 sudo systemctl stop snapd.service snapd.socket snapd.seeded.service
-sudo systemctl disable snapd.service snapd.socket snapd.seeded.service snapd.refresh.timer snapd.snap-repair.timer
+sudo systemctl disable snapd.service snapd.socket snapd.seeded.service \
+  snapd.refresh.timer snapd.snap-repair.timer
 sudo systemctl mask snapd.service snapd.socket snapd.seeded.service
 ```
 
@@ -1110,30 +650,255 @@ Verify after reboot:
 
 ```bash
 systemctl get-default
-for c in /sys/devices/system/cpu/cpu[0-9]*; do echo "$(basename "$c"): $(cat "$c/cpufreq/scaling_governor")"; done
-uptime
-free -h
+for c in /sys/devices/system/cpu/cpu[0-9]*; do
+  echo "$(basename "$c"): $(cat "$c/cpufreq/scaling_governor")"
+done
+uptime && free -h
 journalctl -k --no-pager | grep -Ei "under-?voltage|throttl|oom|thermal"
-vcgencmd get_throttled   # expected healthy value: throttled=0x0
+vcgencmd get_throttled   # healthy: throttled=0x0
 ```
 
-## Motor Smoke Test (Drivers + ROS 2 Control + ros2_control)
+---
 
-Use the repeatable smoke test script to validate motor control across:
+## Remote Control
 
-- `studica_drivers` (direct Titan API)
-- `studica_ros2_control` (`manual_composition` + `titan_cmd`)
-- `studica_vmxpi_ros2` (`ros2_control` + `robot_base_controller`)
+Use the command topic that matches the selected robot profile:
 
-Safety: put the robot on blocks so wheels can spin freely.
+| Profile | Command topic |
+|---|---|
+| `training_2wd`, `training_4wd`, `class_2wd`, `class_4wd` | `/robot_base_controller/cmd_vel` |
+| `class_mecanum` | `/mecanum_base_controller/reference` |
+| `class_omni` | `/omni_base_controller/reference` |
 
-Run:
+On the remote PC, source your environment:
+
+```bash
+source ~/.bashrc
+```
+
+Check connectivity (optional):
+
+```bash
+ros2 topic list | grep -E "cmd_vel|reference|odom|base_controller"
+```
+
+**Keyboard teleop:**
+
+```bash
+CMD_TOPIC=/robot_base_controller/cmd_vel
+# CMD_TOPIC=/mecanum_base_controller/reference
+# CMD_TOPIC=/omni_base_controller/reference
+ros2 run teleop_twist_keyboard teleop_twist_keyboard \
+  --ros-args -p stamped:=true -p frame_id:=base_link \
+  --remap cmd_vel:=${CMD_TOPIC}
+```
+
+**Joystick teleop:**
+
+```bash
+source ~/ros2_ws/install/setup.bash
+CMD_TOPIC=/robot_base_controller/cmd_vel
+ros2 launch studica_ros2_control gamepad_launch.py \
+  cmd_vel_topic:=${CMD_TOPIC} publish_stamped:=true
+```
+
+Lower speeds if the real robot is too fast:
+
+```bash
+ros2 launch studica_ros2_control gamepad_launch.py \
+  cmd_vel_topic:=${CMD_TOPIC} publish_stamped:=true \
+  linear_scale:=0.20 angular_scale:=0.60 \
+  turbo_multiplier:=1.0 button_turbo:=-1
+```
+
+Joystick tuning parameters: `linear_scale`, `angular_scale`, `deadzone`, `turbo_multiplier`, `button_turbo` (`-1` disables turbo).
+
+> When launching `bringup.launch.py mode:=gz_sim` from another PC, keep `use_joystick:=false` (default) to avoid two joystick publishers.
+
+---
+
+## Package Structure
+
+```text
+studica_vmxpi_ros2/
+├── CMakeLists.txt
+├── package.xml
+├── README.md
+├── bringup/
+│   ├── launch/
+│   │   ├── bringup.launch.py              ← unified entry point (use this)
+│   │   ├── robot_gz_sim.launch.py         ← compatibility wrapper
+│   │   ├── robot_bringup.launch.py        ← compatibility wrapper
+│   │   ├── _launch_helpers.py             ← shared launch utilities
+│   │   ├── _launch_gz.py                  ← Gazebo-specific handlers
+│   │   ├── _launch_sensors.py             ← sensor launch handlers
+│   │   ├── nav2_mapping_gz_sim.launch.py
+│   │   ├── nav2_navigation_gz_sim.launch.py
+│   │   ├── nav2_navigation_hw.launch.py
+│   │   ├── camera_hw.launch.py
+│   │   └── lidar_hw.launch.py
+│   └── config/
+│       ├── profiles/
+│       │   ├── class_2wd/
+│       │   ├── class_4wd/
+│       │   ├── class_mecanum/
+│       │   ├── class_omni/
+│       │   ├── training_2wd/
+│       │   └── training_4wd/
+│       ├── profile_template/
+│       ├── slam_toolbox_mapper_params.yaml
+│       └── ydlidar_x2_hw.yaml
+├── description/
+│   ├── urdf/
+│   ├── robot/urdf/
+│   ├── ros2_control/
+│   ├── gz/worlds/                         ← SDF worlds (diff_drive, office_map, maze)
+│   └── meshes/
+├── hardware/
+│   ├── vmx_system.cpp                     ← Titan/VMX hardware interface
+│   ├── sim_system.cpp                     ← mock/sim hardware interface
+│   └── include/studica_vmxpi_ros2/
+├── src/
+│   ├── topic_adapter_node.cpp             ← scan/IMU/Nav2 topic adapters
+│   └── patrol.cpp
+├── scripts/
+│   ├── create_profile.sh
+│   ├── validate_profiles.py
+│   ├── check_project.sh
+│   ├── install_git_hooks.sh
+│   └── motor_smoke_test.sh
+└── docs/
+    ├── ROS2_TRAINING.md
+    ├── PROFILE_AUTHORING.md
+    └── LAUNCH_MIGRATION.md
+```
+
+---
+
+## How It Works
+
+Runtime flow:
+
+1. Start from `bringup.launch.py` with `mode:=<gz_sim|hardware|mock>` and `robot_profile:=<name>`.
+2. The launch validates the selected profile (`robot_profile.yaml` + `robot_controllers.yaml`) before starting nodes.
+3. URDF is generated from Xacro (`description/urdf/robot.urdf.xacro`) using profile values and controller config.
+4. Mode-specific startup:
+   - `gz_sim` — starts Gazebo Sim, spawns the robot, bridges `/clock`, `/scan`, and simulated camera topics, relays `/scan_raw → /scan` with normalized frame ID.
+   - `hardware` — starts `ros2_control_node` with VMX/Titan hardware plugin (`vmx_system.cpp`), then controllers.
+   - `mock` — starts `ros2_control_node` without real hardware for software-only testing.
+5. Common control layer runs `joint_state_broadcaster`, `imu_sensor_broadcaster`, and the selected drive controller from profile.
+6. `topic_adapter_node` provides API compatibility:
+   - IMU alias: `/imu_sensor_broadcaster/imu → /imu` (with odom fallback in sim when needed).
+   - Nav2 bridge: `/cmd_vel (Twist) → /<drive_controller>/cmd_vel|reference (TwistStamped)` and odom aliasing.
+7. Optional features:
+   - LiDAR launch in hardware mode (`use_lidar:=true`).
+   - Camera launch in hardware mode (`use_camera:=true`).
+   - Joystick teleop (`use_joystick:=true`).
+   - Mapping and navigation launches include bringup then add SLAM/Nav2.
+
+Robot differences are encoded in profiles under `bringup/config/profiles/<profile_name>/`. Create a new profile, run `scripts/check_project.sh`, then launch with `robot_profile:=<new_profile>`.
+
+---
+
+## Launch Migration
+
+Use `bringup.launch.py` as the single entry point for new labs and robots.
+
+| Legacy command | Unified command |
+|---|---|
+| `robot_gz_sim.launch.py gui:=true use_gz_sim:=true` | `bringup.launch.py mode:=gz_sim gui:=true` |
+| `robot_gz_sim.launch.py use_hardware:=true use_gz_sim:=false` | `bringup.launch.py mode:=hardware` |
+| `robot_bringup.launch.py ...` | `bringup.launch.py mode:=<gz_sim\|hardware\|mock> ...` |
+
+Deprecation policy:
+- Since March 3, 2026, compatibility wrappers are read-only.
+- New features are added only to `bringup.launch.py`.
+- Wrapper removal not planned before January 1, 2027.
+- Migration examples: `docs/LAUNCH_MIGRATION.md`
+
+---
+
+## Profile Automation
+
+Create a new robot profile from template:
+
+```bash
+cd ~/ros2_ws/src/studica_vmxpi_ros2
+scripts/create_profile.sh my_robot_4wd
+```
+
+Validate all profiles locally:
+
+```bash
+python3 scripts/validate_profiles.py --profiles-dir bringup/config/profiles
+```
+
+Run the full local maintenance check (syntax + profile validation):
+
+```bash
+scripts/check_project.sh
+```
+
+Enable local pre-commit validation:
+
+```bash
+scripts/install_git_hooks.sh
+```
+
+When relevant launch or profile files are staged, pre-commit runs `scripts/check_project.sh` automatically. CI also validates profiles in `.github/workflows/profile-validation.yml`.
+
+---
+
+## Gazebo Sim Notes
+
+- Unified Gazebo Sim launch: `bringup.launch.py mode:=gz_sim`
+- Gazebo Sim Nav2 launches: `nav2_mapping_gz_sim.launch.py`, `nav2_navigation_gz_sim.launch.py`
+- Real robot Nav2 launch: `nav2_navigation_hw.launch.py`
+
+**Sensor topics in simulation:**
+
+| Topic | Message type |
+|---|---|
+| `/scan` | `sensor_msgs/LaserScan` |
+| `/imu` | `sensor_msgs/Imu` |
+| `/camera/color/image_raw` | `sensor_msgs/Image` |
+| `/camera/color/camera_info` | `sensor_msgs/CameraInfo` |
+| `/camera/depth/image_raw` | `sensor_msgs/Image` |
+| `/camera/depth/camera_info` | `sensor_msgs/CameraInfo` |
+
+---
+
+## System Architecture (Best Performance)
+
+Split workload across two machines for best stability:
+
+| Component | Run on | Why |
+|---|---|---|
+| `studica_drivers` + VMX hardware interfaces | Robot (VMX) | Direct hardware access, lowest latency |
+| `controller_manager` + controllers | Robot (VMX) | Keeps motor/IMU control loop local |
+| `ydlidar_ros2_driver` | Robot (VMX) | Serial capture stays local to `/dev/ttyUSB*` |
+| `orbbec_camera` | Robot (VMX) | USB capture stays local to robot USB bus |
+| TF publishers tied to sensors | Robot (VMX) | Robot frame tree stays synced with real sensors |
+| Teleop nodes, `rviz2` | Remote PC | Operator UI is not control-critical |
+| Nav2 planning / BT tools | Remote PC | CPU-heavy; offloading improves VMX performance |
+| SLAM (`slam_toolbox`) | Remote PC | Mapping load stays off the control path |
+| Debug tools (`rqt`, `ros2 bag`) | Remote PC | Prevents debug from stealing robot compute |
+
+Use the same ROS 2 networking settings on both hosts (`ROS_DOMAIN_ID`, `ROS_LOCALHOST_ONLY`, `RMW_IMPLEMENTATION`).
+
+---
+
+## Motor Smoke Test
+
+Validates motor control across `studica_drivers`, `studica_ros2_control`, and `studica_vmxpi_ros2`.
+
+> **Safety:** put the robot on blocks so wheels spin freely.
 
 ```bash
 sudo /home/vmx/ros2_ws/src/studica_vmxpi_ros2/scripts/motor_smoke_test.sh
 ```
 
-Optional: rebuild the 3 packages before testing:
+Rebuild all three packages before testing:
 
 ```bash
 sudo /home/vmx/ros2_ws/src/studica_vmxpi_ros2/scripts/motor_smoke_test.sh --build
@@ -1141,151 +906,184 @@ sudo /home/vmx/ros2_ws/src/studica_vmxpi_ros2/scripts/motor_smoke_test.sh --buil
 
 Logs are written to `/tmp/studica_motor_smoke_YYYYMMDD_HHMMSS/`.
 
+---
+
 ## Troubleshooting
 
-PC becomes very slow when running `mode:=gz_sim`:
+### PC is very slow when running `mode:=gz_sim`
 
-- Make sure only one Gazebo/bringup session is running:
-  `pkill -f "ros2 launch studica_vmxpi_ros2 bringup.launch.py"; pkill -f "gz sim"`
-- If logs show `RTPS_TRANSPORT_SHM Error ... open_and_lock_file failed`, clear stale FastDDS locks:
-  `rm -f /dev/shm/fastrtps_* /dev/shm/sem.fastrtps_*`
-- Use low-load sim settings (headless Gazebo + reduced sensor rates):
-  `ros2 launch studica_vmxpi_ros2 bringup.launch.py mode:=gz_sim robot_profile:=class_4wd gui:=true gz_headless:=true sim_camera_width:=320 sim_camera_height:=240 sim_camera_update_rate:=10.0 sim_lidar_samples:=120 sim_lidar_update_rate:=10.0 sim_lidar_visualize:=false sim_imu_update_rate:=50.0`
-- If you still need Gazebo GUI, keep `gz_headless:=false` but keep reduced sensor settings.
+- Ensure only one Gazebo session is running:
+  ```bash
+  pkill -f "ros2 launch studica_vmxpi_ros2 bringup.launch.py"; pkill -f "gz sim"
+  ```
+- Clear stale FastDDS shared-memory locks if you see `RTPS_TRANSPORT_SHM` errors:
+  ```bash
+  rm -f /dev/shm/fastrtps_* /dev/shm/sem.fastrtps_*
+  ```
+- Use low-load sim settings:
+  ```bash
+  ros2 launch studica_vmxpi_ros2 bringup.launch.py \
+    mode:=gz_sim world:=maze robot_profile:=class_4wd gui:=true \
+    gz_headless:=true \
+    sim_camera_width:=320 sim_camera_height:=240 sim_camera_update_rate:=10.0 \
+    sim_lidar_samples:=120 sim_lidar_update_rate:=10.0 sim_lidar_visualize:=false \
+    sim_imu_update_rate:=50.0
+  ```
 
-Teleop command runs but robot does not move:
+### Teleop runs but robot does not move
 
-- If launch is running as `root` and teleop runs as normal user, local DDS discovery may work but topic/service data can fail between users.
-- Avoid `sudo su` for launch. Prefer `sudo -E` so ROS environment is preserved.
-- Short-term workaround: run teleop as `sudo -E` (same user context as launch command).
-- Long-term fix: run bringup without `sudo` by granting required VMX/SPI/CAN permissions to the `vmx` user.
+- If launch runs as `root` and teleop as a normal user, DDS discovery may succeed but topic data can fail.
+- Avoid `sudo su`; prefer `sudo -E` so the ROS environment is preserved.
+- Short-term: run teleop as `sudo -E`. Long-term: grant VMX/SPI/CAN permissions to the `vmx` user.
 
-`No transform from [front_left_wheel] to [odom]` in RViz:
+### `No transform from [front_left_wheel] to [odom]` in RViz
 
-- This is usually a startup timing issue while controllers/TF are still activating.
-- Wait a few seconds after launch, or increase `rviz_start_delay`:
-  `ros2 launch studica_vmxpi_ros2 bringup.launch.py mode:=gz_sim robot_profile:=class_4wd rviz_start_delay:=14.0 gui:=true`
-- Verify controller spawner logs include:
-  `Configured and activated robot_base_controller` or
-  `spawner-fallback controllers active on /controller_manager`.
-- If needed, stop stale sim processes and relaunch cleanly:
-  `pkill -f "gz sim"; pkill -f "ros2 launch studica_vmxpi_ros2 bringup.launch.py"`
-- If RViz shows repeated `TF_OLD_DATA` warnings, ensure only one active ROS/Gazebo session per DDS domain.
-  Quick isolation test: launch in a different domain:
-  `ROS_DOMAIN_ID=66 ros2 launch studica_vmxpi_ros2 bringup.launch.py mode:=gz_sim robot_profile:=class_4wd gui:=true`
+- Usually a startup timing issue — wait a few seconds, or increase `rviz_start_delay`:
+  ```bash
+  ros2 launch studica_vmxpi_ros2 bringup.launch.py \
+    mode:=gz_sim robot_profile:=class_4wd rviz_start_delay:=14.0 gui:=true
+  ```
+- Verify controller spawner logs: `Configured and activated robot_base_controller`
+- Stop stale processes and relaunch:
+  ```bash
+  pkill -f "gz sim"; pkill -f "ros2 launch studica_vmxpi_ros2 bringup.launch.py"
+  ```
+- Isolate DDS domain if `TF_OLD_DATA` warnings repeat:
+  ```bash
+  ROS_DOMAIN_ID=66 ros2 launch studica_vmxpi_ros2 bringup.launch.py \
+    mode:=gz_sim robot_profile:=class_4wd gui:=true
+  ```
 
-Robot appears in Gazebo Sim, joystick is detected, but robot does not move:
+### Robot appears in Gazebo but does not move with joystick
 
-- Confirm joystick topic has non-zero values: `ros2 topic echo /joy --once`
-- Confirm controller input topic has both publisher and subscriber:
-  `ros2 topic info /robot_base_controller/cmd_vel`
-- Confirm command is accepted by controller:
-  `ros2 topic echo /robot_base_controller/cmd_vel_out --qos-durability transient_local --once`
-- If using a custom joystick launcher in sim, ensure stamped commands use a valid timestamp
-  (for example gamepad node `use_sim_time:=false` or non-zero header stamp).
+```bash
+# Check joystick topic has non-zero values
+ros2 topic echo /joy --once
 
-`librmw_cyclonedds_cpp.so` not found:
+# Check controller input topic has both publisher and subscriber
+ros2 topic info /robot_base_controller/cmd_vel
 
-- Install Cyclone DDS middleware: `sudo apt install ros-humble-rmw-cyclonedds-cpp`
-- Ensure both shells use the same RMW: `echo $RMW_IMPLEMENTATION` and `sudo -E bash -lc 'echo $RMW_IMPLEMENTATION'`
+# Check command is accepted
+ros2 topic echo /robot_base_controller/cmd_vel_out \
+  --qos-durability transient_local --once
+```
 
-`robot_base_controller` fails with `expected [double] got [integer]`:
+If using a custom joystick launcher in sim, ensure stamped commands use a valid timestamp (`use_sim_time:=false` in the gamepad node).
 
-Set these values as floats in the active profile controller file
-(`bringup/config/profiles/<profile>/robot_controllers.yaml`):
+### `librmw_cyclonedds_cpp.so` not found
 
-- `wheel_separation_multiplier: 1.0`
-- `left_wheel_radius_multiplier: 1.0`
-- `right_wheel_radius_multiplier: 1.0`
+```bash
+sudo apt install ros-humble-rmw-cyclonedds-cpp
+echo $RMW_IMPLEMENTATION
+sudo -E bash -lc 'echo $RMW_IMPLEMENTATION'
+```
 
-Map is not visible in RViz:
+### `robot_base_controller` fails with `expected [double] got [integer]`
 
-- Confirm `/map` is published.
+Set these as floats in `bringup/config/profiles/<profile>/robot_controllers.yaml`:
+
+```yaml
+wheel_separation_multiplier: 1.0
+left_wheel_radius_multiplier: 1.0
+right_wheel_radius_multiplier: 1.0
+```
+
+### Map not visible in RViz
+
 - Add a `Map` display on topic `/map` with `Reliable` + `Transient Local`.
 - Confirm lifecycle nodes are active: `/map_server`, `/amcl`.
 
-Map save fails with "Unable to open file":
+### Map save fails with "Unable to open file"
 
-- Create target folder first with `mkdir -p`.
+Run `mkdir -p <target_folder>` first.
 
-VMX crashes or reboots during `colcon build`:
-
-- Use a low-load build command:
+### VMX crashes or reboots during `colcon build`
 
 ```bash
-colcon build --executor sequential --parallel-workers 1 --cmake-args -DCMAKE_BUILD_PARALLEL_LEVEL=1
+# Use a low-parallel build
+colcon build --executor sequential --parallel-workers 1 \
+  --cmake-args -DCMAKE_BUILD_PARALLEL_LEVEL=1
 ```
 
-- Use a stable power source (official Raspberry Pi 5.1V/3A PSU recommended) and a good USB-C cable.
-- Disconnect high-current USB peripherals during build (for example depth cameras), or use a powered USB hub.
-- Increase swap to 4G on low-memory systems:
+Also:
+- Use a stable 5.1V/3A power supply and good USB-C cable.
+- Disconnect high-current USB peripherals during build.
+- Add active cooling.
+- Increase swap to 4 GB:
+  ```bash
+  sudo swapoff /swapfile
+  sudo fallocate -l 4G /swapfile
+  sudo chmod 600 /swapfile && sudo mkswap /swapfile && sudo swapon /swapfile
+  ```
+
+### Gazebo Sim launch fails with missing package errors
+
+Install:
+```bash
+sudo apt install -y \
+  ros-humble-gz-ros2-control \
+  ros-humble-ros-gzharmonic-sim \
+  ros-humble-ros-gzharmonic-bridge
+```
+
+### `nav2_mapping_gz_sim.launch.py` fails with `package 'slam_toolbox' not found`
 
 ```bash
-sudo swapoff /swapfile
-sudo fallocate -l 4G /swapfile
-sudo chmod 600 /swapfile
-sudo mkswap /swapfile
-sudo swapon /swapfile
+sudo apt install -y ros-humble-slam-toolbox ros-humble-navigation2 ros-humble-nav2-bringup
+source /opt/ros/humble/setup.bash
+source ~/ros2_ws/install/setup.bash
 ```
 
-- Add active cooling (fan/heatsink) to prevent thermal issues during long builds.
+### `/scan` is empty — bridge logs `Unknown message type [8]` or `[9]`
 
-Gazebo Sim launch fails with missing package errors:
+Mixed Gazebo bridge packages. Fix:
+- Use only Harmonic bridge packages (`ros-humble-ros-gzharmonic-*`).
+- Remove conflicting `ros-humble-ros-gz-*` bridge packages.
 
-- Install Gazebo Sim dependencies:
-- `ros-humble-gz-ros2-control`
-- `ros-humble-ros-gzharmonic-sim`
-- `ros-humble-ros-gzharmonic-bridge`
+Verify (should show `libgz-transport13`, not `libignition-transport11`):
 
-`nav2_mapping_gz_sim.launch.py` fails with `package 'slam_toolbox' not found`:
+```bash
+ldd /opt/ros/humble/lib/ros_gz_bridge/parameter_bridge | grep transport
+```
 
-- Install mapping/navigation packages:
-- `ros-humble-slam-toolbox`
-- `ros-humble-navigation2`
-- `ros-humble-nav2-bringup`
-- Re-source environment:
-- `source /opt/ros/humble/setup.bash`
-- `source ~/ros2_ws/install/setup.bash`
+### Gazebo Sim launch fails with `libgazebo_ros2_control.so` / `libgazebo_ros_*` errors
 
-`/scan` is empty and bridge logs `Unknown message type [8]` / `[9]`:
+Stale legacy Gazebo artifacts. Fix:
 
-- Cause: mixed Gazebo bridge packages (legacy `ros-humble-ros-gz-*` using ignition transport with Harmonic `gz sim` runtime).
-- Fix: use only Harmonic bridge packages (`ros-humble-ros-gzharmonic-*`) and remove conflicting `ros-humble-ros-gz-*` bridge packages.
-- Verify: `ldd /opt/ros/humble/lib/ros_gz_bridge/parameter_bridge | grep transport` should show `libgz-transport13`, not `libignition-transport11`.
+```bash
+rm -rf ~/ros2_ws/build/studica_vmxpi_ros2 ~/ros2_ws/install/studica_vmxpi_ros2
+cd ~/ros2_ws && colcon build --packages-select studica_vmxpi_ros2
+```
 
-Gazebo Sim launch fails with `libgazebo_ros2_control.so` / `libgazebo_ros_*` plugin errors:
+### Robot drives too slowly in simulation
 
-- Cause: stale legacy Gazebo artifacts in your overlay (old launch/world/plugin files from earlier revisions).
-- Fix:
-- Remove stale build/install outputs for this package, then rebuild:
-  - `rm -rf ~/ros2_ws/build/studica_vmxpi_ros2 ~/ros2_ws/install/studica_vmxpi_ros2`
-  - `cd ~/ros2_ws && colcon build --packages-select studica_vmxpi_ros2`
-- Use a Gazebo Sim `.sdf` world, for example:
-- `$(ros2 pkg prefix studica_vmxpi_ros2)/share/studica_vmxpi_ros2/description/gz/worlds/office_map.sdf`
+Check wheel joint velocity limits in `description/robot/urdf/robot_description.urdf.xacro`. Low values (e.g. `velocity="1.0"`) cap top speed.
 
-Robot drives too slowly in simulation:
+### IMU topic exists but no visible data
 
-- Check wheel joint velocity limits in `description/robot/urdf/robot_description.urdf.xacro`.
-- Low values (for example `velocity="1.0"`) strongly cap top speed.
+Use sensor QoS:
 
-IMU topic exists but no visible data in echo:
+```bash
+ros2 topic echo /imu --qos-profile sensor_data
+```
 
-- Use sensor QoS for echo:
-- Hardware mode (aliased from `imu_sensor_broadcaster`): `ros2 topic echo /imu --qos-profile sensor_data`
-- Gazebo Sim mode (relayed from `imu_sensor_broadcaster`): `ros2 topic echo /imu --qos-profile sensor_data`
+### Odometry is noisy or not smooth enough
 
-Odometry is noisy / not smooth enough:
+Increase rates and rolling window in `bringup/config/profiles/<profile>/robot_controllers.yaml`:
 
-- Increase controller update/publish rates and velocity rolling window in the active profile controller file
-  (`bringup/config/profiles/<profile>/robot_controllers.yaml`).
-- Current defaults are tuned for smoother sim odometry:
-  - `controller_manager.update_rate: 100`
-  - `robot_base_controller.publish_rate: 100.0`
-  - `robot_base_controller.velocity_rolling_window_size: 30`
+```yaml
+controller_manager:
+  update_rate: 100
+robot_base_controller:
+  publish_rate: 100.0
+  velocity_rolling_window_size: 30
+```
+
+---
 
 ## License
 
-This project is licensed under the Apache License, Version 2.0.
+Licensed under the Apache License, Version 2.0.
 
 - Full license text: `LICENSE`
 - Project notices/attribution: `NOTICE`

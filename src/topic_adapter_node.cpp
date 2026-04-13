@@ -152,7 +152,7 @@ private:
                 tf_input_topic_.c_str(), tf_output_topic_.c_str());
   }
 
-  void scanCallback(const sensor_msgs::msg::LaserScan::SharedPtr msg) {
+  void scanCallback(const sensor_msgs::msg::LaserScan::ConstSharedPtr msg) {
     sensor_msgs::msg::LaserScan out = *msg;
     out.header.frame_id = scan_output_frame_id_;
     scan_pub_->publish(out);
@@ -167,7 +167,7 @@ private:
            nz(msg.linear_acceleration.z);
   }
 
-  void imuCallback(const sensor_msgs::msg::Imu::SharedPtr msg) {
+  void imuCallback(const sensor_msgs::msg::Imu::ConstSharedPtr msg) {
     const bool has_signal = imuHasSignal(*msg);
     if (!has_signal && imu_use_odom_fallback_ && !imu_nonzero_seen_) {
       // Suppress all-zero IMU samples until a real IMU signal appears.
@@ -177,7 +177,7 @@ private:
     imu_pub_->publish(*msg);
   }
 
-  void imuOdomFallbackCallback(const nav_msgs::msg::Odometry::SharedPtr msg) {
+  void imuOdomFallbackCallback(const nav_msgs::msg::Odometry::ConstSharedPtr msg) {
     if (!imu_use_odom_fallback_ || imu_nonzero_seen_) {
       return;
     }
@@ -202,7 +202,7 @@ private:
     imu_pub_->publish(imu_msg);
   }
 
-  void nav2CmdVelCallback(const geometry_msgs::msg::Twist::SharedPtr msg) {
+  void nav2CmdVelCallback(const geometry_msgs::msg::Twist::ConstSharedPtr msg) {
     geometry_msgs::msg::TwistStamped stamped;
     stamped.header.stamp = this->now();
     stamped.header.frame_id = nav2_cmd_vel_frame_id_;
@@ -210,11 +210,11 @@ private:
     nav2_cmd_vel_pub_->publish(stamped);
   }
 
-  void nav2OdomCallback(const nav_msgs::msg::Odometry::SharedPtr msg) {
+  void nav2OdomCallback(const nav_msgs::msg::Odometry::ConstSharedPtr msg) {
     nav2_odom_pub_->publish(*msg);
   }
 
-  void tfCallback(const tf2_msgs::msg::TFMessage::SharedPtr msg) {
+  void tfCallback(const tf2_msgs::msg::TFMessage::ConstSharedPtr msg) {
     tf_pub_->publish(*msg);
   }
 

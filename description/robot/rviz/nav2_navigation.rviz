@@ -70,21 +70,34 @@ Visualization Manager:
           Alpha: 1
           Show Axes: false
           Show Trail: false
-        caster_frontal_wheel:
+        camera_link:
           Alpha: 1
           Show Axes: false
           Show Trail: false
           Value: true
-        caster_rear_wheel:
+        camera_optical_frame:
           Alpha: 1
           Show Axes: false
           Show Trail: false
-          Value: true
         chassis_link:
           Alpha: 1
           Show Axes: false
           Show Trail: false
           Value: true
+        front_left_wheel:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+          Value: true
+        front_right_wheel:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+          Value: true
+        imu_link:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
         laser_model_link:
           Alpha: 1
           Show Axes: false
@@ -94,12 +107,12 @@ Visualization Manager:
           Alpha: 1
           Show Axes: false
           Show Trail: false
-        left_wheel:
+        rear_left_wheel:
           Alpha: 1
           Show Axes: false
           Show Trail: false
           Value: true
-        right_wheel:
+        rear_right_wheel:
           Alpha: 1
           Show Axes: false
           Show Trail: false
@@ -121,43 +134,57 @@ Visualization Manager:
           Value: true
         base_link:
           Value: true
-        caster_frontal_wheel:
+        camera_link:
           Value: true
-        caster_rear_wheel:
+        camera_optical_frame:
           Value: true
         chassis_link:
+          Value: true
+        front_left_wheel:
+          Value: true
+        front_right_wheel:
+          Value: true
+        imu_link:
           Value: true
         laser_model_link:
           Value: true
         laser_scan_frame:
           Value: true
-        left_wheel:
+        map:
           Value: true
         odom:
           Value: true
-        right_wheel:
+        rear_left_wheel:
           Value: true
-      Marker Scale: 0.1
+        rear_right_wheel:
+          Value: true
+      Marker Scale: 0.10000000149011612
       Name: TF
       Show Arrows: true
       Show Axes: true
       Show Names: true
       Tree:
-        odom:
-          base_footprint:
-            base_link:
-              chassis_link:
-                caster_frontal_wheel:
-                  {}
-                caster_rear_wheel:
-                  {}
-                laser_model_link:
-                  laser_scan_frame:
+        map:
+          odom:
+            base_footprint:
+              base_link:
+                chassis_link:
+                  camera_link:
+                    camera_optical_frame:
+                      {}
+                  front_left_wheel:
                     {}
-                left_wheel:
-                  {}
-                right_wheel:
-                  {}
+                  front_right_wheel:
+                    {}
+                  imu_link:
+                    {}
+                  laser_model_link:
+                    laser_scan_frame:
+                      {}
+                  rear_left_wheel:
+                    {}
+                  rear_right_wheel:
+                    {}
       Update Interval: 0
       Value: true
     - Alpha: 1
@@ -175,14 +202,14 @@ Visualization Manager:
       Enabled: true
       Invert Rainbow: false
       Max Color: 255; 255; 255
-      Max Intensity: -999999
+      Max Intensity: 0
       Min Color: 0; 0; 0
-      Min Intensity: 999999
+      Min Intensity: 0
       Name: LaserScan
       Position Transformer: XYZ
       Selectable: true
       Size (Pixels): 1
-      Size (m): 0.02
+      Size (m): 0.019999999552965164
       Style: Flat Squares
       Topic:
         Depth: 5
@@ -261,25 +288,25 @@ Visualization Manager:
   Views:
     Current:
       Class: rviz_default_plugins/Orbit
-      Distance: 12.661901473999023
+      Distance: 11.9481782913208
       Enable Stereo Rendering:
         Stereo Eye Separation: 0.05999999865889549
         Stereo Focal Distance: 1
         Swap Stereo Eyes: false
         Value: false
       Focal Point:
-        X: 0.10514529049396515
-        Y: 0.23984378576278687
-        Z: 0.03632545843720436
+        X: -1.0560308694839478
+        Y: 0.6448707580566406
+        Z: -0.062201645225286484
       Focal Shape Fixed Size: true
       Focal Shape Size: 0.05000000074505806
       Invert Z Axis: false
       Name: Current View
       Near Clip Distance: 0.009999999776482582
-      Pitch: 1.0853980779647827
+      Pitch: 1.2053979635238647
       Target Frame: <Fixed Frame>
       Value: Orbit (rviz)
-      Yaw: 1.570396900177002
+      Yaw: 3.1403980255126953
     Saved: ~
 Window Geometry:
   Displays:
@@ -295,5 +322,5 @@ Window Geometry:
   Views:
     collapsed: false
   Width: 1850
-  X: 1540
-  Y: 229
+  X: 733
+  Y: 139

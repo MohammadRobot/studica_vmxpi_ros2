@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef VMXPI_ROS2_TITAN_HPP_
-#define VMXPI_ROS2_TITAN_HPP_
+#ifndef STUDICA_VMXPI_ROS2__VMX_SYSTEM_HPP_
+#define STUDICA_VMXPI_ROS2__VMX_SYSTEM_HPP_
 
 #include <cstdint>
 #include <memory>
@@ -94,7 +94,7 @@ private:
   double dist_per_tick_{0.0};
   double speed_scale_{1.0};
   double max_wheel_angular_velocity_rad_s_{20.0};
-  bool is_holonomic_layout_{false};
+  bool is_independent_motor_layout_{false};
 
   int left_front_motor_{-1};
   int left_rear_motor_{-1};
@@ -127,4 +127,4 @@ private:
 
 }  // namespace studica_vmxpi_ros2
 
-#endif  // VMXPI_ROS2_TITAN_HPP_
+#endif  // STUDICA_VMXPI_ROS2__VMX_SYSTEM_HPP_
