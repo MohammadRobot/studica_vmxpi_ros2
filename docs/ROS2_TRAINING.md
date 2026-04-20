@@ -358,7 +358,7 @@ ros2 launch studica_vmxpi_ros2 bringup.launch.py mode:=hardware robot_profile:=c
 ```
 
 Default hardware sensor behavior in this repo:
-- LiDAR auto-start enabled (`use_lidar:=true`) with default TMini parameters (`ydlidar_ros2_driver/params/Tmini.yaml`).
+- LiDAR auto-start enabled (`use_lidar:=true`) with default model from profile `hardware.lidar_type` (fallback: TMini).
 - Orbbec auto-start enabled (`use_camera:=true`) with default launch `gemini_e.launch.py`.
 - Additional camera TF from this package is disabled by default (`publish_camera_tf:=false`) to avoid duplicate static TF with `gemini_e.launch.py`.
 

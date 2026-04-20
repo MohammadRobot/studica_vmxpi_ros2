@@ -134,3 +134,21 @@ def _profile_camera_tf_base_link(profile_name: str):
         "pitch": f"{cam_pitch:.6f}",
         "yaw": f"{cam_yaw:.6f}",
     }
+
+
+def _profile_lidar_type(profile_name: str, default: str = "tmini") -> str:
+    """Resolve optional hardware.lidar_type from robot profile (fallback to default)."""
+    profile_file, _ = _profile_assets(profile_name)
+    with open(profile_file, "r", encoding="utf-8") as stream:
+        profile_data = yaml.safe_load(stream) or {}
+
+    hw_cfg = profile_data.get("hardware")
+    if not isinstance(hw_cfg, dict):
+        return default
+
+    lidar_type = hw_cfg.get("lidar_type")
+    if lidar_type is None:
+        return default
+
+    value = str(lidar_type).strip()
+    return value if value else default

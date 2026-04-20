@@ -22,3 +22,7 @@ ros2 launch studica_vmxpi_ros2 bringup.launch.py mode:=gz_sim robot_profile:=my_
 - `wheel_layout`: `diff`, `diff_4wd`, `mecanum`, or `omni`
 - `controller_name`: must match a top-level controller key in `robot_controllers.yaml`
 - `controller_type`: `diff_drive_controller/DiffDriveController` or `mecanum_drive_controller/MecanumDriveController`
+
+`robot_profile.yaml` `hardware` section can also include:
+
+- `lidar_type`: default YDLIDAR preset used in hardware mode when launch arg `lidar_type` is not provided.

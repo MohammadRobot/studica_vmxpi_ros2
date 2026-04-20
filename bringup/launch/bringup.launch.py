@@ -45,6 +45,7 @@ def _declare_arg(name: str, default_value, description: str = ""):
 
 def _runtime_actions(context, *args, **kwargs):
     """Resolve runtime mode and forward normalized arguments to the selected launch."""
+    from _launch_helpers import _profile_lidar_type
     from profile_validation import drive_topics, validate_profile_for_launch
 
     mode = LaunchConfiguration("mode").perform(context).strip().lower()
@@ -72,7 +73,7 @@ def _runtime_actions(context, *args, **kwargs):
     sim_lidar_update_rate = LaunchConfiguration("sim_lidar_update_rate").perform(context)
     sim_lidar_visualize = LaunchConfiguration("sim_lidar_visualize").perform(context)
     sim_imu_update_rate = LaunchConfiguration("sim_imu_update_rate").perform(context)
-    lidar_type = LaunchConfiguration("lidar_type").perform(context)
+    lidar_type = LaunchConfiguration("lidar_type").perform(context).strip()
     ydlidar_params_file = LaunchConfiguration("ydlidar_params_file").perform(context)
     orbbec_launch_file = LaunchConfiguration("orbbec_launch_file").perform(context)
     orbbec_camera_name = LaunchConfiguration("orbbec_camera_name").perform(context)
@@ -114,6 +115,8 @@ def _runtime_actions(context, *args, **kwargs):
     drive_cmd_topic, drive_odom_topic = drive_topics(
         drive_controller_name, drive_controller_type
     )
+    if not lidar_type:
+        lidar_type = _profile_lidar_type(robot_profile, default="tmini")
     if not world:
         world = os.path.join(pkg_share, "description", "gz", "worlds", "diff_drive_world.sdf")
     elif world in _KNOWN_WORLDS:
@@ -333,8 +336,10 @@ def generate_launch_description():
             ),
             _declare_arg(
                 "lidar_type",
-                "tmini",
-                "YDLIDAR model preset (hardware mode only). Ignored if ydlidar_params_file is set.",
+                "",
+                "YDLIDAR model preset (hardware mode only). Leave empty to use "
+                "robot_profile hardware.lidar_type (fallback: tmini). Ignored if "
+                "ydlidar_params_file is set.",
             ),
             _declare_arg(
                 "ydlidar_params_file",

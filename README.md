@@ -18,6 +18,8 @@ Supports 2WD, 4WD, Mecanum, and Omni robot configurations with a unified launch 
 7. [Mapping (SLAM)](#mapping-slam)
 8. [Navigation (Nav2)](#navigation-nav2)
 9. [Hardware — Real Robot](#hardware--real-robot)
+   - [VMXPi hardware and remote PC RViz (recommended)](#vmxpi-hardware-and-remote-pc-rviz-recommended)
+   - [Recommended workflow: configure, calibrate, and visualize](#recommended-workflow-configure-calibrate-and-visualize)
    - [Raspberry Pi USB buffer](#raspberry-pi-usb-buffer-persistent)
    - [Raspberry Pi performance tuning](#raspberry-pi-4-performance-tuning)
 10. [Remote Control](#remote-control)
@@ -439,6 +441,40 @@ ros2 launch studica_vmxpi_ros2 bringup.launch.py \
 
 If you run as `root` persistently, add the same environment lines to `/root/.bashrc`.
 
+### VMXPi hardware and remote PC RViz (recommended)
+
+If the VMXPi cannot open RViz reliably, use a split setup:
+
+1. Run hardware bringup on VMXPi (root, no GUI):
+
+```bash
+sudo -E bash -lc '
+cd /home/vmx/ros2_ws
+source /opt/ros/humble/setup.bash
+source install/setup.bash
+export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/usr/local/lib/vmxpi
+ros2 launch studica_vmxpi_ros2 bringup.launch.py \
+  mode:=hardware robot_profile:=class_4wd gui:=false
+'
+```
+
+2. Run RViz and operator tools on remote PC (non-root):
+
+```bash
+source ~/.bashrc
+source ~/ros2_ws/install/setup.bash
+ros2 topic list | grep -E "^/tf$|^/odom$|^/scan$|^/imu$"
+rviz2 -d ~/ros2_ws/src/studica_vmxpi_ros2/description/robot/rviz/robot.rviz
+```
+
+For navigation visualization, use:
+
+```bash
+rviz2 -d ~/ros2_ws/src/studica_vmxpi_ros2/description/robot/rviz/nav2_navigation.rviz
+```
+
+Keep `ROS_DOMAIN_ID`, `ROS_LOCALHOST_ONLY`, and `RMW_IMPLEMENTATION` the same on both hosts.
+
 ### Disable auto-start for LiDAR or camera
 
 ```bash
@@ -447,6 +483,13 @@ ros2 launch studica_vmxpi_ros2 bringup.launch.py \
 ```
 
 ### YDLIDAR options
+
+Default behavior in hardware mode:
+
+- If launch arg `lidar_type` is set, that value is used.
+- If launch arg `lidar_type` is empty, launch uses `hardware.lidar_type` from `robot_profile.yaml`.
+- If `hardware.lidar_type` is not set, fallback is `tmini`.
+- `ydlidar_params_file` overrides `lidar_type`.
 
 Use a model preset:
 
@@ -501,6 +544,8 @@ ros2 launch studica_vmxpi_ros2 bringup.launch.py \
 
 ### Known-good hardware checklist
 
+> Hardware sensor testing may require root on default VMXPi setups. Prefer `sudo -E` so ROS environment variables are preserved.
+
 1. Build and source YDLIDAR driver:
 
 ```bash
@@ -523,14 +568,27 @@ source ~/ros2_ws/install/setup.bash
 3. Optional standalone sensor checks:
 
 ```bash
+sudo -E bash -lc '
+source /opt/ros/humble/setup.bash
+source ~/ros2_ws/install/setup.bash
 ros2 launch ydlidar_ros2_driver ydlidar_tmini.launch.py
+'
+
+sudo -E bash -lc '
+source /opt/ros/humble/setup.bash
+source ~/ros2_ws/install/setup.bash
 ros2 launch orbbec_camera gemini_e.launch.py
+'
 ```
 
 4. Launch integrated hardware stack:
 
 ```bash
+sudo -E bash -lc '
+source /opt/ros/humble/setup.bash
+source ~/ros2_ws/install/setup.bash
 ros2 launch studica_vmxpi_ros2 bringup.launch.py mode:=hardware
+'
 ```
 
 5. Verify topics and controllers:
@@ -559,6 +617,64 @@ ros2 topic echo /imu --qos-profile sensor_data --once
 # Odometry
 ros2 topic echo /odom --once
 ```
+
+### Recommended workflow: configure, calibrate, and visualize
+
+Use this sequence for reliable bringup and repeatable tuning on real hardware.
+
+1. Configure one source of truth for drive + IMU:
+   - Start from profile files:
+     - `bringup/config/profiles/<profile>/robot_profile.yaml`
+     - `bringup/config/profiles/<profile>/robot_controllers.yaml`
+   - For this repo's classroom profile:
+     - `bringup/config/profiles/class_4wd/robot_profile.yaml`
+     - `bringup/config/profiles/class_4wd/robot_controllers.yaml`
+   - Launch hardware stack:
+     ```bash
+     sudo -E bash -lc '
+     source /opt/ros/humble/setup.bash
+     source ~/ros2_ws/install/setup.bash
+     ros2 launch studica_vmxpi_ros2 bringup.launch.py \
+       mode:=hardware robot_profile:=class_4wd gui:=false
+     '
+     ```
+   - If you also run `studica_ros2_control` sensor nodes, use `config/params_sensors.yaml` or
+     `config/params_imu.yaml` carefully to avoid duplicate motor/IMU publishers.
+
+2. Calibrate in fixed order (safest and fastest):
+   - Put robot on blocks, then run motor smoke test:
+     ```bash
+     sudo /home/vmx/ros2_ws/src/studica_vmxpi_ros2/scripts/motor_smoke_test.sh
+     ```
+   - Tune in this order:
+     - Motor and encoder polarity (`invert_*_motor`, `invert_*_encoder`)
+     - Geometry (`wheel_radius`, `wheel_separation`)
+     - Motion limits and smoothing (`publish_rate`, `velocity_rolling_window_size`)
+     - IMU covariance values in `imu_sensor_broadcaster`
+   - Validate each iteration:
+     ```bash
+     ros2 control list_controllers
+     ros2 topic hz /imu
+     ros2 topic echo /imu --qos-profile sensor_data --once
+     ros2 topic echo /odom --once
+     ```
+
+3. Visualize in RViz (and use plotting tools for non-RViz data):
+   - For bringup/sensors:
+     - Use `description/robot/rviz/robot.rviz` (`Fixed Frame: odom`)
+   - For navigation:
+     - Use `description/robot/rviz/nav2_navigation.rviz` (`Fixed Frame: map`)
+   - Recommended RViz displays:
+     - `RobotModel`, `TF`, `LaserScan (/scan)`, `Odometry (/odom)`
+     - `Map` on `/map` for Nav2/SLAM (Reliable + Transient Local)
+     - `Range` displays for ultrasonic/IR topics (for example `/ultrasonic_range1`, `/ir_range1`)
+   - For motor raw arrays like `/titan_encoders` (`std_msgs/Float32MultiArray`), use `rqt_plot` or
+     PlotJuggler instead of RViz.
+
+4. Keep wheel radius values consistent:
+   - Odometry quality depends on matching wheel-radius values across profile/controller/URDF paths.
+   - In `class_4wd`, `xacro.wheel_radius` and controller `wheel_radius` are `0.0625` while
+     `hardware.wheel_radius` is `0.05`. Align these to your measured physical wheel radius.
 
 ### Raspberry Pi USB buffer (persistent)
 

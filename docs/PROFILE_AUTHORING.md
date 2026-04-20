@@ -54,7 +54,9 @@ Set physical and hardware values:
   - `controller_type`:
     - `diff_drive_controller/DiffDriveController` for `wheel_layout: diff` or `wheel_layout: diff_4wd`
     - `mecanum_drive_controller/MecanumDriveController` for `wheel_layout: mecanum` or `wheel_layout: omni`
-- `hardware.*`: CAN ID, motor frequency, encoder ticks, wheel radius, speed scaling.
+- `hardware.*`: CAN ID, motor frequency, encoder ticks, wheel radius, speed scaling, and optional LiDAR model default.
+  - `hardware.lidar_type` (optional): default YDLIDAR preset for hardware mode (for example `tmini`, `x2`, `x4`, `g4`, `gs2`, `sdm15`).
+  - Launch-arg `lidar_type:=...` still overrides the profile value.
 - Motor index mapping:
   - Valid values are `0..3` for active motors.
   - Use `-1` for an unused motor slot.

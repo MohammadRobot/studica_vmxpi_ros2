@@ -29,6 +29,7 @@ hardware:
   motor_freq: 15600
   ticks_per_rotation: 1464
   wheel_radius: 0.05
+  lidar_type: x2
   speed_scale: 0.5
   max_wheel_angular_velocity_rad_s: 20.0
 

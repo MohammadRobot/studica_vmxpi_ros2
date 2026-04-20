@@ -232,6 +232,12 @@ def validate_profile_files(
             errors.append(
                 f"{profile_name}: {profile_path} hardware key '{key}' must be bool"
             )
+    if "lidar_type" in hw_cfg:
+        lidar_type = hw_cfg["lidar_type"]
+        if not isinstance(lidar_type, str) or not lidar_type.strip():
+            errors.append(
+                f"{profile_name}: {profile_path} hardware key 'lidar_type' must be a non-empty string"
+            )
 
     if errors:
         return errors, drive_controller_name, drive_controller_type, drive_wheel_layout

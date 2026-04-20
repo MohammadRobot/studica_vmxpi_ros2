@@ -71,8 +71,11 @@ def generate_launch_description():
         ),
         DeclareLaunchArgument(
             "lidar_type",
-            default_value="tmini",
-            description="YDLIDAR model preset (example: tmini, x4, g4, gs2, sdm15).",
+            default_value="",
+            description=(
+                "YDLIDAR model preset (example: tmini, x4, g4, gs2, sdm15). "
+                "Leave empty to use robot_profile hardware.lidar_type."
+            ),
         ),
         DeclareLaunchArgument(
             "ydlidar_params_file",
