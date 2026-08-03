@@ -48,7 +48,7 @@ Use these docs in order for classroom/lab onboarding:
 
 ## Dependencies
 
-### Core runtime + Gazebo Sim
+### Core ROS runtime
 
 ```bash
 sudo apt install -y \
@@ -61,9 +61,6 @@ sudo apt install -y \
   ros-humble-mecanum-drive-controller \
   ros-humble-imu-sensor-broadcaster \
   ros-humble-joint-state-broadcaster \
-  ros-humble-gz-ros2-control \
-  ros-humble-ros-gzharmonic-sim \
-  ros-humble-ros-gzharmonic-bridge \
   ros-humble-xacro \
   ros-humble-robot-state-publisher \
   ros-humble-joint-state-publisher-gui \
@@ -76,6 +73,27 @@ sudo apt install -y \
   python3-yaml
 ```
 
+### Gazebo Sim
+
+For the default ROS 2 Humble Gazebo pairing, use the ROS apt packages:
+
+```bash
+sudo apt install -y \
+  ros-humble-gz-ros2-control \
+  ros-humble-ros-gz-sim \
+  ros-humble-ros-gz-bridge
+```
+
+For ROS 2 Humble with Gazebo Harmonic, use the OSRF Gazebo repository packages:
+
+```bash
+sudo apt install -y gz-harmonic ros-humble-ros-gzharmonic
+```
+
+Then build `gz_ros2_control` from source as shown in [Gazebo Harmonic overlay](#gazebo-harmonic-overlay-humble--harmonic-only).
+
+> `ros-humble-ros-gzharmonic-sim` and `ros-humble-ros-gzharmonic-bridge` are not valid package names. Harmonic uses the meta-package `ros-humble-ros-gzharmonic`.
+
 ### Mapping and navigation
 
 Required for `nav2_mapping_gz_sim.launch.py` and `nav2_navigation_gz_sim.launch.py`:
@@ -87,10 +105,19 @@ sudo apt install -y \
   ros-humble-slam-toolbox
 ```
 
-Or install the full Gazebo Harmonic meta-package:
+### Camera packages
 
 ```bash
-sudo apt install -y ros-humble-ros-gzharmonic
+sudo apt install -y \
+  ros-humble-cv-bridge \
+  ros-humble-image-transport \
+  ros-humble-camera-calibration-parsers \
+  ros-humble-camera-info-manager \
+  ros-humble-image-publisher \
+  libgflags-dev \
+  nlohmann-json3-dev \
+  libgoogle-glog-dev \
+  libdw-dev
 ```
 
 ### Source dependencies
@@ -101,15 +128,18 @@ Clone into the same workspace:
 cd ~/ros2_ws/src
 git clone https://github.com/MohammadRobot/studica_drivers.git
 git clone https://github.com/MohammadRobot/studica_ros2_control.git
+git clone https://github.com/YDLIDAR/YDLidar-SDK.git
 git clone https://github.com/MohammadRobot/ydlidar_ros2_driver.git
 git clone https://github.com/MohammadRobot/OrbbecSDK_ROS2.git
 ```
+
+`ydlidar_ros2_driver` requires `YDLidar-SDK`; without it, CMake fails while looking for `ydlidar_sdkConfig.cmake`.
 
 ---
 
 ## Build
 
-### Gazebo Harmonic overlay (required for ROS 2 Humble)
+### Gazebo Harmonic overlay (Humble + Harmonic only)
 
 `gz_ros2_control` for Harmonic must be built from source:
 
@@ -131,33 +161,53 @@ ros2 pkg prefix gz_ros2_control
 # Expected: /home/<user>/ros2_ws/install/gz_ros2_control
 ```
 
-### Main build
+### Full workspace build
 
 ```bash
 cd ~/ros2_ws
+source /opt/ros/humble/setup.bash
+colcon build --event-handlers console_direct+
+source install/setup.bash
+```
+
+### Core robot-only build
+
+Use this when you do not need camera packages:
+
+```bash
+cd ~/ros2_ws
+source /opt/ros/humble/setup.bash
 colcon build --packages-select studica_drivers studica_ros2_control studica_vmxpi_ros2
 source install/setup.bash
 ```
 
-### Optional: LiDAR driver (for hardware stability)
+If `studica_drivers` cannot find the VMXPi headers/library, the workspace still builds, but only simulation/mock and non-VMX nodes are available. The build will print:
+
+```text
+studica_drivers built without VMXPi support. Skipping hardware interface.
+```
+
+Install the VMXPi vendor SDK/headers on the robot host to enable the real hardware interface.
+
+### LiDAR driver
 
 ```bash
 cd ~/ros2_ws
-colcon build --packages-select ydlidar_ros2_driver \
-  --allow-overriding ydlidar_ros2_driver --symlink-install
+source /opt/ros/humble/setup.bash
+colcon build --packages-up-to ydlidar_ros2_driver --event-handlers console_direct+
 source install/setup.bash
 ```
 
-### Optional: Camera packages (Release build required)
+### Camera packages
 
 ```bash
 cd ~/ros2_ws
-colcon build \
-  --packages-select orbbec_camera orbbec_camera_msgs orbbec_description \
-  --event-handlers console_direct+ \
-  --cmake-args -DCMAKE_BUILD_TYPE=Release
+source /opt/ros/humble/setup.bash
+colcon build --packages-up-to orbbec_camera --event-handlers console_direct+
 source install/setup.bash
 ```
+
+If `camera_info_manager`, `camera_calibration_parsers`, or `image_publisher` are unavailable and you cannot use `sudo`, extract the matching ROS debs into a local underlay outside the source tree or under an ignored directory such as `local_deps/` with a `COLCON_IGNORE` marker.
 
 > **Conda users:** make sure `colcon` resolves to system Python, or install missing ROS Python deps (e.g. `catkin_pkg`) in the active Conda env.
 
@@ -169,8 +219,10 @@ source install/setup.bash
 
 ```bash
 cd ~/ros2_ws
-colcon build --packages-select ydlidar_ros2_driver studica_drivers studica_ros2_control studica_vmxpi_ros2
 source /opt/ros/humble/setup.bash
+colcon build \
+  --packages-up-to ydlidar_ros2_driver studica_drivers studica_ros2_control studica_vmxpi_ros2 \
+  --event-handlers console_direct+
 source ~/ros2_ws/install/setup.bash
 ```
 
@@ -201,7 +253,8 @@ Install Nav2 + SLAM if not already installed:
 
 ```bash
 sudo apt install -y ros-humble-slam-toolbox ros-humble-navigation2 ros-humble-nav2-bringup
-source /opt/ros/humble/setup.bash && source ~/ros2_ws/install/setup.bash
+source /opt/ros/humble/setup.bash
+source ~/ros2_ws/install/setup.bash
 ```
 
 Launch mapping:
@@ -550,8 +603,8 @@ ros2 launch studica_vmxpi_ros2 bringup.launch.py \
 
 ```bash
 cd ~/ros2_ws
-colcon build --packages-select ydlidar_ros2_driver \
-  --allow-overriding ydlidar_ros2_driver --symlink-install
+source /opt/ros/humble/setup.bash
+colcon build --packages-up-to ydlidar_ros2_driver --event-handlers console_direct+
 source ~/ros2_ws/install/setup.bash
 ```
 
@@ -559,8 +612,8 @@ source ~/ros2_ws/install/setup.bash
 
 ```bash
 cd ~/ros2_ws
-colcon build \
-  --packages-select orbbec_camera orbbec_camera_msgs orbbec_description \
+source /opt/ros/humble/setup.bash
+colcon build --packages-up-to orbbec_camera \
   --event-handlers console_direct+ --cmake-args -DCMAKE_BUILD_TYPE=Release
 source ~/ros2_ws/install/setup.bash
 ```
@@ -1134,13 +1187,24 @@ Also:
 
 ### Gazebo Sim launch fails with missing package errors
 
-Install:
+For the default ROS 2 Humble Gazebo stack, install:
+
 ```bash
 sudo apt install -y \
   ros-humble-gz-ros2-control \
-  ros-humble-ros-gzharmonic-sim \
-  ros-humble-ros-gzharmonic-bridge
+  ros-humble-ros-gz-sim \
+  ros-humble-ros-gz-bridge
 ```
+
+For ROS 2 Humble with Gazebo Harmonic, install the Harmonic meta-package:
+
+```bash
+sudo apt install -y gz-harmonic ros-humble-ros-gzharmonic
+```
+
+Then build `gz_ros2_control` from source; see [Gazebo Harmonic overlay](#gazebo-harmonic-overlay-humble--harmonic-only).
+
+`ros-humble-ros-gzharmonic-sim` and `ros-humble-ros-gzharmonic-bridge` are not valid package names.
 
 ### `nav2_mapping_gz_sim.launch.py` fails with `package 'slam_toolbox' not found`
 
@@ -1150,13 +1214,40 @@ source /opt/ros/humble/setup.bash
 source ~/ros2_ws/install/setup.bash
 ```
 
+### Orbbec camera build fails with missing CMake packages
+
+If `orbbec_camera` fails while looking for `camera_info_managerConfig.cmake`, `camera_calibration_parsers`, or `image_publisher`, install:
+
+```bash
+sudo apt install -y \
+  ros-humble-cv-bridge \
+  ros-humble-image-transport \
+  ros-humble-camera-calibration-parsers \
+  ros-humble-camera-info-manager \
+  ros-humble-image-publisher \
+  libgflags-dev \
+  nlohmann-json3-dev \
+  libgoogle-glog-dev \
+  libdw-dev
+```
+
+If `sudo` is unavailable, extract the matching debs into an ignored local underlay such as `~/ros2_ws/local_deps/ros_humble/opt/ros/humble`, add `~/ros2_ws/local_deps/COLCON_IGNORE`, then build with that prefix available:
+
+```bash
+export CMAKE_PREFIX_PATH=$HOME/ros2_ws/local_deps/ros_humble/opt/ros/humble:$CMAKE_PREFIX_PATH
+export AMENT_PREFIX_PATH=$HOME/ros2_ws/local_deps/ros_humble/opt/ros/humble:$AMENT_PREFIX_PATH
+colcon build --packages-up-to orbbec_camera --event-handlers console_direct+
+```
+
 ### `/scan` is empty — bridge logs `Unknown message type [8]` or `[9]`
 
-Mixed Gazebo bridge packages. Fix:
-- Use only Harmonic bridge packages (`ros-humble-ros-gzharmonic-*`).
-- Remove conflicting `ros-humble-ros-gz-*` bridge packages.
+This usually means the bridge and simulator are from different Gazebo generations.
 
-Verify (should show `libgz-transport13`, not `libignition-transport11`):
+- Default Humble stack: use `ros-humble-ros-gz-sim` and `ros-humble-ros-gz-bridge`.
+- Humble + Harmonic: use `gz-harmonic` and `ros-humble-ros-gzharmonic`.
+- Do not look for split packages named `ros-humble-ros-gzharmonic-sim` or `ros-humble-ros-gzharmonic-bridge`; they do not exist.
+
+Verify the bridge links against the expected transport library:
 
 ```bash
 ldd /opt/ros/humble/lib/ros_gz_bridge/parameter_bridge | grep transport

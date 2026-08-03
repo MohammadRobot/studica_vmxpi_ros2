@@ -617,6 +617,11 @@ def generate_launch_description():
 
     nodes = [
         SetEnvironmentVariable("LD_LIBRARY_PATH", sanitized_ld_library_path),
+        # Fix Gazebo Harmonic blank 3D viewport on NVIDIA GPUs: default FBO/PBO render-to-texture
+        # mode fails silently; Copy mode works reliably across driver versions.
+        SetEnvironmentVariable("OGRE_RTT_MODE", "Copy"),
+        # Ensure Qt uses X11 backend (prevents blank viewport when WAYLAND_DISPLAY is unset).
+        SetEnvironmentVariable("QT_QPA_PLATFORM", "xcb"),
         LogInfo(msg=["Robot profile: ", robot_profile]),
         OpaqueFunction(function=_maybe_include_gz_sim),
         OpaqueFunction(function=_maybe_add_gz_sim_runtime_nodes),

@@ -6,6 +6,7 @@ import math
 import os
 import shlex
 import sys
+import xml.etree.ElementTree as ET
 from pathlib import Path
 
 _THIS_DIR = Path(__file__).resolve().parent
@@ -13,6 +14,18 @@ if str(_THIS_DIR) not in sys.path:
     sys.path.insert(0, str(_THIS_DIR))
 
 from _launch_helpers import _is_true, _profile_assets  # noqa: E402
+
+
+def _world_name_from_sdf(world_path: str) -> str | None:
+    """Return the <world name="..."> value from an SDF file, or None on failure."""
+    try:
+        root = ET.parse(world_path).getroot()
+        world_elem = root.find("world")
+        if world_elem is not None:
+            return world_elem.get("name") or None
+    except Exception:
+        pass
+    return None
 from ament_index_python.packages import PackageNotFoundError, get_package_share_directory  # noqa: E402
 from launch.actions import (  # noqa: E402
     EmitEvent,
@@ -80,6 +93,12 @@ def _maybe_add_gz_sim_runtime_nodes(context, *args, **kwargs):
         return actions
 
     world_name = LaunchConfiguration("world_name").perform(context)
+    world_path = LaunchConfiguration("world").perform(context).strip()
+    if world_name == "default" and world_path:
+        detected = _world_name_from_sdf(world_path)
+        if detected and detected != "default":
+            actions.append(LogInfo(msg=f"[gz_sim] Auto-detected world name '{detected}' from SDF (overrides default 'default')."))
+            world_name = detected
     spawn_x = LaunchConfiguration("spawn_x").perform(context)
     spawn_y = LaunchConfiguration("spawn_y").perform(context)
     spawn_z = LaunchConfiguration("spawn_z").perform(context)
