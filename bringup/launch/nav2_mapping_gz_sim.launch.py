@@ -59,23 +59,23 @@ def generate_launch_description():
         ),
         DeclareLaunchArgument(
             "spawn_x",
-            default_value="0.0",
-            description="Initial robot spawn x (meters).",
+            default_value="",
+            description="Initial robot spawn x (meters). Empty uses world default.",
         ),
         DeclareLaunchArgument(
             "spawn_y",
-            default_value="0.0",
-            description="Initial robot spawn y (meters).",
+            default_value="",
+            description="Initial robot spawn y (meters). Empty uses world default.",
         ),
         DeclareLaunchArgument(
             "spawn_z",
-            default_value="0.10",
-            description="Initial robot spawn z (meters).",
+            default_value="",
+            description="Initial robot spawn z (meters). Empty uses world default.",
         ),
         DeclareLaunchArgument(
             "spawn_yaw",
-            default_value="0.0",
-            description="Initial robot spawn yaw (radians).",
+            default_value="",
+            description="Initial robot spawn yaw (radians). Empty uses world default.",
         ),
         DeclareLaunchArgument(
             "use_sim_time",

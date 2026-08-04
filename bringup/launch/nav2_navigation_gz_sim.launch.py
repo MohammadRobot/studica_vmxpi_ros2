@@ -3,6 +3,7 @@
 """Gazebo Sim navigation wrapper (Nav2 localization + unified bringup)."""
 
 import os
+import tempfile
 
 from ament_index_python.packages import PackageNotFoundError, get_package_share_directory
 from launch import LaunchDescription
@@ -11,6 +12,7 @@ from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch.substitutions import LaunchConfiguration, PathJoinSubstitution
 from launch_ros.actions import SetParameter
 from launch_ros.substitutions import FindPackageShare
+import yaml
 
 
 def _resolve_nav2_params_file(context, nav2_share: str) -> str:
@@ -23,6 +25,39 @@ def _resolve_nav2_params_file(context, nav2_share: str) -> str:
 
 def _is_true(value: str) -> bool:
     return value.strip().lower() in ("true", "1", "yes", "on")
+
+
+def _float_arg(context, name: str) -> float:
+    value = LaunchConfiguration(name).perform(context).strip()
+    try:
+        return float(value)
+    except ValueError as exc:
+        raise RuntimeError(f"Invalid {name} '{value}'. Expected a floating point value.") from exc
+
+
+def _configured_nav2_params_file(context, params_file: str) -> str:
+    with open(params_file, "r", encoding="utf-8") as stream:
+        params = yaml.safe_load(stream) or {}
+
+    amcl_params = params.setdefault("amcl", {}).setdefault("ros__parameters", {})
+    amcl_params["set_initial_pose"] = _is_true(
+        LaunchConfiguration("set_initial_pose").perform(context)
+    )
+    amcl_params["initial_pose.x"] = _float_arg(context, "initial_pose_x")
+    amcl_params["initial_pose.y"] = _float_arg(context, "initial_pose_y")
+    amcl_params["initial_pose.z"] = _float_arg(context, "initial_pose_z")
+    amcl_params["initial_pose.yaw"] = _float_arg(context, "initial_pose_yaw")
+
+    configured = tempfile.NamedTemporaryFile(
+        mode="w",
+        encoding="utf-8",
+        prefix="studica_nav2_params_",
+        suffix=".yaml",
+        delete=False,
+    )
+    with configured:
+        yaml.safe_dump(params, configured)
+    return configured.name
 
 
 def _maybe_include_nav2(context, *args, **kwargs):
@@ -42,6 +77,7 @@ def _maybe_include_nav2(context, *args, **kwargs):
     use_sim_time_value = "true" if use_sim_time_bool else "false"
     autostart = LaunchConfiguration("autostart").perform(context)
     params_file = _resolve_nav2_params_file(context, nav2_share)
+    configured_params = _configured_nav2_params_file(context, params_file)
     return [
         GroupAction(
             actions=[
@@ -56,7 +92,7 @@ def _maybe_include_nav2(context, *args, **kwargs):
                         # Disable composition to keep node graph transparent for students.
                         "use_composition": "False",
                         "map": map_path,
-                        "params_file": params_file,
+                        "params_file": configured_params,
                         "use_sim_time": use_sim_time_value,
                         "autostart": autostart,
                     }.items(),
@@ -99,23 +135,23 @@ def generate_launch_description():
         ),
         DeclareLaunchArgument(
             "spawn_x",
-            default_value="0.0",
-            description="Initial robot spawn x (meters).",
+            default_value="",
+            description="Initial robot spawn x (meters). Empty uses world default.",
         ),
         DeclareLaunchArgument(
             "spawn_y",
-            default_value="0.0",
-            description="Initial robot spawn y (meters).",
+            default_value="",
+            description="Initial robot spawn y (meters). Empty uses world default.",
         ),
         DeclareLaunchArgument(
             "spawn_z",
-            default_value="0.10",
-            description="Initial robot spawn z (meters).",
+            default_value="",
+            description="Initial robot spawn z (meters). Empty uses world default.",
         ),
         DeclareLaunchArgument(
             "spawn_yaw",
-            default_value="0.0",
-            description="Initial robot spawn yaw (radians).",
+            default_value="",
+            description="Initial robot spawn yaw (radians). Empty uses world default.",
         ),
         DeclareLaunchArgument(
             "use_sim_time",
@@ -169,6 +205,33 @@ def generate_launch_description():
             "nav2_params_file",
             default_value="",
             description="Path to Nav2 parameter file (leave empty to use nav2_bringup default).",
+        ),
+        DeclareLaunchArgument(
+            "set_initial_pose",
+            default_value="true",
+            description=(
+                "Set AMCL initial pose from initial_pose_* args. Set false to use RViz 2D Pose Estimate."
+            ),
+        ),
+        DeclareLaunchArgument(
+            "initial_pose_x",
+            default_value="0.0",
+            description="AMCL initial pose x in the map frame.",
+        ),
+        DeclareLaunchArgument(
+            "initial_pose_y",
+            default_value="0.0",
+            description="AMCL initial pose y in the map frame.",
+        ),
+        DeclareLaunchArgument(
+            "initial_pose_z",
+            default_value="0.0",
+            description="AMCL initial pose z in the map frame.",
+        ),
+        DeclareLaunchArgument(
+            "initial_pose_yaw",
+            default_value="0.0",
+            description="AMCL initial pose yaw in the map frame.",
         ),
     ]
 

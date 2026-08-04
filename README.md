@@ -393,7 +393,7 @@ Launch mapping in the maze:
 
 ```bash
 ros2 launch studica_vmxpi_ros2 nav2_mapping_gz_sim.launch.py \
-  robot_profile:=class_4wd world:=maze spawn_y:=-2.5 \
+  robot_profile:=class_4wd world:=maze \
   gui:=true use_joystick:=true use_ground_truth_odom_tf:=false
 ```
 
@@ -418,6 +418,18 @@ ros2 launch studica_vmxpi_ros2 nav2_navigation_gz_sim.launch.py \
   map:="$HOME/ros2_ws/src/studica_vmxpi_ros2/maps/my_map.yaml"
 ```
 
+For a maze map generated from the entry pose, use `world:=maze`. The launch will use the
+maze entry spawn pose automatically unless you pass an explicit `spawn_x`, `spawn_y`,
+`spawn_z`, or `spawn_yaw`. It also seeds AMCL at map-frame `(0, 0, 0)` by default for
+maps generated from the same spawn pose.
+
+```bash
+ros2 launch studica_vmxpi_ros2 nav2_navigation_gz_sim.launch.py \
+  robot_profile:=class_4wd world:=maze \
+  gui:=true use_joystick:=false use_ground_truth_odom_tf:=false \
+  map:="$HOME/ros2_ws/src/studica_vmxpi_ros2/maps/my_map.yaml"
+```
+
 Launch navigation on the real robot with a saved map:
 
 ```bash
@@ -429,8 +441,10 @@ ros2 launch studica_vmxpi_ros2 nav2_navigation_hw.launch.py \
 **After launch in RViz:**
 
 1. Set fixed frame to `map` (if not already set).
-2. Click `2D Pose Estimate` once to initialize AMCL.
-3. Use `Nav2 Goal` to send goals.
+2. In simulation, click `2D Pose Estimate` only when you launch with `set_initial_pose:=false`
+   or use a map that was not generated from the robot's spawn pose.
+3. On the real robot, click `2D Pose Estimate` once to initialize AMCL.
+4. Use `Nav2 Goal` to send goals.
 
 `topic_adapter_node` bridges Nav2 topics automatically (`enable_nav2_bridge:=true`):
 - `/cmd_vel` (Twist) → selected drive command topic

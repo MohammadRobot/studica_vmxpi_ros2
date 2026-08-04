@@ -31,6 +31,12 @@ _KNOWN_WORLDS = {
     "maze_world.sdf": ("maze_world.sdf", "maze"),
 }
 
+_WORLD_DEFAULT_SPAWNS = {
+    "maze": {"spawn_y": "-2.5"},
+    "maze_world": {"spawn_y": "-2.5"},
+    "maze_world.sdf": {"spawn_y": "-2.5"},
+}
+
 
 def _declare_arg(name: str, default_value, description: str = ""):
     """Create a launch argument with optional description text."""
@@ -57,13 +63,14 @@ def _runtime_actions(context, *args, **kwargs):
     use_camera = LaunchConfiguration("use_camera").perform(context).strip()
     use_ground_truth_odom_tf = LaunchConfiguration("use_ground_truth_odom_tf").perform(context).strip()
     world = LaunchConfiguration("world").perform(context).strip()
+    world_arg = world
     rviz_config_file = LaunchConfiguration("rviz_config_file").perform(context).strip()
     world_name = LaunchConfiguration("world_name").perform(context)
     gz_headless = LaunchConfiguration("gz_headless").perform(context)
-    spawn_x = LaunchConfiguration("spawn_x").perform(context)
-    spawn_y = LaunchConfiguration("spawn_y").perform(context)
-    spawn_z = LaunchConfiguration("spawn_z").perform(context)
-    spawn_yaw = LaunchConfiguration("spawn_yaw").perform(context)
+    spawn_x = LaunchConfiguration("spawn_x").perform(context).strip()
+    spawn_y = LaunchConfiguration("spawn_y").perform(context).strip()
+    spawn_z = LaunchConfiguration("spawn_z").perform(context).strip()
+    spawn_yaw = LaunchConfiguration("spawn_yaw").perform(context).strip()
     spawn_entity_name = LaunchConfiguration("spawn_entity_name").perform(context)
     sim_enable_camera = LaunchConfiguration("sim_enable_camera").perform(context)
     sim_camera_width = LaunchConfiguration("sim_camera_width").perform(context)
@@ -125,6 +132,20 @@ def _runtime_actions(context, *args, **kwargs):
         # Only override world_name when the user left it at the launch-arg default.
         if world_name == "default":
             world_name = sdf_world_name
+
+    world_default_spawn = (
+        _WORLD_DEFAULT_SPAWNS.get(world_arg)
+        or _WORLD_DEFAULT_SPAWNS.get(os.path.basename(world))
+        or {}
+    )
+    if not spawn_x:
+        spawn_x = world_default_spawn.get("spawn_x", "0.0")
+    if not spawn_y:
+        spawn_y = world_default_spawn.get("spawn_y", "0.0")
+    if not spawn_z:
+        spawn_z = world_default_spawn.get("spawn_z", "0.10")
+    if not spawn_yaw:
+        spawn_yaw = world_default_spawn.get("spawn_yaw", "0.0")
 
     if not use_sim_time:
         use_sim_time = "true" if mode == "gz_sim" else "false"
@@ -261,23 +282,23 @@ def generate_launch_description():
             ),
             _declare_arg(
                 "spawn_x",
-                "0.0",
-                "Initial robot spawn x position (meters).",
+                "",
+                "Initial robot spawn x position (meters). Empty uses world default.",
             ),
             _declare_arg(
                 "spawn_y",
-                "0.0",
-                "Initial robot spawn y position (meters).",
+                "",
+                "Initial robot spawn y position (meters). Empty uses world default.",
             ),
             _declare_arg(
                 "spawn_z",
-                "0.10",
-                "Initial robot spawn z position (meters).",
+                "",
+                "Initial robot spawn z position (meters). Empty uses world default.",
             ),
             _declare_arg(
                 "spawn_yaw",
-                "0.0",
-                "Initial robot spawn yaw (radians).",
+                "",
+                "Initial robot spawn yaw (radians). Empty uses world default.",
             ),
             _declare_arg(
                 "spawn_entity_name",
