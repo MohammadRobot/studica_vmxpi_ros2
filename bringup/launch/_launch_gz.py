@@ -14,18 +14,6 @@ if str(_THIS_DIR) not in sys.path:
     sys.path.insert(0, str(_THIS_DIR))
 
 from _launch_helpers import _is_true, _profile_assets  # noqa: E402
-
-
-def _world_name_from_sdf(world_path: str) -> str | None:
-    """Return the <world name="..."> value from an SDF file, or None on failure."""
-    try:
-        root = ET.parse(world_path).getroot()
-        world_elem = root.find("world")
-        if world_elem is not None:
-            return world_elem.get("name") or None
-    except Exception:
-        pass
-    return None
 from ament_index_python.packages import PackageNotFoundError, get_package_share_directory  # noqa: E402
 from launch.actions import (  # noqa: E402
     EmitEvent,
@@ -40,6 +28,18 @@ from launch.events import Shutdown  # noqa: E402
 from launch.launch_description_sources import PythonLaunchDescriptionSource  # noqa: E402
 from launch.substitutions import LaunchConfiguration  # noqa: E402
 from launch_ros.actions import Node  # noqa: E402
+
+
+def _world_name_from_sdf(world_path: str) -> str | None:
+    """Return the <world name="..."> value from an SDF file, or None on failure."""
+    try:
+        root = ET.parse(world_path).getroot()
+        world_elem = root.find("world")
+        if world_elem is not None:
+            return world_elem.get("name") or None
+    except Exception:
+        pass
+    return None
 
 
 def _maybe_include_gz_sim(context, *args, **kwargs):
@@ -97,7 +97,14 @@ def _maybe_add_gz_sim_runtime_nodes(context, *args, **kwargs):
     if world_name == "default" and world_path:
         detected = _world_name_from_sdf(world_path)
         if detected and detected != "default":
-            actions.append(LogInfo(msg=f"[gz_sim] Auto-detected world name '{detected}' from SDF (overrides default 'default')."))
+            actions.append(
+                LogInfo(
+                    msg=(
+                        f"[gz_sim] Auto-detected world name '{detected}' "
+                        "from SDF (overrides default 'default')."
+                    )
+                )
+            )
             world_name = detected
     spawn_x = LaunchConfiguration("spawn_x").perform(context)
     spawn_y = LaunchConfiguration("spawn_y").perform(context)

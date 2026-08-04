@@ -108,6 +108,11 @@ def generate_launch_description():
             "Run Gazebo Sim server only (no Gazebo GUI client).",
         ),
         _declare_arg(
+            "gz_ip",
+            os.environ.get("GZ_IP") or "127.0.0.1",
+            "Gazebo Transport bind IP for local service/topic discovery.",
+        ),
+        _declare_arg(
             "sim_enable_camera",
             "true",
             "Enable simulated RGB + depth camera sensors in gz_sim.",
@@ -620,6 +625,7 @@ def generate_launch_description():
         # Fix Gazebo Harmonic blank 3D viewport on NVIDIA GPUs: default FBO/PBO render-to-texture
         # mode fails silently; Copy mode works reliably across driver versions.
         SetEnvironmentVariable("OGRE_RTT_MODE", "Copy"),
+        SetEnvironmentVariable("GZ_IP", LaunchConfiguration("gz_ip")),
         # Ensure Qt uses X11 backend (prevents blank viewport when WAYLAND_DISPLAY is unset).
         SetEnvironmentVariable("QT_QPA_PLATFORM", "xcb"),
         LogInfo(msg=["Robot profile: ", robot_profile]),
