@@ -5,6 +5,8 @@
 
     <xacro:property name="profile" value="${xacro.load_yaml(profile_file)}"/>
     <xacro:property name="hardware_cfg" value="${profile['hardware']}"/>
+    <xacro:property name="drive_cfg" value="${profile['drive']}"/>
+    <xacro:property name="pid_cfg" value="${hardware_cfg.get('pid', dict())}"/>
     <xacro:property name="wheel_layout_resolved" value="${wheel_layout if wheel_layout in ['diff', 'diff_4wd', 'mecanum', 'omni'] else 'diff'}"/>
 
     <ros2_control name="${name}" type="system">
@@ -20,9 +22,18 @@
           <param name="can_id">${hardware_cfg['can_id']}</param>
           <param name="motor_freq">${hardware_cfg['motor_freq']}</param>
           <param name="ticks_per_rotation">${hardware_cfg['ticks_per_rotation']}</param>
-          <param name="wheel_radius">${hardware_cfg['wheel_radius']}</param>
+          <param name="wheel_radius">${drive_cfg['wheel_radius_m']}</param>
           <param name="speed_scale">${hardware_cfg['speed_scale']}</param>
           <param name="max_wheel_angular_velocity_rad_s">${hardware_cfg['max_wheel_angular_velocity_rad_s']}</param>
+          <param name="control_mode">${hardware_cfg.get('control_mode', 'open_loop')}</param>
+          <param name="pid_type">${pid_cfg.get('type', 'mcv2')}</param>
+          <param name="pid_sensitivity">${pid_cfg.get('sensitivity', 5)}</param>
+          <param name="pid_require_supported">${pid_cfg.get('require_supported', True)}</param>
+          <param name="feedback_warn_timeout_ms">${hardware_cfg.get('feedback_warn_timeout_ms', 100)}</param>
+          <param name="feedback_error_timeout_ms">${hardware_cfg.get('feedback_error_timeout_ms', 250)}</param>
+          <param name="controller_temp_error_c">${hardware_cfg.get('controller_temp_error_c', 80.0)}</param>
+          <param name="controller_temp_error_timeout_ms">${hardware_cfg.get('controller_temp_error_timeout_ms', 3000)}</param>
+          <param name="wheel_radius_calibrated">${hardware_cfg.get('wheel_radius_calibrated', True)}</param>
 
           <param name="left_front_motor">${hardware_cfg['left_front_motor']}</param>
           <param name="left_rear_motor">${hardware_cfg['left_rear_motor']}</param>
@@ -53,11 +64,23 @@
           <command_interface name="velocity"/>
           <state_interface name="position"/>
           <state_interface name="velocity"/>
+          <xacro:if value="${use_hardware and not use_gz_sim}">
+            <state_interface name="commanded_velocity"/>
+            <state_interface name="feedback_age"/>
+            <state_interface name="encoder_fresh"/>
+            <state_interface name="command_saturated"/>
+          </xacro:if>
         </joint>
         <joint name="${prefix}right_wheel_joint">
           <command_interface name="velocity"/>
           <state_interface name="position"/>
           <state_interface name="velocity"/>
+          <xacro:if value="${use_hardware and not use_gz_sim}">
+            <state_interface name="commanded_velocity"/>
+            <state_interface name="feedback_age"/>
+            <state_interface name="encoder_fresh"/>
+            <state_interface name="command_saturated"/>
+          </xacro:if>
         </joint>
       </xacro:if>
       <xacro:unless value="${wheel_layout_resolved == 'diff'}">
@@ -65,24 +88,58 @@
           <command_interface name="velocity"/>
           <state_interface name="position"/>
           <state_interface name="velocity"/>
+          <xacro:if value="${use_hardware and not use_gz_sim}">
+            <state_interface name="commanded_velocity"/>
+            <state_interface name="feedback_age"/>
+            <state_interface name="encoder_fresh"/>
+            <state_interface name="command_saturated"/>
+          </xacro:if>
         </joint>
         <joint name="${prefix}front_right_wheel_joint">
           <command_interface name="velocity"/>
           <state_interface name="position"/>
           <state_interface name="velocity"/>
+          <xacro:if value="${use_hardware and not use_gz_sim}">
+            <state_interface name="commanded_velocity"/>
+            <state_interface name="feedback_age"/>
+            <state_interface name="encoder_fresh"/>
+            <state_interface name="command_saturated"/>
+          </xacro:if>
         </joint>
         <joint name="${prefix}rear_left_wheel_joint">
           <command_interface name="velocity"/>
           <state_interface name="position"/>
           <state_interface name="velocity"/>
+          <xacro:if value="${use_hardware and not use_gz_sim}">
+            <state_interface name="commanded_velocity"/>
+            <state_interface name="feedback_age"/>
+            <state_interface name="encoder_fresh"/>
+            <state_interface name="command_saturated"/>
+          </xacro:if>
         </joint>
         <joint name="${prefix}rear_right_wheel_joint">
           <command_interface name="velocity"/>
           <state_interface name="position"/>
           <state_interface name="velocity"/>
+          <xacro:if value="${use_hardware and not use_gz_sim}">
+            <state_interface name="commanded_velocity"/>
+            <state_interface name="feedback_age"/>
+            <state_interface name="encoder_fresh"/>
+            <state_interface name="command_saturated"/>
+          </xacro:if>
         </joint>
       </xacro:unless>
       <xacro:if value="${use_hardware and not use_gz_sim}">
+        <sensor name="titan_controller">
+          <state_interface name="controller_temperature"/>
+          <state_interface name="temperature_age"/>
+          <state_interface name="pid_supported"/>
+          <state_interface name="pid_type"/>
+          <state_interface name="fault_latched"/>
+          <state_interface name="firmware_major"/>
+          <state_interface name="firmware_minor"/>
+          <state_interface name="firmware_patch"/>
+        </sensor>
         <sensor name="imu_sensor">
           <state_interface name="orientation.x"/>
           <state_interface name="orientation.y"/>

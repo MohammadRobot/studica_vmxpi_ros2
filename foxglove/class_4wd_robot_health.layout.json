@@ -1,0 +1,117 @@
+{
+  "configById": {
+    "Tab!robot-health": {
+      "activeTabIdx": 0,
+      "tabs": [
+        {"title": "Overview", "layout": {"first": "3D!overview", "second": {"first": {"first": "Indicator!overall-health", "second": "DiagnosticStatusPanel!compute", "direction": "row", "splitPercentage": 28}, "second": "DiagnosticSummary!active-faults", "direction": "column", "splitPercentage": 34}, "direction": "row", "splitPercentage": 62}},
+        {"title": "Motors / PID", "layout": {"first": {"first": {"first": "Plot!front-left", "second": "Plot!front-right", "direction": "row"}, "second": {"first": "Plot!rear-left", "second": "Plot!rear-right", "direction": "row"}, "direction": "column"}, "second": {"first": {"first": "Plot!velocity-errors", "second": "Plot!feedback-age", "direction": "column"}, "second": {"first": "Plot!encoder-position", "second": "Plot!titan-temperature", "direction": "column"}, "direction": "row"}, "direction": "row", "splitPercentage": 52}},
+        {"title": "IMU / Odometry", "layout": {"first": {"first": "Plot!imu-acceleration", "second": "Plot!imu-gyro", "direction": "column"}, "second": {"first": {"first": "Plot!imu-orientation", "second": "Plot!odometry", "direction": "column"}, "second": "3D!imu-tf", "direction": "row", "splitPercentage": 48}, "direction": "row", "splitPercentage": 35}},
+        {"title": "Camera / LiDAR", "layout": {"first": {"first": "Image!color-camera", "second": "Image!depth-camera", "direction": "column"}, "second": {"first": "3D!lidar", "second": "DiagnosticSummary!sensor-rates", "direction": "column", "splitPercentage": 66}, "direction": "row"}},
+        {"title": "Logs / Graph", "layout": {"first": "RosOut!logs", "second": "TopicGraph!connection-graph", "direction": "row", "splitPercentage": 48}}
+      ]
+    },
+    "Indicator!overall-health": {
+      "path": "/diagnostics_toplevel_state.level",
+      "style": "background",
+      "fallbackColor": "#6b7280",
+      "fallbackLabel": "NO STATUS",
+      "rules": [
+        {"operator": "=", "rawValue": "0", "color": "#22c55e", "label": "ROBOT HEALTHY"},
+        {"operator": "=", "rawValue": "1", "color": "#f59e0b", "label": "ROBOT WARNING"},
+        {"operator": "=", "rawValue": "2", "color": "#ef4444", "label": "ROBOT FAULT"},
+        {"operator": "=", "rawValue": "3", "color": "#64748b", "label": "ROBOT STALE"}
+      ],
+      "foxglovePanelTitle": "Overall Health"
+    },
+    "DiagnosticSummary!active-faults": {"minLevel": 1, "pinnedIds": [], "hardwareIdFilter": "", "topicToRender": "/diagnostics_agg", "sortByLevel": true, "secondsUntilStale": 3, "foxglovePanelTitle": "Active Warnings and Faults"},
+    "DiagnosticStatusPanel!compute": {"selectedHardwareId": "studica-class-4wd", "selectedName": "Robot/Compute/Pi", "topicToRender": "/diagnostics", "numericPrecision": 2, "secondsUntilStale": 3, "foxglovePanelTitle": "Pi CPU / Memory / Disk / Temperature"},
+    "DiagnosticSummary!sensor-rates": {"minLevel": 0, "pinnedIds": [], "hardwareIdFilter": "studica-class-4wd", "topicToRender": "/diagnostics", "sortByLevel": true, "secondsUntilStale": 3, "foxglovePanelTitle": "Sensor Health and Message Rates"},
+    "3D!overview": {
+      "cameraState": {"perspective": true, "distance": 4.5, "phi": 45, "thetaOffset": 135, "targetOffset": [0, 0, 0], "target": [0, 0, 0], "targetOrientation": [0, 0, 0, 1], "fovy": 45, "near": 0.1, "far": 100},
+      "followMode": "follow-pose", "followTf": "base_link",
+      "scene": {"transforms": {"showLabel": true, "editable": false, "lineWidth": 2}},
+      "transforms": {"frame:odom": {"visible": true}, "frame:base_footprint": {"visible": true}, "frame:base_link": {"visible": true}, "frame:imu_link": {"visible": true}, "frame:laser_frame": {"visible": true}, "frame:camera_link": {"visible": true}},
+      "topics": {"/scan": {"visible": true, "colorMode": "flat", "flatColor": "#22d3ee", "pointSize": 4}},
+      "layers": {}, "imageMode": {}, "foxglovePanelTitle": "Robot TF and LiDAR"
+    },
+    "3D!imu-tf": {
+      "cameraState": {"perspective": true, "distance": 3, "phi": 55, "thetaOffset": 120, "targetOffset": [0, 0, 0], "target": [0, 0, 0], "targetOrientation": [0, 0, 0, 1], "fovy": 45, "near": 0.1, "far": 100},
+      "followMode": "follow-pose", "followTf": "base_link",
+      "scene": {"transforms": {"showLabel": true, "editable": false, "lineWidth": 3}},
+      "transforms": {"frame:odom": {"visible": true}, "frame:base_footprint": {"visible": true}, "frame:base_link": {"visible": true}, "frame:imu_link": {"visible": true}},
+      "topics": {}, "layers": {}, "imageMode": {}, "foxglovePanelTitle": "Odometry and Transform Frames"
+    },
+    "3D!lidar": {
+      "cameraState": {"perspective": false, "distance": 8, "phi": 0, "thetaOffset": 0, "targetOffset": [0, 0, 0], "target": [0, 0, 0], "targetOrientation": [0, 0, 0, 1], "fovy": 45, "near": 0.1, "far": 100},
+      "followMode": "follow-pose", "followTf": "base_link",
+      "scene": {"transforms": {"showLabel": false, "editable": false, "lineWidth": 2}},
+      "transforms": {"frame:base_link": {"visible": true}, "frame:laser_frame": {"visible": true}},
+      "topics": {"/scan": {"visible": true, "colorMode": "flat", "flatColor": "#38bdf8", "pointSize": 5}},
+      "layers": {}, "imageMode": {}, "foxglovePanelTitle": "X2 LiDAR Scan"
+    },
+    "Image!color-camera": {
+      "cameraState": {"distance": 20, "perspective": true, "phi": 60, "target": [0, 0, 0], "targetOffset": [0, 0, 0], "targetOrientation": [0, 0, 0, 1], "thetaOffset": 60, "fovy": 45, "near": 0.5, "far": 5000},
+      "followMode": "follow-pose", "scene": {}, "transforms": {}, "topics": {}, "layers": {},
+      "imageMode": {"imageTopic": "/camera/color/image_raw/compressed"}, "foxglovePanelTitle": "Orbbec Color"
+    },
+    "Image!depth-camera": {
+      "cameraState": {"distance": 20, "perspective": true, "phi": 60, "target": [0, 0, 0], "targetOffset": [0, 0, 0], "targetOrientation": [0, 0, 0, 1], "thetaOffset": 60, "fovy": 45, "near": 0.5, "far": 5000},
+      "followMode": "follow-pose", "scene": {}, "transforms": {}, "topics": {}, "layers": {},
+      "imageMode": {"imageTopic": "/camera/depth/image_raw/compressedDepth"}, "foxglovePanelTitle": "Orbbec Depth"
+    },
+    "Plot!front-left": {
+      "paths": [{"value": "/robot_status/motors.motors[0].target_velocity_rad_s", "enabled": true, "timestampMethod": "receiveTime", "label": "target", "color": "#38bdf8"}, {"value": "/robot_status/motors.motors[0].measured_velocity_rad_s", "enabled": true, "timestampMethod": "receiveTime", "label": "actual", "color": "#f97316"}],
+      "showXAxisLabels": true, "showYAxisLabels": true, "showLegend": true, "legendDisplay": "top", "showPlotValuesInLegend": true, "isSynced": true, "xAxisVal": "timestamp", "sidebarDimension": 240, "yAxisLabel": "rad/s", "foxglovePanelTitle": "Front Left: Target vs Actual"
+    },
+    "Plot!front-right": {
+      "paths": [{"value": "/robot_status/motors.motors[1].target_velocity_rad_s", "enabled": true, "timestampMethod": "receiveTime", "label": "target", "color": "#38bdf8"}, {"value": "/robot_status/motors.motors[1].measured_velocity_rad_s", "enabled": true, "timestampMethod": "receiveTime", "label": "actual", "color": "#f97316"}],
+      "showXAxisLabels": true, "showYAxisLabels": true, "showLegend": true, "legendDisplay": "top", "showPlotValuesInLegend": true, "isSynced": true, "xAxisVal": "timestamp", "sidebarDimension": 240, "yAxisLabel": "rad/s", "foxglovePanelTitle": "Front Right: Target vs Actual"
+    },
+    "Plot!rear-left": {
+      "paths": [{"value": "/robot_status/motors.motors[2].target_velocity_rad_s", "enabled": true, "timestampMethod": "receiveTime", "label": "target", "color": "#38bdf8"}, {"value": "/robot_status/motors.motors[2].measured_velocity_rad_s", "enabled": true, "timestampMethod": "receiveTime", "label": "actual", "color": "#f97316"}],
+      "showXAxisLabels": true, "showYAxisLabels": true, "showLegend": true, "legendDisplay": "top", "showPlotValuesInLegend": true, "isSynced": true, "xAxisVal": "timestamp", "sidebarDimension": 240, "yAxisLabel": "rad/s", "foxglovePanelTitle": "Rear Left: Target vs Actual"
+    },
+    "Plot!rear-right": {
+      "paths": [{"value": "/robot_status/motors.motors[3].target_velocity_rad_s", "enabled": true, "timestampMethod": "receiveTime", "label": "target", "color": "#38bdf8"}, {"value": "/robot_status/motors.motors[3].measured_velocity_rad_s", "enabled": true, "timestampMethod": "receiveTime", "label": "actual", "color": "#f97316"}],
+      "showXAxisLabels": true, "showYAxisLabels": true, "showLegend": true, "legendDisplay": "top", "showPlotValuesInLegend": true, "isSynced": true, "xAxisVal": "timestamp", "sidebarDimension": 240, "yAxisLabel": "rad/s", "foxglovePanelTitle": "Rear Right: Target vs Actual"
+    },
+    "Plot!velocity-errors": {
+      "paths": [{"value": "/robot_status/motors.motors[0].velocity_error_rad_s", "enabled": true, "timestampMethod": "receiveTime", "label": "front left"}, {"value": "/robot_status/motors.motors[1].velocity_error_rad_s", "enabled": true, "timestampMethod": "receiveTime", "label": "front right"}, {"value": "/robot_status/motors.motors[2].velocity_error_rad_s", "enabled": true, "timestampMethod": "receiveTime", "label": "rear left"}, {"value": "/robot_status/motors.motors[3].velocity_error_rad_s", "enabled": true, "timestampMethod": "receiveTime", "label": "rear right"}],
+      "showXAxisLabels": true, "showYAxisLabels": true, "showLegend": true, "legendDisplay": "top", "showPlotValuesInLegend": true, "isSynced": true, "xAxisVal": "timestamp", "sidebarDimension": 240, "yAxisLabel": "rad/s", "foxglovePanelTitle": "PID Velocity Error"
+    },
+    "Plot!feedback-age": {
+      "paths": [{"value": "/robot_status/motors.motors[0].feedback_age_sec", "enabled": true, "timestampMethod": "receiveTime", "label": "front left"}, {"value": "/robot_status/motors.motors[1].feedback_age_sec", "enabled": true, "timestampMethod": "receiveTime", "label": "front right"}, {"value": "/robot_status/motors.motors[2].feedback_age_sec", "enabled": true, "timestampMethod": "receiveTime", "label": "rear left"}, {"value": "/robot_status/motors.motors[3].feedback_age_sec", "enabled": true, "timestampMethod": "receiveTime", "label": "rear right"}, {"value": "0.1", "enabled": true, "timestampMethod": "receiveTime", "label": "warning"}, {"value": "0.25", "enabled": true, "timestampMethod": "receiveTime", "label": "fault"}],
+      "minYValue": 0, "maxYValue": 0.35, "showXAxisLabels": true, "showYAxisLabels": true, "showLegend": true, "legendDisplay": "top", "showPlotValuesInLegend": true, "isSynced": true, "xAxisVal": "timestamp", "sidebarDimension": 240, "yAxisLabel": "seconds", "foxglovePanelTitle": "Encoder Feedback Age"
+    },
+    "Plot!encoder-position": {
+      "paths": [{"value": "/robot_status/motors.motors[0].position_rad", "enabled": true, "timestampMethod": "receiveTime", "label": "front left"}, {"value": "/robot_status/motors.motors[1].position_rad", "enabled": true, "timestampMethod": "receiveTime", "label": "front right"}, {"value": "/robot_status/motors.motors[2].position_rad", "enabled": true, "timestampMethod": "receiveTime", "label": "rear left"}, {"value": "/robot_status/motors.motors[3].position_rad", "enabled": true, "timestampMethod": "receiveTime", "label": "rear right"}],
+      "showXAxisLabels": true, "showYAxisLabels": true, "showLegend": true, "legendDisplay": "top", "showPlotValuesInLegend": true, "isSynced": true, "xAxisVal": "timestamp", "sidebarDimension": 240, "yAxisLabel": "radians", "foxglovePanelTitle": "Encoder Position"
+    },
+    "Plot!titan-temperature": {
+      "paths": [{"value": "/robot_status/motors.controller_temperature_c", "enabled": true, "timestampMethod": "receiveTime", "label": "Titan temperature", "color": "#ef4444"}],
+      "minYValue": 0, "maxYValue": 90, "showXAxisLabels": true, "showYAxisLabels": true, "showLegend": true, "legendDisplay": "top", "showPlotValuesInLegend": true, "isSynced": true, "xAxisVal": "timestamp", "sidebarDimension": 240, "yAxisLabel": "deg C", "foxglovePanelTitle": "Titan Temperature"
+    },
+    "Plot!imu-acceleration": {
+      "paths": [{"value": "/imu.linear_acceleration.x", "enabled": true, "timestampMethod": "receiveTime", "label": "x"}, {"value": "/imu.linear_acceleration.y", "enabled": true, "timestampMethod": "receiveTime", "label": "y"}, {"value": "/imu.linear_acceleration.z", "enabled": true, "timestampMethod": "receiveTime", "label": "z"}],
+      "showXAxisLabels": true, "showYAxisLabels": true, "showLegend": true, "legendDisplay": "top", "showPlotValuesInLegend": true, "isSynced": true, "xAxisVal": "timestamp", "sidebarDimension": 240, "yAxisLabel": "m/s^2", "foxglovePanelTitle": "IMU Linear Acceleration"
+    },
+    "Plot!imu-gyro": {
+      "paths": [{"value": "/imu.angular_velocity.x", "enabled": true, "timestampMethod": "receiveTime", "label": "roll rate"}, {"value": "/imu.angular_velocity.y", "enabled": true, "timestampMethod": "receiveTime", "label": "pitch rate"}, {"value": "/imu.angular_velocity.z", "enabled": true, "timestampMethod": "receiveTime", "label": "yaw rate"}],
+      "showXAxisLabels": true, "showYAxisLabels": true, "showLegend": true, "legendDisplay": "top", "showPlotValuesInLegend": true, "isSynced": true, "xAxisVal": "timestamp", "sidebarDimension": 240, "yAxisLabel": "rad/s", "foxglovePanelTitle": "IMU Angular Velocity"
+    },
+    "Plot!imu-orientation": {
+      "paths": [{"value": "/imu.orientation.x", "enabled": true, "timestampMethod": "receiveTime", "label": "qx"}, {"value": "/imu.orientation.y", "enabled": true, "timestampMethod": "receiveTime", "label": "qy"}, {"value": "/imu.orientation.z", "enabled": true, "timestampMethod": "receiveTime", "label": "qz"}, {"value": "/imu.orientation.w", "enabled": true, "timestampMethod": "receiveTime", "label": "qw"}],
+      "minYValue": -1.1, "maxYValue": 1.1, "showXAxisLabels": true, "showYAxisLabels": true, "showLegend": true, "legendDisplay": "top", "showPlotValuesInLegend": true, "isSynced": true, "xAxisVal": "timestamp", "sidebarDimension": 240, "foxglovePanelTitle": "IMU Orientation Quaternion"
+    },
+    "Plot!odometry": {
+      "paths": [{"value": "/odom.twist.twist.linear.x", "enabled": true, "timestampMethod": "receiveTime", "label": "linear x"}, {"value": "/odom.twist.twist.angular.z", "enabled": true, "timestampMethod": "receiveTime", "label": "angular z"}, {"value": "/odom.pose.pose.position.x", "enabled": true, "timestampMethod": "receiveTime", "label": "position x"}, {"value": "/odom.pose.pose.position.y", "enabled": true, "timestampMethod": "receiveTime", "label": "position y"}],
+      "showXAxisLabels": true, "showYAxisLabels": true, "showLegend": true, "legendDisplay": "top", "showPlotValuesInLegend": true, "isSynced": true, "xAxisVal": "timestamp", "sidebarDimension": 240, "foxglovePanelTitle": "Odometry"
+    },
+    "RosOut!logs": {"searchTerms": [], "minLogLevel": 1, "foxglovePanelTitle": "ROS Logs"},
+    "TopicGraph!connection-graph": {"foxglovePanelTitle": "ROS Node / Topic Graph"}
+  },
+  "globalVariables": {},
+  "userNodes": {},
+  "playbackConfig": {"speed": 1},
+  "layout": "Tab!robot-health"
+}

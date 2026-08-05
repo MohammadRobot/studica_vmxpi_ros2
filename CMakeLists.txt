@@ -186,6 +186,10 @@ install(
   DIRECTORY docs
   DESTINATION share/studica_vmxpi_ros2
 )
+install(
+  DIRECTORY foxglove
+  DESTINATION share/studica_vmxpi_ros2
+)
 install(PROGRAMS
   scripts/motor_smoke_test.sh
   scripts/create_profile.sh
@@ -218,6 +222,9 @@ install(TARGETS studica_vmxpi_ros2
 
 if(BUILD_TESTING)
   option(STUDICA_STRICT_LINT "Enable full strict lint checks" OFF)
+  find_package(ament_cmake_gtest REQUIRED)
+  ament_add_gtest(test_velocity_pid_safety test/test_velocity_pid_safety.cpp)
+  target_include_directories(test_velocity_pid_safety PRIVATE hardware/include)
   find_package(ament_lint_auto REQUIRED)
   find_package(ament_lint_common REQUIRED)
   set(ament_cmake_flake8_CONFIG_FILE "${CMAKE_CURRENT_SOURCE_DIR}/.flake8")

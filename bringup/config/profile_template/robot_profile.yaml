@@ -5,7 +5,6 @@ xacro:
   base_height: 0.10
   wheel_mass: 0.30
   wheel_len: 0.04
-  wheel_radius: 0.05
   caster_wheel_mass: 0.10
   caster_wheel_radius: 0.05
   laser_pos_z: 0.10
@@ -15,15 +14,17 @@ drive:
   wheel_layout: diff
   controller_name: robot_base_controller
   controller_type: diff_drive_controller/DiffDriveController
+  wheel_radius_m: 0.05
 
 hardware:
   can_id: 42
   motor_freq: 15600
   ticks_per_rotation: 1464
-  wheel_radius: 0.05
   lidar_type: tmini
   speed_scale: 0.50
   max_wheel_angular_velocity_rad_s: 20.0
+  control_mode: open_loop
+  wheel_radius_calibrated: false
 
   # Valid indices: 0..3 for active motors, -1 for unused.
   left_front_motor: 2

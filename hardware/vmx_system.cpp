@@ -13,6 +13,7 @@
 // limitations under the License.
 
 #include "studica_vmxpi_ros2/vmx_system.hpp"
+#include "studica_vmxpi_ros2/velocity_pid_safety.hpp"
 
 #include <algorithm>
 #include <cctype>
@@ -33,7 +34,6 @@ constexpr double kPi = 3.14159265358979323846;
 constexpr double kRpmToRadPerSec = 2.0 * kPi / 60.0;
 constexpr double kDegreesToRadians = kPi / 180.0;
 constexpr double kGToMetersPerSecondSquared = 9.80665;
-constexpr double kSaturationWarnEpsilon = 1e-9;
 }  // namespace
 
 namespace studica_vmxpi_ros2
@@ -109,6 +109,19 @@ hardware_interface::CallbackReturn VmxSystemHardware::on_init(
     return false;
   };
 
+  auto get_string_param = [&](const std::string & name, std::string & out, bool required) -> bool {
+    auto it = info_.hardware_parameters.find(name);
+    if (it == info_.hardware_parameters.end()) {
+      if (required) {
+        RCLCPP_ERROR(get_logger(), "Missing hardware parameter '%s'", name.c_str());
+        return false;
+      }
+      return true;
+    }
+    out = it->second;
+    return true;
+  };
+
   int can_id = 0;
   int motor_freq = 0;
   int ticks_per_rotation = 0;
@@ -147,12 +160,93 @@ hardware_interface::CallbackReturn VmxSystemHardware::on_init(
   if (!get_double_param("max_wheel_angular_velocity_rad_s", max_wheel_angular_velocity_rad_s_, false)) {
     return hardware_interface::CallbackReturn::ERROR;
   }
+  double feedback_warn_timeout_ms = 100.0;
+  double feedback_error_timeout_ms = 250.0;
+  double controller_temp_error_timeout_ms = 3000.0;
+  if (!get_string_param("control_mode", control_mode_name_, false) ||
+      !get_bool_param("pid_require_supported", pid_require_supported_, false) ||
+      !get_bool_param("wheel_radius_calibrated", wheel_radius_calibrated_, false) ||
+      !get_double_param("feedback_warn_timeout_ms", feedback_warn_timeout_ms, false) ||
+      !get_double_param("feedback_error_timeout_ms", feedback_error_timeout_ms, false) ||
+      !get_double_param("controller_temp_error_c", controller_temp_error_c_, false) ||
+      !get_double_param(
+        "controller_temp_error_timeout_ms", controller_temp_error_timeout_ms, false))
+  {
+    return hardware_interface::CallbackReturn::ERROR;
+  }
+
+  int pid_sensitivity = static_cast<int>(pid_sensitivity_);
+  if (!get_int_param("pid_sensitivity", pid_sensitivity)) {
+    return hardware_interface::CallbackReturn::ERROR;
+  }
+  if (!velocity_pid_safety::valid_pid_config("mcv2", pid_sensitivity)) {
+    RCLCPP_ERROR(get_logger(), "pid_sensitivity must be in [0, 10].");
+    return hardware_interface::CallbackReturn::ERROR;
+  }
+  pid_sensitivity_ = static_cast<uint8_t>(pid_sensitivity);
+
+  std::string pid_type_name{"mcv2"};
+  if (!get_string_param("pid_type", pid_type_name, false)) {
+    return hardware_interface::CallbackReturn::ERROR;
+  }
+  std::transform(
+    control_mode_name_.begin(), control_mode_name_.end(), control_mode_name_.begin(),
+    [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
+  std::transform(
+    pid_type_name.begin(), pid_type_name.end(), pid_type_name.begin(),
+    [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
+  if (control_mode_name_ == "open_loop") {
+    control_mode_ = MotorControlMode::OPEN_LOOP;
+  } else if (control_mode_name_ == "velocity_pid") {
+    control_mode_ = MotorControlMode::VELOCITY_PID;
+  } else {
+    RCLCPP_ERROR(
+      get_logger(), "Unsupported control_mode='%s' (expected open_loop or velocity_pid).",
+      control_mode_name_.c_str());
+    return hardware_interface::CallbackReturn::ERROR;
+  }
+  if (!velocity_pid_safety::valid_pid_config(pid_type_name, pid_sensitivity)) {
+    RCLCPP_ERROR(get_logger(), "Only pid_type='mcv2' is supported by velocity_pid mode.");
+    return hardware_interface::CallbackReturn::ERROR;
+  }
+  pid_type_ = TITAN_PID_TYPE_MCV2;
+
+  // Hardware parameters are expressed in milliseconds for operator-friendly profiles.
+  feedback_warn_timeout_sec_ = feedback_warn_timeout_ms / 1000.0;
+  feedback_error_timeout_sec_ = feedback_error_timeout_ms / 1000.0;
+  controller_temp_error_timeout_sec_ = controller_temp_error_timeout_ms / 1000.0;
   if (speed_scale_ < 0.0) {
     RCLCPP_ERROR(get_logger(), "speed_scale must be >= 0.0.");
     return hardware_interface::CallbackReturn::ERROR;
   }
   if (max_wheel_angular_velocity_rad_s_ <= 0.0) {
     RCLCPP_ERROR(get_logger(), "max_wheel_angular_velocity_rad_s must be > 0.0.");
+    return hardware_interface::CallbackReturn::ERROR;
+  }
+  if (feedback_warn_timeout_sec_ <= 0.0 ||
+      feedback_error_timeout_sec_ <= feedback_warn_timeout_sec_)
+  {
+    RCLCPP_ERROR(
+      get_logger(), "Feedback timeouts must satisfy 0 < warn < error (received %.3f s, %.3f s).",
+      feedback_warn_timeout_sec_, feedback_error_timeout_sec_);
+    return hardware_interface::CallbackReturn::ERROR;
+  }
+  if (!std::isfinite(controller_temp_error_c_) || controller_temp_error_c_ <= 0.0 ||
+      !std::isfinite(controller_temp_error_timeout_sec_) ||
+      controller_temp_error_timeout_sec_ <= 0.0)
+  {
+    RCLCPP_ERROR(
+      get_logger(),
+      "Titan temperature limit and timeout must be finite and positive "
+      "(received %.1f C, %.3f s).",
+      controller_temp_error_c_, controller_temp_error_timeout_sec_);
+    return hardware_interface::CallbackReturn::ERROR;
+  }
+  if (control_mode_ == MotorControlMode::VELOCITY_PID && !wheel_radius_calibrated_) {
+    RCLCPP_ERROR(
+      get_logger(),
+      "velocity_pid hardware motion is blocked: measure the wheel radius and set "
+      "hardware.wheel_radius_calibrated=true in the selected robot profile.");
     return hardware_interface::CallbackReturn::ERROR;
   }
 
@@ -208,14 +302,11 @@ hardware_interface::CallbackReturn VmxSystemHardware::on_init(
 
   dist_per_tick_ = 2.0 * kPi * wheel_radius_ / static_cast<double>(ticks_per_rotation_);
 
-  if (!info_.sensors.empty()) {
-    if (info_.sensors.size() > 1) {
-      RCLCPP_WARN(
-        get_logger(),
-        "Multiple sensors defined; using first sensor '%s' for IMU interfaces.",
-        info_.sensors.front().name.c_str());
-    }
-    const auto & imu_sensor = info_.sensors.front();
+  const auto imu_sensor_it = std::find_if(
+    info_.sensors.begin(), info_.sensors.end(),
+    [](const auto & sensor) { return sensor.name == "imu_sensor"; });
+  if (imu_sensor_it != info_.sensors.end()) {
+    const auto & imu_sensor = *imu_sensor_it;
     imu_enabled_ = true;
     imu_sensor_name_ = imu_sensor.name;
 
@@ -247,6 +338,13 @@ hardware_interface::CallbackReturn VmxSystemHardware::on_init(
       "No sensor interfaces configured for VmxSystemHardware; IMU publisher will stay disabled.");
   }
 
+  const auto titan_sensor_it = std::find_if(
+    info_.sensors.begin(), info_.sensors.end(),
+    [](const auto & sensor) { return sensor.name == "titan_controller"; });
+  if (titan_sensor_it != info_.sensors.end()) {
+    titan_sensor_name_ = titan_sensor_it->name;
+  }
+
   try {
     vmx_ = std::make_shared<VMXPi>(true, 50);
     if (!vmx_ || !vmx_->IsOpen()) {
@@ -255,6 +353,29 @@ hardware_interface::CallbackReturn VmxSystemHardware::on_init(
     }
     titan_driver_ = std::make_unique<studica_driver::Titan>(
       can_id_, motor_freq_, static_cast<float>(dist_per_tick_), vmx_);
+    uint8_t titan_info[8] = {0};
+    if (titan_driver_->GetTitanInfo(titan_info)) {
+      titan_firmware_major_ = static_cast<double>(titan_info[1]);
+      titan_firmware_minor_ = static_cast<double>(titan_info[2]);
+      titan_firmware_patch_ = static_cast<double>(titan_info[3]);
+      RCLCPP_INFO(
+        get_logger(), "Titan firmware %.0f.%.0f.%.0f detected on CAN ID %u.",
+        titan_firmware_major_, titan_firmware_minor_, titan_firmware_patch_,
+        static_cast<unsigned>(can_id_));
+    }
+    titan_pid_supported_ = titan_driver_->SupportsPIDType(pid_type_) ? 1.0 : 0.0;
+    titan_pid_type_ = control_mode_ == MotorControlMode::VELOCITY_PID ?
+      static_cast<double>(pid_type_) : static_cast<double>(TITAN_PID_TYPE_OFF);
+    if (
+      control_mode_ == MotorControlMode::VELOCITY_PID &&
+      pid_require_supported_ && titan_pid_supported_ < 0.5)
+    {
+      RCLCPP_ERROR(
+        get_logger(),
+        "Titan firmware does not report MCV2 support (firmware %.0f.%.0f); refusing velocity_pid mode.",
+        titan_firmware_major_, titan_firmware_minor_);
+      return hardware_interface::CallbackReturn::ERROR;
+    }
     if (imu_enabled_) {
       imu_driver_ = std::make_unique<studica_driver::Imu>(vmx_);
     }
@@ -268,7 +389,15 @@ hardware_interface::CallbackReturn VmxSystemHardware::on_init(
   hw_positions_.resize(info_.joints.size(), std::numeric_limits<double>::quiet_NaN());
   hw_velocities_.resize(info_.joints.size(), std::numeric_limits<double>::quiet_NaN());
   hw_commands_.resize(info_.joints.size(), std::numeric_limits<double>::quiet_NaN());
+  hw_commanded_velocities_.assign(info_.joints.size(), 0.0);
+  hw_feedback_ages_.assign(info_.joints.size(), std::numeric_limits<double>::infinity());
+  hw_encoder_fresh_.assign(info_.joints.size(), 0.0);
+  hw_command_saturated_.assign(info_.joints.size(), 0.0);
   joint_motor_indices_.assign(info_.joints.size(), -1);
+  last_rpm_feedback_times_.resize(info_.joints.size());
+  last_encoder_feedback_times_.resize(info_.joints.size());
+  rpm_feedback_seen_.assign(info_.joints.size(), false);
+  encoder_feedback_seen_.assign(info_.joints.size(), false);
   is_independent_motor_layout_ = info_.joints.size() == 4;
 
   const int left_primary_motor =
@@ -318,30 +447,23 @@ hardware_interface::CallbackReturn VmxSystemHardware::on_init(
       return hardware_interface::CallbackReturn::ERROR;
     }
 
-    if (joint.state_interfaces.size() != 2)
+    const auto has_state_interface = [&](const std::string & interface_name) {
+      return std::any_of(
+        joint.state_interfaces.begin(), joint.state_interfaces.end(),
+        [&](const auto & state_interface) { return state_interface.name == interface_name; });
+    };
+    for (const auto & required_interface : {
+        std::string(hardware_interface::HW_IF_POSITION),
+        std::string(hardware_interface::HW_IF_VELOCITY),
+        std::string("commanded_velocity"), std::string("feedback_age"),
+        std::string("encoder_fresh"), std::string("command_saturated")})
     {
-      RCLCPP_FATAL(
-        get_logger(), "Joint '%s' has %zu state interface. 2 expected.", joint.name.c_str(),
-        joint.state_interfaces.size());
-      return hardware_interface::CallbackReturn::ERROR;
-    }
-
-    if (joint.state_interfaces[0].name != hardware_interface::HW_IF_POSITION)
-    {
-      RCLCPP_FATAL(
-        get_logger(), "Joint '%s' have '%s' as first state interface. '%s' expected.",
-        joint.name.c_str(), joint.state_interfaces[0].name.c_str(),
-        hardware_interface::HW_IF_POSITION);
-      return hardware_interface::CallbackReturn::ERROR;
-    }
-
-    if (joint.state_interfaces[1].name != hardware_interface::HW_IF_VELOCITY)
-    {
-      RCLCPP_FATAL(
-        get_logger(), "Joint '%s' have '%s' as second state interface. '%s' expected.",
-        joint.name.c_str(), joint.state_interfaces[1].name.c_str(),
-        hardware_interface::HW_IF_VELOCITY);
-      return hardware_interface::CallbackReturn::ERROR;
+      if (!has_state_interface(required_interface)) {
+        RCLCPP_FATAL(
+          get_logger(), "Joint '%s' is missing required state interface '%s'.",
+          joint.name.c_str(), required_interface.c_str());
+        return hardware_interface::CallbackReturn::ERROR;
+      }
     }
 
     joint_motor_indices_[i] = map_joint_to_motor(joint.name);
@@ -411,6 +533,14 @@ std::vector<hardware_interface::StateInterface> VmxSystemHardware::export_state_
       info_.joints[i].name, hardware_interface::HW_IF_POSITION, &hw_positions_[i]));
     state_interfaces.emplace_back(hardware_interface::StateInterface(
       info_.joints[i].name, hardware_interface::HW_IF_VELOCITY, &hw_velocities_[i]));
+    state_interfaces.emplace_back(hardware_interface::StateInterface(
+      info_.joints[i].name, "commanded_velocity", &hw_commanded_velocities_[i]));
+    state_interfaces.emplace_back(hardware_interface::StateInterface(
+      info_.joints[i].name, "feedback_age", &hw_feedback_ages_[i]));
+    state_interfaces.emplace_back(hardware_interface::StateInterface(
+      info_.joints[i].name, "encoder_fresh", &hw_encoder_fresh_[i]));
+    state_interfaces.emplace_back(hardware_interface::StateInterface(
+      info_.joints[i].name, "command_saturated", &hw_command_saturated_[i]));
   }
 
   if (imu_enabled_) {
@@ -436,6 +566,23 @@ std::vector<hardware_interface::StateInterface> VmxSystemHardware::export_state_
       imu_sensor_name_, "linear_acceleration.z", &imu_linear_acceleration_z_);
   }
 
+  state_interfaces.emplace_back(
+    titan_sensor_name_, "controller_temperature", &titan_controller_temperature_c_);
+  state_interfaces.emplace_back(
+    titan_sensor_name_, "temperature_age", &titan_temperature_age_sec_);
+  state_interfaces.emplace_back(
+    titan_sensor_name_, "pid_supported", &titan_pid_supported_);
+  state_interfaces.emplace_back(
+    titan_sensor_name_, "pid_type", &titan_pid_type_);
+  state_interfaces.emplace_back(
+    titan_sensor_name_, "fault_latched", &titan_fault_latched_);
+  state_interfaces.emplace_back(
+    titan_sensor_name_, "firmware_major", &titan_firmware_major_);
+  state_interfaces.emplace_back(
+    titan_sensor_name_, "firmware_minor", &titan_firmware_minor_);
+  state_interfaces.emplace_back(
+    titan_sensor_name_, "firmware_patch", &titan_firmware_patch_);
+
   return state_interfaces;
 }
 
@@ -451,6 +598,107 @@ std::vector<hardware_interface::CommandInterface> VmxSystemHardware::export_comm
   return command_interfaces;
 }
 
+void VmxSystemHardware::latch_fault(const std::string & reason)
+{
+  if (!fault_latched_) {
+    fault_reason_ = reason;
+    RCLCPP_ERROR(get_logger(), "Titan safety fault latched: %s", reason.c_str());
+    last_fault_stop_time_ = {};
+  }
+  fault_latched_ = true;
+  titan_fault_latched_ = 1.0;
+  std::fill(hw_commanded_velocities_.begin(), hw_commanded_velocities_.end(), 0.0);
+  enforce_fault_stop();
+}
+
+bool VmxSystemHardware::stop_all_motors()
+{
+  if (!titan_driver_) {
+    return false;
+  }
+  bool success = true;
+  const std::vector<int> motors = {
+    left_front_motor_, left_rear_motor_, right_front_motor_, right_rear_motor_};
+  for (const int motor : motors) {
+    if (motor < 0) {
+      continue;
+    }
+    if (control_mode_ == MotorControlMode::VELOCITY_PID) {
+      success = titan_driver_->TrySetTargetVelocity(static_cast<uint8_t>(motor), 0.0f) && success;
+    } else {
+      titan_driver_->SetSpeed(static_cast<uint8_t>(motor), 0.0);
+    }
+  }
+  return success;
+}
+
+void VmxSystemHardware::enforce_fault_stop()
+{
+  if (!fault_latched_ || !titan_driver_) {
+    return;
+  }
+  constexpr auto kFaultStopRefresh = std::chrono::milliseconds(100);
+  const auto now = std::chrono::steady_clock::now();
+  if (
+    last_fault_stop_time_.time_since_epoch().count() != 0 &&
+    now - last_fault_stop_time_ < kFaultStopRefresh)
+  {
+    return;
+  }
+  if (!stop_all_motors()) {
+    RCLCPP_ERROR_THROTTLE(
+      get_logger(), *get_clock(), 2000,
+      "Failed to refresh one or more zero-RPM commands while Titan fault is latched.");
+  }
+  last_fault_stop_time_ = now;
+}
+
+bool VmxSystemHardware::wait_for_safe_controller_temperature()
+{
+  const auto deadline = std::chrono::steady_clock::now() +
+    std::chrono::duration<double>(controller_temp_error_timeout_sec_);
+  bool received_fresh_sample = false;
+  double last_temperature_c = std::numeric_limits<double>::quiet_NaN();
+
+  while (std::chrono::steady_clock::now() < deadline) {
+    float temperature_c = 0.0f;
+    bool is_fresh = false;
+    if (titan_driver_->GetControllerTempFresh(temperature_c, is_fresh) && is_fresh) {
+      received_fresh_sample = true;
+      last_temperature_c = static_cast<double>(temperature_c);
+      if (velocity_pid_safety::safe_temperature_sample(
+          last_temperature_c, controller_temp_error_c_))
+      {
+        titan_controller_temperature_c_ = last_temperature_c;
+        temperature_seen_ = true;
+        last_temperature_time_ = std::chrono::steady_clock::now();
+        titan_temperature_age_sec_ = 0.0;
+        return true;
+      }
+      RCLCPP_WARN(
+        get_logger(),
+        "Ignoring unsafe/invalid Titan startup temperature sample %.2f C; "
+        "motors remain disabled while waiting for a valid sample below %.2f C.",
+        last_temperature_c, controller_temp_error_c_);
+    }
+    vmx_->time.DelayMilliseconds(20);
+  }
+
+  if (received_fresh_sample) {
+    RCLCPP_ERROR(
+      get_logger(),
+      "Titan activation refused: no safe temperature sample below %.2f C within %.2f s "
+      "(last sample %.2f C).",
+      controller_temp_error_c_, controller_temp_error_timeout_sec_, last_temperature_c);
+  } else {
+    RCLCPP_ERROR(
+      get_logger(),
+      "Titan activation refused: no fresh controller-temperature telemetry within %.2f s.",
+      controller_temp_error_timeout_sec_);
+  }
+  return false;
+}
+
 hardware_interface::CallbackReturn VmxSystemHardware::on_activate(
   const rclcpp_lifecycle::State & /*previous_state*/)
 {
@@ -462,24 +710,78 @@ hardware_interface::CallbackReturn VmxSystemHardware::on_activate(
     RCLCPP_ERROR(get_logger(), "IMU driver is not initialized in on_activate!");
     return hardware_interface::CallbackReturn::ERROR;
   }
-  // set some default values
+  fault_latched_ = false;
+  fault_reason_.clear();
+  titan_fault_latched_ = 0.0;
+  last_fault_stop_time_ = {};
+  temperature_seen_ = false;
+  titan_controller_temperature_c_ = std::numeric_limits<double>::quiet_NaN();
+  titan_temperature_age_sec_ = std::numeric_limits<double>::infinity();
+  std::fill(rpm_feedback_seen_.begin(), rpm_feedback_seen_.end(), false);
+  std::fill(encoder_feedback_seen_.begin(), encoder_feedback_seen_.end(), false);
+  std::fill(hw_feedback_ages_.begin(), hw_feedback_ages_.end(), std::numeric_limits<double>::infinity());
+  std::fill(hw_encoder_fresh_.begin(), hw_encoder_fresh_.end(), 0.0);
+
+  // Set safe defaults before enabling motor output.
   for (auto i = 0u; i < hw_positions_.size(); i++)
   {
     if (std::isnan(hw_positions_[i]))
     {
       hw_positions_[i] = 0;
       hw_velocities_[i] = 0;
-      hw_commands_[i] = 0;
     }
+    hw_commands_[i] = 0.0;
+    hw_commanded_velocities_[i] = 0.0;
+    hw_command_saturated_[i] = 0.0;
   }
 
   if (imu_enabled_) {
     imu_driver_->ZeroYaw();
   }
 
-  titan_driver_->Enable(true);
+  if (control_mode_ == MotorControlMode::VELOCITY_PID) {
+    if (titan_pid_supported_ < 0.5) {
+      RCLCPP_ERROR(get_logger(), "MCV2 velocity PID is unavailable; Titan activation refused.");
+      return hardware_interface::CallbackReturn::ERROR;
+    }
+    for (const int motor : {
+        left_front_motor_, left_rear_motor_, right_front_motor_, right_rear_motor_})
+    {
+      if (motor < 0) {
+        continue;
+      }
+      if (!titan_driver_->TrySetMotorPIDType(static_cast<uint8_t>(motor), pid_type_) ||
+          !titan_driver_->TrySetSensitivity(static_cast<uint8_t>(motor), pid_sensitivity_))
+      {
+        RCLCPP_ERROR(
+          get_logger(), "Failed to configure MCV2 PID for Titan motor %d.", motor);
+        stop_all_motors();
+        return hardware_interface::CallbackReturn::ERROR;
+      }
+    }
+  }
 
-  RCLCPP_INFO(get_logger(), "Titan Successfully activated!");
+  // Titan temperature is broadcast at about 1 Hz. Require a fresh, safe sample
+  // while outputs are still disabled so a startup frame cannot falsely latch motion.
+  if (
+    control_mode_ == MotorControlMode::VELOCITY_PID &&
+    !wait_for_safe_controller_temperature())
+  {
+    stop_all_motors();
+    titan_driver_->TryEnable(false);
+    return hardware_interface::CallbackReturn::ERROR;
+  }
+
+  if (!stop_all_motors() || !titan_driver_->TryEnable(true)) {
+    RCLCPP_ERROR(get_logger(), "Failed to zero and enable Titan safely.");
+    titan_driver_->TryEnable(false);
+    return hardware_interface::CallbackReturn::ERROR;
+  }
+
+  RCLCPP_INFO(
+    get_logger(), "Titan activated in %s mode (PID type=%u sensitivity=%u).",
+    control_mode_name_.c_str(), static_cast<unsigned>(pid_type_),
+    static_cast<unsigned>(pid_sensitivity_));
 
   return hardware_interface::CallbackReturn::SUCCESS;
 }
@@ -488,7 +790,8 @@ hardware_interface::CallbackReturn VmxSystemHardware::on_deactivate(
   const rclcpp_lifecycle::State & /*previous_state*/)
 {
   if (titan_driver_) { // Check if titan_driver_ is valid before using
-    titan_driver_->Enable(false);
+    stop_all_motors();
+    titan_driver_->TryEnable(false);
   } else {
     RCLCPP_WARN(get_logger(), "Titan driver is not initialized in on_deactivate, nothing to disable.");
   }
@@ -506,59 +809,123 @@ hardware_interface::return_type VmxSystemHardware::read(
     return hardware_interface::return_type::ERROR;
   }
 
-  auto motor_distance = [&](int motor) -> double {
-    if (motor < 0) {
-      return 0.0;
+  const auto steady_now = std::chrono::steady_clock::now();
+  for (size_t i = 0; i < hw_positions_.size(); ++i) {
+    std::vector<int> motors;
+    if (is_independent_motor_layout_) {
+      motors.push_back((i < joint_motor_indices_.size()) ? joint_motor_indices_[i] : -1);
+    } else if (i == 0) {
+      motors = {left_front_motor_, left_rear_motor_};
+    } else {
+      motors = {right_front_motor_, right_rear_motor_};
     }
-    return titan_driver_->GetEncoderDistance(static_cast<uint8_t>(motor));
-  };
 
-  auto motor_rpm = [&](int motor) -> double {
-    if (motor < 0) {
-      return 0.0;
-    }
-    return static_cast<double>(titan_driver_->GetRPM(static_cast<uint8_t>(motor)));
-  };
+    double distance_sum = 0.0;
+    double rpm_sum = 0.0;
+    size_t distance_count = 0;
+    size_t rpm_count = 0;
+    bool encoder_fresh = false;
+    bool rpm_fresh = false;
 
-  auto average_pair = [&](int a, int b, const auto & getter) -> double {
-    if (a >= 0 && b >= 0) {
-      return (getter(a) + getter(b)) / 2.0;
-    }
-    if (a >= 0) {
-      return getter(a);
-    }
-    if (b >= 0) {
-      return getter(b);
-    }
-    return 0.0;
-  };
+    for (const int motor : motors) {
+      if (motor < 0) {
+        continue;
+      }
+      double distance = 0.0;
+      bool distance_is_fresh = false;
+      if (titan_driver_->GetEncoderDistanceFresh(
+          static_cast<uint8_t>(motor), distance, distance_is_fresh))
+      {
+        distance_sum += distance;
+        ++distance_count;
+        encoder_fresh = encoder_fresh || distance_is_fresh;
+      }
 
-  if (is_independent_motor_layout_) {
-    for (size_t i = 0; i < hw_positions_.size(); ++i) {
-      const int motor = (i < joint_motor_indices_.size()) ? joint_motor_indices_[i] : -1;
-      const double distance = motor_distance(motor);
-      const double rpm = motor_rpm(motor);
+      float rpm = 0.0f;
+      bool rpm_is_fresh = false;
+      if (titan_driver_->GetRPMFresh(static_cast<uint8_t>(motor), rpm, rpm_is_fresh)) {
+        rpm_sum += static_cast<double>(rpm);
+        ++rpm_count;
+        rpm_fresh = rpm_fresh || rpm_is_fresh;
+      }
+    }
 
-      hw_positions_[i] = (wheel_radius_ > 0.0) ? (distance / wheel_radius_) : 0.0;
+    if (distance_count > 0) {
+      const double distance = distance_sum / static_cast<double>(distance_count);
+      hw_positions_[i] = distance / wheel_radius_;
+      if (encoder_fresh || !encoder_feedback_seen_[i]) {
+        encoder_feedback_seen_[i] = true;
+        last_encoder_feedback_times_[i] = steady_now;
+      }
+    }
+    if (rpm_count > 0) {
+      const double rpm = rpm_sum / static_cast<double>(rpm_count);
       hw_velocities_[i] = rpm * kRpmToRadPerSec;
-    }
-  } else {
-    const double left_distance = average_pair(
-      left_front_motor_, left_rear_motor_, motor_distance);
-    const double right_distance = average_pair(
-      right_front_motor_, right_rear_motor_, motor_distance);
-    const double left_rpm = average_pair(left_front_motor_, left_rear_motor_, motor_rpm);
-    const double right_rpm = average_pair(right_front_motor_, right_rear_motor_, motor_rpm);
-
-    if (wheel_radius_ > 0.0 && hw_positions_.size() >= 2) {
-      hw_positions_[0] = left_distance / wheel_radius_;
-      hw_positions_[1] = right_distance / wheel_radius_;
+      if (rpm_fresh || !rpm_feedback_seen_[i]) {
+        rpm_feedback_seen_[i] = true;
+        last_rpm_feedback_times_[i] = steady_now;
+      }
     }
 
-    if (hw_velocities_.size() >= 2) {
-      hw_velocities_[0] = left_rpm * kRpmToRadPerSec;
-      hw_velocities_[1] = right_rpm * kRpmToRadPerSec;
+    const double encoder_age = encoder_feedback_seen_[i] ?
+      std::chrono::duration<double>(steady_now - last_encoder_feedback_times_[i]).count() :
+      std::numeric_limits<double>::infinity();
+    const double rpm_age = rpm_feedback_seen_[i] ?
+      std::chrono::duration<double>(steady_now - last_rpm_feedback_times_[i]).count() :
+      std::numeric_limits<double>::infinity();
+    hw_feedback_ages_[i] = std::max(encoder_age, rpm_age);
+    hw_encoder_fresh_[i] = hw_feedback_ages_[i] <= feedback_warn_timeout_sec_ ? 1.0 : 0.0;
+
+    if (
+      velocity_pid_safety::stale_feedback_while_moving(
+        hw_commanded_velocities_[i], hw_feedback_ages_[i], feedback_error_timeout_sec_))
+    {
+      latch_fault(
+        "encoder/RPM feedback timeout on " + info_.joints[i].name +
+        " (age=" + std::to_string(hw_feedback_ages_[i]) + " s)");
     }
+  }
+
+  float temperature_c = 0.0f;
+  bool temperature_fresh = false;
+  if (titan_driver_->GetControllerTempFresh(temperature_c, temperature_fresh)) {
+    titan_controller_temperature_c_ = static_cast<double>(temperature_c);
+    if (temperature_fresh || !temperature_seen_) {
+      temperature_seen_ = true;
+      last_temperature_time_ = steady_now;
+    }
+  }
+  titan_temperature_age_sec_ = temperature_seen_ ?
+    std::chrono::duration<double>(steady_now - last_temperature_time_).count() :
+    std::numeric_limits<double>::infinity();
+  const bool robot_moving = std::any_of(
+    hw_commanded_velocities_.begin(), hw_commanded_velocities_.end(),
+    [](double command) {
+      return std::abs(command) > velocity_pid_safety::kMotionCommandEpsilon;
+    });
+  if (velocity_pid_safety::temperature_fault(
+      robot_moving, temperature_seen_, titan_controller_temperature_c_,
+      titan_temperature_age_sec_, controller_temp_error_c_,
+      controller_temp_error_timeout_sec_))
+  {
+    if (
+      temperature_seen_ && !velocity_pid_safety::safe_temperature_sample(
+        titan_controller_temperature_c_, controller_temp_error_c_))
+    {
+      latch_fault(
+        "Titan controller temperature is invalid or over limit (temperature=" +
+        std::to_string(titan_controller_temperature_c_) + " C, limit=" +
+        std::to_string(controller_temp_error_c_) + " C)");
+    } else {
+      latch_fault(
+        "Titan temperature feedback is missing or stale while moving (age=" +
+        std::to_string(titan_temperature_age_sec_) + " s, timeout=" +
+        std::to_string(controller_temp_error_timeout_sec_) + " s)");
+    }
+  }
+
+  if (fault_latched_) {
+    enforce_fault_stop();
   }
 
   if (imu_enabled_ && imu_driver_) {
@@ -592,74 +959,59 @@ hardware_interface::return_type VmxSystemHardware::write(
     return hardware_interface::return_type::ERROR;
   }
 
-  auto set_speed = [&](int motor, double value) {
-    if (motor < 0) {
-      return;
+  for (size_t i = 0; i < hw_commands_.size(); ++i) {
+    const auto limited = velocity_pid_safety::limit_command(
+      hw_commands_[i], max_wheel_angular_velocity_rad_s_);
+    if (!limited.finite) {
+      latch_fault("non-finite velocity command on " + info_.joints[i].name);
+      hw_commanded_velocities_[i] = 0.0;
+      continue;
     }
-    titan_driver_->SetSpeed(static_cast<uint8_t>(motor), value);
-  };
-
-  if (is_independent_motor_layout_) {
-    for (size_t i = 0; i < hw_commands_.size(); ++i) {
-      const int motor = (i < joint_motor_indices_.size()) ? joint_motor_indices_[i] : -1;
-      if (motor < 0) {
-        continue;
-      }
-
-      double cmd_rad_s = hw_commands_[i];
-      if (std::isnan(cmd_rad_s)) {
-        cmd_rad_s = 0.0;
-      }
-
-      const double cmd_scaled =
-        (cmd_rad_s / max_wheel_angular_velocity_rad_s_) * speed_scale_;
-      const double cmd = std::clamp(cmd_scaled, -1.0, 1.0);
-
-      if (std::abs(cmd_scaled - cmd) > kSaturationWarnEpsilon) {
-        RCLCPP_WARN_THROTTLE(
-          get_logger(), *get_clock(), 2000,
-          "Holonomic wheel command saturated for joint index %zu: raw=%.3f scaled=%.3f "
-          "max_wheel_angular_velocity_rad_s=%.3f speed_scale=%.3f",
-          i, cmd_rad_s, cmd_scaled, max_wheel_angular_velocity_rad_s_, speed_scale_);
-      }
-
-      set_speed(motor, cmd);
-    }
-  } else {
-    double left_cmd_rad_s = hw_commands_[0];
-    double right_cmd_rad_s = hw_commands_[1];
-
-    if (std::isnan(left_cmd_rad_s)) {
-      left_cmd_rad_s = 0.0;
-    }
-    if (std::isnan(right_cmd_rad_s)) {
-      right_cmd_rad_s = 0.0;
-    }
-
-    const double left_cmd_scaled =
-      (left_cmd_rad_s / max_wheel_angular_velocity_rad_s_) * speed_scale_;
-    const double right_cmd_scaled =
-      (right_cmd_rad_s / max_wheel_angular_velocity_rad_s_) * speed_scale_;
-
-    const double left_cmd = std::clamp(left_cmd_scaled, -1.0, 1.0);
-    const double right_cmd = std::clamp(right_cmd_scaled, -1.0, 1.0);
-
-    if (
-      std::abs(left_cmd_scaled - left_cmd) > kSaturationWarnEpsilon ||
-      std::abs(right_cmd_scaled - right_cmd) > kSaturationWarnEpsilon)
-    {
+    hw_commanded_velocities_[i] = limited.value;
+    hw_command_saturated_[i] = limited.saturated ? 1.0 : 0.0;
+    if (hw_command_saturated_[i] > 0.5) {
       RCLCPP_WARN_THROTTLE(
         get_logger(), *get_clock(), 2000,
-        "Wheel command saturated to Titan range [-1, 1]: raw(rad/s) left=%.3f right=%.3f, "
-        "scaled left=%.3f right=%.3f, max_wheel_angular_velocity_rad_s=%.3f, speed_scale=%.3f",
-        left_cmd_rad_s, right_cmd_rad_s, left_cmd_scaled, right_cmd_scaled,
-        max_wheel_angular_velocity_rad_s_, speed_scale_);
+        "Wheel command saturated for %s: requested=%.3f rad/s limited=%.3f rad/s",
+        info_.joints[i].name.c_str(), hw_commands_[i], hw_commanded_velocities_[i]);
     }
+  }
 
-    set_speed(left_front_motor_, left_cmd);
-    set_speed(left_rear_motor_, left_cmd);
-    set_speed(right_front_motor_, right_cmd);
-    set_speed(right_rear_motor_, right_cmd);
+  if (fault_latched_) {
+    std::fill(hw_commanded_velocities_.begin(), hw_commanded_velocities_.end(), 0.0);
+    enforce_fault_stop();
+    return hardware_interface::return_type::OK;
+  }
+
+  auto send_command = [&](int motor, double command_rad_s) -> bool {
+    if (motor < 0) {
+      return true;
+    }
+    if (control_mode_ == MotorControlMode::VELOCITY_PID) {
+      const float target_rpm = velocity_pid_safety::rad_per_sec_to_rpm(command_rad_s);
+      return titan_driver_->TrySetTargetVelocity(static_cast<uint8_t>(motor), target_rpm);
+    }
+    const double duty = std::clamp(
+      (command_rad_s / max_wheel_angular_velocity_rad_s_) * speed_scale_, -1.0, 1.0);
+    titan_driver_->SetSpeed(static_cast<uint8_t>(motor), duty);
+    return true;
+  };
+
+  bool write_success = true;
+  if (is_independent_motor_layout_) {
+    for (size_t i = 0; i < hw_commanded_velocities_.size(); ++i) {
+      const int motor = (i < joint_motor_indices_.size()) ? joint_motor_indices_[i] : -1;
+      write_success = send_command(motor, hw_commanded_velocities_[i]) && write_success;
+    }
+  } else {
+    write_success = send_command(left_front_motor_, hw_commanded_velocities_[0]) && write_success;
+    write_success = send_command(left_rear_motor_, hw_commanded_velocities_[0]) && write_success;
+    write_success = send_command(right_front_motor_, hw_commanded_velocities_[1]) && write_success;
+    write_success = send_command(right_rear_motor_, hw_commanded_velocities_[1]) && write_success;
+  }
+
+  if (velocity_pid_safety::can_write_fault(write_success)) {
+    latch_fault("one or more Titan CAN target writes failed");
   }
 
   return hardware_interface::return_type::OK;

@@ -25,7 +25,7 @@ omni_base_controller:
     rear_right_wheel_state_joint_name: "rear_right_wheel_joint"
     rear_left_wheel_state_joint_name: "rear_left_wheel_joint"
 
-    kinematics.wheels_radius: 0.05
+    # kinematics.wheels_radius is injected from drive.wheel_radius_m at launch.
     kinematics.sum_of_robot_center_projection_on_X_Y_axis: 0.37
     kinematics.base_frame_offset.x: 0.0
     kinematics.base_frame_offset.y: 0.0

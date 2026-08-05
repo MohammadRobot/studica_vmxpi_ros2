@@ -9,12 +9,15 @@ from pathlib import Path
 from ament_index_python.packages import get_package_prefix, get_package_share_directory
 from launch import LaunchDescription
 from launch.actions import (
+    IncludeLaunchDescription,
     LogInfo,
     OpaqueFunction,
     SetEnvironmentVariable,
+    SetLaunchConfiguration,
     TimerAction,
 )
 from launch.conditions import IfCondition, UnlessCondition
+from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch.substitutions import (
     Command,
     FindExecutable,
@@ -35,6 +38,7 @@ from _launch_helpers import (  # noqa: E402
     _declare_arg,
     _expr_is_false,
     _expr_is_true,
+    _profile_assets,
     _sanitize_ld_library_path_for_rviz,
 )
 from _launch_gz import (  # noqa: E402
@@ -47,6 +51,13 @@ from _launch_sensors import (  # noqa: E402
     _maybe_include_gamepad,
     _maybe_include_lidar,
 )
+
+
+def _set_runtime_controller_file(context, *args, **kwargs):
+    """Resolve the controller YAML with wheel radius injected from the profile."""
+    profile_name = LaunchConfiguration("robot_profile").perform(context).strip()
+    _, controllers_file = _profile_assets(profile_name)
+    return [SetLaunchConfiguration("runtime_controllers_file", controllers_file)]
 
 
 def generate_launch_description():
@@ -214,6 +225,22 @@ def generate_launch_description():
             "Launch Orbbec camera in real hardware mode (defaults to use_hardware).",
         ),
         _declare_arg(
+            "use_monitoring",
+            LaunchConfiguration("use_hardware"),
+            "Launch robot health monitoring and diagnostic aggregation.",
+        ),
+        _declare_arg(
+            "use_foxglove",
+            LaunchConfiguration("use_hardware"),
+            "Launch a read-only Foxglove Bridge for telemetry.",
+        ),
+        _declare_arg(
+            "foxglove_address",
+            "127.0.0.1",
+            "Private LAN interface address for Foxglove Bridge (loopback by default).",
+        ),
+        _declare_arg("foxglove_port", "8765", "Foxglove WebSocket port."),
+        _declare_arg(
             "orbbec_launch_file",
             "gemini_e.launch.py",
             "Orbbec launch file in orbbec_camera/launch.",
@@ -344,6 +371,8 @@ def generate_launch_description():
     drive_controller_type = LaunchConfiguration("drive_controller_type")
     drive_cmd_topic = LaunchConfiguration("drive_cmd_topic")
     drive_odom_topic = LaunchConfiguration("drive_odom_topic")
+    use_monitoring = LaunchConfiguration("use_monitoring")
+    use_foxglove = LaunchConfiguration("use_foxglove")
 
     pkg_studica_vmxpi_ros2 = get_package_share_directory("studica_vmxpi_ros2")
     install_dir = get_package_prefix("studica_vmxpi_ros2")
@@ -359,9 +388,7 @@ def generate_launch_description():
     profile_file = PathJoinSubstitution(
         [FindPackageShare("studica_vmxpi_ros2"), "config", "profiles", robot_profile, "robot_profile.yaml"]
     )
-    robot_controllers = PathJoinSubstitution(
-        [FindPackageShare("studica_vmxpi_ros2"), "config", "profiles", robot_profile, "robot_controllers.yaml"]
-    )
+    robot_controllers = LaunchConfiguration("runtime_controllers_file")
 
     robot_description_content = Command(
         [
@@ -620,7 +647,50 @@ def generate_launch_description():
         condition=UnlessCondition(use_gz_sim),
     )
 
+    monitoring_launch = IncludeLaunchDescription(
+        PythonLaunchDescriptionSource(
+            PathJoinSubstitution(
+                [FindPackageShare("studica_robot_monitor"), "launch", "monitoring.launch.py"]
+            )
+        ),
+        launch_arguments={
+            "use_sim_time": use_sim_time,
+            "monitor_lidar": LaunchConfiguration("use_lidar"),
+            "monitor_camera": LaunchConfiguration("use_camera"),
+        }.items(),
+        condition=IfCondition(use_monitoring),
+    )
+
+    foxglove_bridge_node = Node(
+        package="foxglove_bridge",
+        executable="foxglove_bridge",
+        name="foxglove_bridge",
+        output="screen",
+        parameters=[
+            {
+                "address": LaunchConfiguration("foxglove_address"),
+                "port": ParameterValue(LaunchConfiguration("foxglove_port"), value_type=int),
+                "topic_whitelist": [
+                    r"^/robot_status/motors$",
+                    r"^/diagnostics(_agg|_toplevel_state)?$",
+                    r"^/tf(_static)?$",
+                    r"^/(dynamic_)?joint_states$",
+                    r"^/(imu|scan|odom|rosout)$",
+                    r"^/camera/.*/(compressed|compressedDepth)$",
+                ],
+                "service_whitelist": [r"^$"],
+                "param_whitelist": [r"^$"],
+                "client_topic_whitelist": [r"^$"],
+                "capabilities": ["connectionGraph"],
+                "include_hidden": False,
+                "use_sim_time": use_sim_time_param,
+            }
+        ],
+        condition=IfCondition(use_foxglove),
+    )
+
     nodes = [
+        OpaqueFunction(function=_set_runtime_controller_file),
         SetEnvironmentVariable("LD_LIBRARY_PATH", sanitized_ld_library_path),
         # Fix Gazebo Harmonic blank 3D viewport on NVIDIA GPUs: default FBO/PBO render-to-texture
         # mode fails silently; Copy mode works reliably across driver versions.
@@ -647,6 +717,8 @@ def generate_launch_description():
         OpaqueFunction(function=_maybe_include_gamepad),
         OpaqueFunction(function=_maybe_include_lidar),
         OpaqueFunction(function=_maybe_include_camera),
+        monitoring_launch,
+        foxglove_bridge_node,
     ]
 
     return LaunchDescription(declared_arguments + nodes)

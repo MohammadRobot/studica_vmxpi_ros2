@@ -48,13 +48,16 @@ Set physical and hardware values:
 
 - `xacro.*`: base dimensions, mass, wheel/caster geometry, laser mounting height.
 - `drive.*`: drive layout and controller selection.
+  - `wheel_radius_m`: the single measured wheel radius used by URDF, hardware conversion,
+    and runtime drive-controller parameters.
   - `wheel_layout`: `diff` | `diff_4wd` | `mecanum` | `omni`
     - `omni` uses X-drive wheel mounting (45 deg wheel yaw in URDF).
   - `controller_name`: name used in `robot_controllers.yaml`
   - `controller_type`:
     - `diff_drive_controller/DiffDriveController` for `wheel_layout: diff` or `wheel_layout: diff_4wd`
     - `mecanum_drive_controller/MecanumDriveController` for `wheel_layout: mecanum` or `wheel_layout: omni`
-- `hardware.*`: CAN ID, motor frequency, encoder ticks, wheel radius, speed scaling, and optional LiDAR model default.
+- `hardware.*`: CAN ID, motor frequency, encoder ticks, speed scaling, control mode, and optional LiDAR model default.
+  - Set `wheel_radius_calibrated: true` only after measuring the physical wheel.
   - `hardware.lidar_type` (optional): default YDLIDAR preset for hardware mode (for example `tmini`, `x2`, `x4`, `g4`, `gs2`, `sdm15`).
   - Launch-arg `lidar_type:=...` still overrides the profile value.
 - Motor index mapping:
@@ -72,10 +75,11 @@ Set controller behavior:
   - `controller_manager`
   - the drive controller key from `drive.controller_name`
 - For diff drive (`controller_type: diff_drive_controller/DiffDriveController`):
-  - tune `wheel_separation`, `wheel_radius`, velocity/acceleration limits, covariance, publish rate
+  - tune `wheel_separation`, velocity/acceleration limits, covariance, and publish rate
+  - do not add `wheel_radius`; launch injects `drive.wheel_radius_m`
 - For holonomic layouts (`controller_type: mecanum_drive_controller/MecanumDriveController`):
   - set wheel joint names (`front_left_*`, `front_right_*`, `rear_left_*`, `rear_right_*`)
-  - set `kinematics.wheels_radius`
+  - do not set `kinematics.wheels_radius`; launch injects `drive.wheel_radius_m`
   - set `kinematics.sum_of_robot_center_projection_on_X_Y_axis` (`lx + ly` from robot center to wheel center)
     - Example from current URDF wheel origin: `abs(x_joint) + abs(y_joint)`
     - `class_mecanum`: `0.35`, `class_omni`: `0.33`

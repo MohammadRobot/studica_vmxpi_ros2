@@ -61,6 +61,10 @@ def _runtime_actions(context, *args, **kwargs):
     use_sim_time = LaunchConfiguration("use_sim_time").perform(context).strip()
     use_lidar = LaunchConfiguration("use_lidar").perform(context).strip()
     use_camera = LaunchConfiguration("use_camera").perform(context).strip()
+    use_monitoring = LaunchConfiguration("use_monitoring").perform(context).strip()
+    use_foxglove = LaunchConfiguration("use_foxglove").perform(context).strip()
+    foxglove_address = LaunchConfiguration("foxglove_address").perform(context).strip()
+    foxglove_port = LaunchConfiguration("foxglove_port").perform(context).strip()
     use_ground_truth_odom_tf = LaunchConfiguration("use_ground_truth_odom_tf").perform(context).strip()
     world = LaunchConfiguration("world").perform(context).strip()
     world_arg = world
@@ -153,6 +157,10 @@ def _runtime_actions(context, *args, **kwargs):
         use_lidar = "true" if mode == "hardware" else "false"
     if not use_camera:
         use_camera = "true" if mode == "hardware" else "false"
+    if not use_monitoring:
+        use_monitoring = "true" if mode == "hardware" else "false"
+    if not use_foxglove:
+        use_foxglove = "true" if mode == "hardware" else "false"
 
     if mode not in ("gz_sim", "hardware", "mock"):
         raise RuntimeError("Invalid mode. Use one of: gz_sim, hardware, mock.")
@@ -186,6 +194,10 @@ def _runtime_actions(context, *args, **kwargs):
         "lidar_type": lidar_type,
         "ydlidar_params_file": ydlidar_params_file,
         "use_camera": use_camera,
+        "use_monitoring": use_monitoring,
+        "use_foxglove": use_foxglove,
+        "foxglove_address": foxglove_address,
+        "foxglove_port": foxglove_port,
         "orbbec_launch_file": orbbec_launch_file,
         "orbbec_camera_name": orbbec_camera_name,
         "orbbec_serial_number": orbbec_serial_number,
@@ -371,6 +383,26 @@ def generate_launch_description():
                 "use_camera",
                 "",
                 "Leave empty to auto-select (true in hardware mode).",
+            ),
+            _declare_arg(
+                "use_monitoring",
+                "",
+                "Leave empty to enable health monitoring in hardware mode only.",
+            ),
+            _declare_arg(
+                "use_foxglove",
+                "",
+                "Leave empty to enable the read-only Foxglove bridge in hardware mode only.",
+            ),
+            _declare_arg(
+                "foxglove_address",
+                "127.0.0.1",
+                "Private LAN interface address used by Foxglove Bridge (loopback by default).",
+            ),
+            _declare_arg(
+                "foxglove_port",
+                "8765",
+                "Foxglove WebSocket port.",
             ),
             _declare_arg(
                 "orbbec_launch_file",

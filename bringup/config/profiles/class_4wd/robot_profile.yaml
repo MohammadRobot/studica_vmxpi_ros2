@@ -5,7 +5,6 @@ xacro:
   base_height: 0.1
   wheel_mass: 0.3
   wheel_len: 0.04
-  wheel_radius: 0.0625
   wheel_z_offset: -0.027
   caster_wheel_mass: 0.1
   caster_wheel_radius: 0.05
@@ -23,15 +22,27 @@ drive:
   wheel_layout: diff_4wd
   controller_name: robot_base_controller
   controller_type: diff_drive_controller/DiffDriveController
+  # Single source for URDF geometry, encoder conversion, and controller validation.
+  wheel_radius_m: 0.0625
 
 hardware:
   can_id: 42
   motor_freq: 15600
   ticks_per_rotation: 1464
-  wheel_radius: 0.05
   lidar_type: x2
   speed_scale: 0.5
   max_wheel_angular_velocity_rad_s: 20.0
+  control_mode: velocity_pid
+  wheel_radius_calibrated: true
+  pid:
+    type: mcv2
+    sensitivity: 5
+    require_supported: true
+  feedback_warn_timeout_ms: 100
+  feedback_error_timeout_ms: 250
+  controller_temp_error_c: 80.0
+  # Titan controller temperature is broadcast at approximately 1 Hz.
+  controller_temp_error_timeout_ms: 3000
 
   left_front_motor: 2
   left_rear_motor: 3

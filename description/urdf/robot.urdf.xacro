@@ -43,7 +43,7 @@
     base_height="${geometry_cfg['base_height']}"
     wheel_mass="${geometry_cfg['wheel_mass']}"
     wheel_len="${geometry_cfg['wheel_len']}"
-    wheel_radius="${geometry_cfg['wheel_radius']}"
+    wheel_radius="${drive_cfg['wheel_radius_m']}"
     caster_wheel_mass="${geometry_cfg['caster_wheel_mass']}"
     caster_wheel_radius="${geometry_cfg['caster_wheel_radius']}"
     laser_pos_z="${geometry_cfg['laser_pos_z']}"

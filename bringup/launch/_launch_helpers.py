@@ -3,6 +3,8 @@
 """Shared utilities and profile helpers for studica_vmxpi_ros2 launch files."""
 
 import os
+import re
+import tempfile
 import yaml
 
 from ament_index_python.packages import get_package_share_directory
@@ -92,7 +94,45 @@ def _profile_assets(profile_name: str):
     pkg_share = get_package_share_directory("studica_vmxpi_ros2")
     profile_dir = os.path.join(pkg_share, "config", "profiles", profile_name)
     profile_file = os.path.join(profile_dir, "robot_profile.yaml")
-    controllers_file = os.path.join(profile_dir, "robot_controllers.yaml")
+    source_controllers_file = os.path.join(profile_dir, "robot_controllers.yaml")
+
+    # ros2_control controller parameter files cannot reference another YAML file.
+    # Materialize a runtime copy so drive.wheel_radius_m remains the only source.
+    with open(profile_file, "r", encoding="utf-8") as stream:
+        profile_data = yaml.safe_load(stream) or {}
+    with open(source_controllers_file, "r", encoding="utf-8") as stream:
+        controllers_data = yaml.safe_load(stream) or {}
+
+    drive_cfg = profile_data.get("drive")
+    if not isinstance(drive_cfg, dict):
+        raise ValueError(f"Missing drive mapping in profile: {profile_file}")
+    controller_name = str(drive_cfg.get("controller_name", "")).strip()
+    controller_type = str(drive_cfg.get("controller_type", "")).strip()
+    wheel_radius = float(drive_cfg["wheel_radius_m"])
+    controller_cfg = controllers_data.get(controller_name)
+    controller_params = (
+        controller_cfg.get("ros__parameters") if isinstance(controller_cfg, dict) else None
+    )
+    if not isinstance(controller_params, dict):
+        raise ValueError(
+            f"Missing {controller_name}.ros__parameters in {source_controllers_file}"
+        )
+    if controller_type == "diff_drive_controller/DiffDriveController":
+        controller_params["wheel_radius"] = wheel_radius
+    elif controller_type == "mecanum_drive_controller/MecanumDriveController":
+        controller_params["kinematics.wheels_radius"] = wheel_radius
+    else:
+        raise ValueError(f"Unsupported drive controller type: {controller_type}")
+
+    safe_profile_name = re.sub(r"[^A-Za-z0-9_-]", "_", profile_name)
+    runtime_dir = os.path.join(tempfile.gettempdir(), "studica_vmxpi_ros2")
+    os.makedirs(runtime_dir, mode=0o700, exist_ok=True)
+    controllers_file = os.path.join(
+        runtime_dir,
+        f"controllers_{os.getpid()}_{safe_profile_name}.yaml",
+    )
+    with open(controllers_file, "w", encoding="utf-8") as stream:
+        yaml.safe_dump(controllers_data, stream, sort_keys=False)
     return profile_file, controllers_file
 
 
@@ -109,13 +149,16 @@ def _profile_camera_tf_base_link(profile_name: str):
         profile_data = yaml.safe_load(stream) or {}
 
     xacro_cfg = profile_data.get("xacro")
+    drive_cfg = profile_data.get("drive")
     if not isinstance(xacro_cfg, dict):
         raise ValueError(f"Missing xacro mapping in profile: {profile_file}")
+    if not isinstance(drive_cfg, dict):
+        raise ValueError(f"Missing drive mapping in profile: {profile_file}")
 
     # Keep defaults synchronized with description/robot/urdf/robot_description.urdf.xacro.
     base_length = float(xacro_cfg.get("base_length", 0.4))
     base_height = float(xacro_cfg.get("base_height", 0.1))
-    wheel_radius = float(xacro_cfg.get("wheel_radius", 0.05))
+    wheel_radius = float(drive_cfg.get("wheel_radius_m", 0.05))
     wheel_z_offset = float(xacro_cfg.get("wheel_z_offset", -0.027))
 
     cam_pos_x = float(xacro_cfg.get("cam_pos_x", base_length / 2.0))

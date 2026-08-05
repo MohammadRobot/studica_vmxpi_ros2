@@ -20,7 +20,7 @@ robot_base_controller:
 
     wheel_separation: 0.4
     wheels_per_side: 1  # actually 2, but both are controlled by 1 signal
-    wheel_radius: 0.05
+    # wheel_radius is injected from robot_profile.yaml drive.wheel_radius_m at launch.
 
     wheel_separation_multiplier: 1.0    # 1.4 is a hack to make the robot turn better, since the real wheel separation is larger than the nominal one
     left_wheel_radius_multiplier: 1.0   # 0.95 is a hack to make the robot drive better, since the real wheel radius is smaller than the nominal one

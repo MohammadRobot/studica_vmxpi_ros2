@@ -19,7 +19,7 @@ robot_base_controller:
 
     wheel_separation: 0.40
     wheels_per_side: 1
-    wheel_radius: 0.05
+    # wheel_radius is injected from robot_profile.yaml drive.wheel_radius_m at launch.
 
     wheel_separation_multiplier: 1.0
     left_wheel_radius_multiplier: 1.0

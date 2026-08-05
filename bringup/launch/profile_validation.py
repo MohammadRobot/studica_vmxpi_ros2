@@ -28,7 +28,6 @@ REQUIRED_XACRO_KEYS = (
     "base_height",
     "wheel_mass",
     "wheel_len",
-    "wheel_radius",
     "caster_wheel_mass",
     "caster_wheel_radius",
     "laser_pos_z",
@@ -39,7 +38,6 @@ REQUIRED_HW_KEYS = (
     "can_id",
     "motor_freq",
     "ticks_per_rotation",
-    "wheel_radius",
     "speed_scale",
     "max_wheel_angular_velocity_rad_s",
     "left_front_motor",
@@ -60,7 +58,6 @@ NUMERIC_HW_KEYS = (
     "can_id",
     "motor_freq",
     "ticks_per_rotation",
-    "wheel_radius",
     "speed_scale",
     "max_wheel_angular_velocity_rad_s",
     "left_front_motor",
@@ -205,6 +202,12 @@ def validate_profile_files(
         drive_controller_type,
         drive_wheel_layout,
     ) = _read_drive_config(profile_name, profile_path, profile, errors)
+    drive_cfg = profile.get("drive", {})
+    wheel_radius_value = drive_cfg.get("wheel_radius_m")
+    if not _is_number(wheel_radius_value) or float(wheel_radius_value) <= 0.0:
+        errors.append(
+            f"{profile_name}: {profile_path} drive.wheel_radius_m must be > 0"
+        )
 
     for key in REQUIRED_XACRO_KEYS:
         if key not in xacro_cfg:
@@ -245,7 +248,7 @@ def validate_profile_files(
     can_id = int(hw_cfg["can_id"])
     motor_freq = int(hw_cfg["motor_freq"])
     ticks_per_rotation = int(hw_cfg["ticks_per_rotation"])
-    wheel_radius = float(hw_cfg["wheel_radius"])
+    wheel_radius = float(wheel_radius_value)
     speed_scale = float(hw_cfg["speed_scale"])
     max_wheel_rad_s = float(hw_cfg["max_wheel_angular_velocity_rad_s"])
 
@@ -268,6 +271,55 @@ def validate_profile_files(
         errors.append(
             f"{profile_name}: {profile_path} max_wheel_angular_velocity_rad_s must be > 0"
         )
+
+    control_mode = hw_cfg.get("control_mode", "open_loop")
+    if control_mode not in ("open_loop", "velocity_pid"):
+        errors.append(
+            f"{profile_name}: {profile_path} hardware.control_mode must be "
+            "'open_loop' or 'velocity_pid'"
+        )
+    if "wheel_radius_calibrated" in hw_cfg and not isinstance(
+        hw_cfg["wheel_radius_calibrated"], bool
+    ):
+        errors.append(
+            f"{profile_name}: {profile_path} hardware.wheel_radius_calibrated must be bool"
+        )
+    if control_mode == "velocity_pid":
+        pid_cfg = hw_cfg.get("pid")
+        if not isinstance(pid_cfg, dict):
+            errors.append(f"{profile_name}: {profile_path} hardware.pid must be a mapping")
+        else:
+            if pid_cfg.get("type") != "mcv2":
+                errors.append(
+                    f"{profile_name}: {profile_path} hardware.pid.type must be 'mcv2'"
+                )
+            sensitivity = pid_cfg.get("sensitivity")
+            if not isinstance(sensitivity, int) or isinstance(sensitivity, bool) or not 0 <= sensitivity <= 10:
+                errors.append(
+                    f"{profile_name}: {profile_path} hardware.pid.sensitivity must be an int in [0, 10]"
+                )
+            if not isinstance(pid_cfg.get("require_supported"), bool):
+                errors.append(
+                    f"{profile_name}: {profile_path} hardware.pid.require_supported must be bool"
+                )
+        for timeout_key in (
+            "feedback_warn_timeout_ms",
+            "feedback_error_timeout_ms",
+            "controller_temp_error_timeout_ms",
+        ):
+            if not _is_number(hw_cfg.get(timeout_key)) or float(hw_cfg[timeout_key]) <= 0.0:
+                errors.append(
+                    f"{profile_name}: {profile_path} hardware.{timeout_key} must be > 0"
+                )
+        if (
+            _is_number(hw_cfg.get("feedback_warn_timeout_ms"))
+            and _is_number(hw_cfg.get("feedback_error_timeout_ms"))
+            and float(hw_cfg["feedback_warn_timeout_ms"])
+            >= float(hw_cfg["feedback_error_timeout_ms"])
+        ):
+            errors.append(
+                f"{profile_name}: {profile_path} feedback warn timeout must be below error timeout"
+            )
 
     for motor in (
         left_front_motor,
@@ -344,22 +396,26 @@ def validate_profile_files(
     if isinstance(drive_params, dict) and (
         drive_controller_type == "diff_drive_controller/DiffDriveController"
     ):
+        if "wheel_radius" in drive_params:
+            errors.append(
+                f"{profile_name}: {controllers_path} must not define "
+                f"{drive_controller_name}.wheel_radius; use drive.wheel_radius_m"
+            )
         wheel_separation = drive_params.get("wheel_separation")
-        wheel_radius_cfg = drive_params.get("wheel_radius")
         if not _is_number(wheel_separation) or float(wheel_separation) <= 0.0:
             errors.append(
                 f"{profile_name}: {controllers_path} {drive_controller_name}.wheel_separation "
-                "must be > 0"
-            )
-        if not _is_number(wheel_radius_cfg) or float(wheel_radius_cfg) <= 0.0:
-            errors.append(
-                f"{profile_name}: {controllers_path} {drive_controller_name}.wheel_radius "
                 "must be > 0"
             )
 
     if isinstance(drive_params, dict) and (
         drive_controller_type == "mecanum_drive_controller/MecanumDriveController"
     ):
+        if "kinematics.wheels_radius" in drive_params:
+            errors.append(
+                f"{profile_name}: {controllers_path} must not define "
+                f"{drive_controller_name}.kinematics.wheels_radius; use drive.wheel_radius_m"
+            )
         required_joint_params = (
             "front_left_wheel_command_joint_name",
             "front_right_wheel_command_joint_name",
@@ -374,15 +430,9 @@ def validate_profile_files(
                     "must be a non-empty string"
                 )
 
-        wheels_radius_cfg = drive_params.get("kinematics.wheels_radius")
         proj_cfg = drive_params.get(
             "kinematics.sum_of_robot_center_projection_on_X_Y_axis"
         )
-        if not _is_number(wheels_radius_cfg) or float(wheels_radius_cfg) <= 0.0:
-            errors.append(
-                f"{profile_name}: {controllers_path} {drive_controller_name}."
-                "kinematics.wheels_radius must be > 0"
-            )
         if not _is_number(proj_cfg):
             errors.append(
                 f"{profile_name}: {controllers_path} {drive_controller_name}."

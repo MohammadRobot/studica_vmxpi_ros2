@@ -18,6 +18,10 @@ Supports 2WD, 4WD, Mecanum, and Omni robot configurations with a unified launch 
 7. [Mapping (SLAM)](#mapping-slam)
 8. [Navigation (Nav2)](#navigation-nav2)
 9. [Hardware — Real Robot](#hardware--real-robot)
+   - [Titan2 velocity PID and safety](#titan2-velocity-pid-and-safety)
+   - [Foxglove robot-health dashboard](#foxglove-robot-health-dashboard)
+   - [Guarded lifted-wheel validation](#guarded-lifted-wheel-validation)
+   - [Compute-temperature diagnostics](#compute-temperature-diagnostics)
    - [VMXPi hardware and remote PC RViz (recommended)](#vmxpi-hardware-and-remote-pc-rviz-recommended)
    - [Recommended workflow: configure, calibrate, and visualize](#recommended-workflow-configure-calibrate-and-visualize)
    - [Raspberry Pi USB buffer](#raspberry-pi-usb-buffer-persistent)
@@ -43,6 +47,7 @@ Use these docs in order for classroom/lab onboarding:
 2. `docs/ARCHITECTURE.md` — runtime architecture and data flow
 3. `docs/PROFILE_AUTHORING.md` — create and validate new robot profiles
 4. `docs/LAUNCH_MIGRATION.md` — legacy launch command migration
+5. `docs/ROBOT_HEALTH_AND_PID.md` — Titan velocity PID, diagnostics, Foxglove, and guarded wheel validation
 
 ---
 
@@ -61,6 +66,10 @@ sudo apt install -y \
   ros-humble-mecanum-drive-controller \
   ros-humble-imu-sensor-broadcaster \
   ros-humble-joint-state-broadcaster \
+  ros-humble-forward-command-controller \
+  ros-humble-diagnostic-aggregator \
+  ros-humble-foxglove-bridge \
+  ros-humble-rosbag2-storage-mcap \
   ros-humble-xacro \
   ros-humble-robot-state-publisher \
   ros-humble-joint-state-publisher-gui \
@@ -177,7 +186,8 @@ Use this when you do not need camera packages:
 ```bash
 cd ~/ros2_ws
 source /opt/ros/humble/setup.bash
-colcon build --packages-select studica_drivers studica_ros2_control studica_vmxpi_ros2
+colcon build --packages-select \
+  studica_drivers studica_ros2_control studica_robot_monitor studica_vmxpi_ros2
 source install/setup.bash
 ```
 
@@ -497,16 +507,77 @@ ros2 launch studica_vmxpi_ros2 bringup.launch.py \
   use_lidar:=true lidar_type:=x2 \
   use_camera:=true \
   orbbec_launch_file:=gemini_e.launch.py \
-  orbbec_enable_point_cloud:=true \
-  orbbec_enable_ir:=true \
-  orbbec_color_width:=640 orbbec_color_height:=480 orbbec_color_fps:=5 \
-  orbbec_depth_width:=640 orbbec_depth_height:=480 orbbec_depth_fps:=5
+  orbbec_enable_point_cloud:=false \
+  orbbec_enable_ir:=false \
+  orbbec_color_width:=640 orbbec_color_height:=480 orbbec_color_fps:=15 \
+  orbbec_depth_width:=640 orbbec_depth_height:=480 orbbec_depth_fps:=15 \
+  use_monitoring:=true use_foxglove:=true \
+  foxglove_address:=192.168.1.63 foxglove_port:=8765
 '
 ```
+
+Replace `192.168.1.63` with the VMXPi's current private LAN address. The reduced camera rate and disabled IR/point-cloud streams are recommended for a four-core Raspberry Pi 4 dashboard workload; enable extra streams only when required and cooling is adequate.
 
 > `mode:=gz_sim` does **not** require `sudo`.
 
 If you run as `root` persistently, add the same environment lines to `/root/.bashrc`.
+
+### Titan2 velocity PID and safety
+
+The `class_4wd` profile uses Titan2 MCV2 PID type `2` and never silently falls back to open-loop duty control. Before activation, hardware bringup verifies the Titan firmware, configures sensitivity, waits for fresh safe controller-temperature telemetry, sends zero velocity to every channel, and requires `hardware.wheel_radius_calibrated: true`.
+
+Titan firmware `2.0.5` reports `MCU_TEMP` in Fahrenheit. `studica_drivers` detects firmware `2.0.5` (and later `2.0.x` patch releases) and converts the payload to Celsius before publishing it or applying the `80 C` Titan safety limit.
+
+Check the live motor state after activation:
+
+```bash
+ros2 topic echo /robot_status/motors --once
+```
+
+A healthy `class_4wd` reports four fresh encoders, `pid_supported: true`, `pid_type: 2`, and `fault_latched: false`. A latched hardware fault is cleared only by deliberately deactivating/reactivating the hardware component or restarting bringup after correcting its cause.
+
+### Foxglove robot-health dashboard
+
+Foxglove Bridge is enabled in hardware mode when `use_foxglove:=true`. Bind it only to the trusted robot LAN address, then connect from the current Foxglove application using **Foxglove WebSocket** (not Rosbridge):
+
+```text
+ws://ROBOT_LAN_IP:8765
+```
+
+The bridge exposes a read-only telemetry whitelist and the connection graph. Client topic publishing, service calls, and parameter access are disabled. If UFW is enabled, allow only the robot LAN subnet on `wlan0`:
+
+```bash
+sudo ufw allow in on wlan0 proto tcp \
+  from 192.168.1.0/24 to any port 8765 \
+  comment 'Foxglove LAN only'
+```
+
+Import `foxglove/class_4wd_robot_health.layout.json` to load the Overview, Motors/PID, IMU/Odometry, Camera/LiDAR, and Logs/Graph tabs. Foxglove receives topics through the WebSocket bridge; native `ros2 topic list` discovery on the laptop is not required.
+
+### Guarded lifted-wheel validation
+
+Keep all wheels clear of the floor and a physical emergency stop within reach, then run locally on the robot:
+
+```bash
+ros2 run studica_robot_monitor validate_motors \
+  --robot-lifted --emergency-stop-ready
+echo "Exit code: $?"
+```
+
+The validator tests every wheel independently at `+2` and `-2 rad/s`, verifies encoder freshness/direction, tracking error, overshoot, idle-wheel motion, and stopping time, then restores the base controller on every exit path. A successful run exits with code `0` and writes a YAML report plus an MCAP recording beneath `~/robot_test_results/`.
+
+### Compute-temperature diagnostics
+
+`Robot/Compute/Pi` warns at `70 C` and reports an error at `80 C`. Do not raise the error threshold to hide an alert: Raspberry Pi processors begin thermal throttling around `80 C` and throttle further at `85 C`.
+
+Read the CPU temperature directly:
+
+```bash
+awk '{printf "CPU: %.1f C\n", $1/1000}' \
+  /sys/class/thermal/thermal_zone0/temp
+```
+
+If the diagnostic reports `compute resource limit exceeded`, stop robot motion and bringup, let the CPU cool below `70 C`, and verify the fan, heatsink contact, enclosure airflow, memory, and disk usage. For the full camera dashboard, start with 640x480 at 15 FPS, IR disabled, and point-cloud output disabled as shown above.
 
 ### VMXPi hardware and remote PC RViz (recommended)
 
@@ -740,8 +811,8 @@ Use this sequence for reliable bringup and repeatable tuning on real hardware.
 
 4. Keep wheel radius values consistent:
    - Odometry quality depends on matching wheel-radius values across profile/controller/URDF paths.
-   - In `class_4wd`, `xacro.wheel_radius` and controller `wheel_radius` are `0.0625` while
-     `hardware.wheel_radius` is `0.05`. Align these to your measured physical wheel radius.
+   - `drive.wheel_radius_m` is the only wheel-radius source. Hardware motion remains disabled
+     until it is measured and `hardware.wheel_radius_calibrated` is set to `true`.
 
 ### Raspberry Pi USB buffer (persistent)
 
