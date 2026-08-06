@@ -18,6 +18,7 @@ Supports 2WD, 4WD, Mecanum, and Omni robot configurations with a unified launch 
 7. [Mapping (SLAM)](#mapping-slam)
 8. [Navigation (Nav2)](#navigation-nav2)
 9. [Hardware — Real Robot](#hardware--real-robot)
+   - [ROS 2 network topology](#ros-2-network-topology)
    - [Titan2 velocity PID and safety](#titan2-velocity-pid-and-safety)
    - [Foxglove robot-health dashboard](#foxglove-robot-health-dashboard)
    - [Guarded lifted-wheel validation](#guarded-lifted-wheel-validation)
@@ -491,6 +492,96 @@ export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/usr/local/lib/vmxpi
 ```
 
 After editing, run `source ~/.bashrc` once (or open a new terminal).
+
+### ROS 2 network topology
+
+For the sensor-heavy `class_4wd` robot, use the direct Ethernet link for native ROS 2 DDS traffic and Wi-Fi for SSH and the read-only Foxglove connection:
+
+| Traffic | VMXPi | Remote PC |
+|---|---|---|
+| Native ROS 2 topics, services, RViz | `eth0` — `172.22.11.2/24` | `enp0s31f6` — `172.22.11.10/24` |
+| Foxglove and SSH | `wlan0` — `192.168.1.63/24` | `wlp0s20f3` — `192.168.1.118/24` |
+
+Replace the Wi-Fi addresses if DHCP assigns different values. Configure the laptop's direct Ethernet address before starting ROS 2:
+
+```bash
+sudo ip address replace 172.22.11.10/24 dev enp0s31f6
+sudo ip link set enp0s31f6 up
+ping -c 3 172.22.11.2
+```
+
+Use unicast CycloneDDS discovery on the Ethernet link so operation does not depend on Wi-Fi multicast. The explicit `127.0.0.1` peer is required so processes on each computer can discover one another locally. Without it, hardware can activate while the controller spawners repeatedly report that `/controller_manager/list_controllers` is unavailable.
+
+Create `~/.ros/cyclonedds_ethernet.xml` on the VMXPi:
+
+```xml
+<?xml version="1.0" encoding="UTF-8"?>
+<CycloneDDS xmlns="https://cdds.io/config">
+  <Domain Id="any">
+    <General>
+      <Interfaces>
+        <NetworkInterface address="172.22.11.2" multicast="false"/>
+      </Interfaces>
+      <AllowMulticast>false</AllowMulticast>
+    </General>
+    <Discovery>
+      <ParticipantIndex>auto</ParticipantIndex>
+      <MaxAutoParticipantIndex>50</MaxAutoParticipantIndex>
+      <Peers>
+        <Peer Address="127.0.0.1"/>
+        <Peer Address="172.22.11.10"/>
+      </Peers>
+    </Discovery>
+  </Domain>
+</CycloneDDS>
+```
+
+Create the same file on the remote PC with the interface and remote peer reversed:
+
+```xml
+<?xml version="1.0" encoding="UTF-8"?>
+<CycloneDDS xmlns="https://cdds.io/config">
+  <Domain Id="any">
+    <General>
+      <Interfaces>
+        <NetworkInterface address="172.22.11.10" multicast="false"/>
+      </Interfaces>
+      <AllowMulticast>false</AllowMulticast>
+    </General>
+    <Discovery>
+      <ParticipantIndex>auto</ParticipantIndex>
+      <MaxAutoParticipantIndex>50</MaxAutoParticipantIndex>
+      <Peers>
+        <Peer Address="127.0.0.1"/>
+        <Peer Address="172.22.11.2"/>
+      </Peers>
+    </Discovery>
+  </Domain>
+</CycloneDDS>
+```
+
+Point `CYCLONEDDS_URI` at the file on both computers:
+
+```bash
+export CYCLONEDDS_URI=file://$HOME/.ros/cyclonedds_ethernet.xml
+```
+
+Keep `ROS_DOMAIN_ID=1`, `ROS_LOCALHOST_ONLY=0`, and `RMW_IMPLEMENTATION=rmw_cyclonedds_cpp` identical on both hosts. After changing the DDS configuration, stop any existing bringup, restart the ROS CLI daemon, and then relaunch:
+
+```bash
+ros2 daemon stop
+```
+
+Verify the result after hardware bringup:
+
+```bash
+ros2 control list_controllers
+ros2 topic list
+```
+
+`joint_state_broadcaster`, `imu_sensor_broadcaster`, and `robot_base_controller` must all report `active` before commanding motion.
+
+To run native ROS 2 traffic over Wi-Fi instead, create a separate Wi-Fi CycloneDDS profile: select `192.168.1.63` with peer `192.168.1.118` on the VMXPi, and select `192.168.1.118` with peer `192.168.1.63` on the PC. Keep `127.0.0.1` in both peer lists. Select either the Ethernet or Wi-Fi profile through `CYCLONEDDS_URI`; do not mix their interface and peer addresses.
 
 ### Launch hardware mode
 
