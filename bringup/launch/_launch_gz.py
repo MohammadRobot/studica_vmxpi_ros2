@@ -112,7 +112,7 @@ def _maybe_add_gz_sim_runtime_nodes(context, *args, **kwargs):
     spawn_yaw = LaunchConfiguration("spawn_yaw").perform(context)
     use_hardware = LaunchConfiguration("use_hardware").perform(context)
     use_ground_truth_odom_tf = LaunchConfiguration("use_ground_truth_odom_tf").perform(context)
-    robot_profile = LaunchConfiguration("robot_profile").perform(context).strip() or "training_4wd"
+    robot_profile = LaunchConfiguration("robot_profile").perform(context).strip() or "class_4wd"
     gz_version = LaunchConfiguration("gz_version").perform(context).strip() or "8"
     sim_enable_camera = LaunchConfiguration("sim_enable_camera").perform(context)
     sim_camera_width = LaunchConfiguration("sim_camera_width").perform(context).strip() or "640"

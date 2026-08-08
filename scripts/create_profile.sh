@@ -9,9 +9,9 @@ Usage:
   scripts/create_profile.sh <profile_name> [--from-profile <existing_profile>] [--force]
 
 Examples:
-  scripts/create_profile.sh training_6wd
-  scripts/create_profile.sh training_2wd_clone --from-profile training_2wd
-  scripts/create_profile.sh training_4wd --force
+  scripts/create_profile.sh my_robot_4wd --from-profile class_4wd
+  scripts/create_profile.sh classroom_mecanum --from-profile class_mecanum
+  scripts/create_profile.sh my_robot_4wd --from-profile class_4wd --force
 EOF
 }
 

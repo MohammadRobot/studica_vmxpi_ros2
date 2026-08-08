@@ -1,0 +1,25 @@
+repositories:
+  studica_drivers:
+    type: git
+    url: https://github.com/MohammadRobot/studica_drivers.git
+    version: main
+  studica_robot_monitor:
+    type: git
+    url: https://github.com/MohammadRobot/studica_robot_monitor.git
+    version: main
+  studica_ros2_control:
+    type: git
+    url: https://github.com/MohammadRobot/studica_ros2_control.git
+    version: main
+  OrbbecSDK_ROS2:
+    type: git
+    url: https://github.com/MohammadRobot/OrbbecSDK_ROS2.git
+    version: 5ba0c040190142baacd615eb93b7edcea9c2180a
+  ydlidar_ros2_driver:
+    type: git
+    url: https://github.com/MohammadRobot/ydlidar_ros2_driver.git
+    version: f2be91b05d6614bf13e083f42da5c0fa5414b330
+  YDLidar-SDK:
+    type: git
+    url: https://github.com/YDLIDAR/YDLidar-SDK.git
+    version: 01cdda4f2b36dff2a706d0535c64228d863c7411

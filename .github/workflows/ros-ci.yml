@@ -33,6 +33,13 @@ jobs:
           ref: main
           path: ros2_ws/src/studica_ros2_control
 
+      - name: Checkout studica_robot_monitor dependency
+        uses: actions/checkout@v5
+        with:
+          repository: MohammadRobot/studica_robot_monitor
+          ref: main
+          path: ros2_ws/src/studica_robot_monitor
+
       - name: Setup ROS 2 Humble
         uses: ros-tooling/setup-ros@v0.7
         with:
@@ -41,6 +48,7 @@ jobs:
       - name: Install package dependencies
         run: |
           sudo apt-get update
+          sudo apt-get install -y shellcheck python3-yaml
           sudo rosdep init 2>/dev/null || true
           rosdep update
           cd ros2_ws
@@ -48,8 +56,12 @@ jobs:
             --from-paths src \
             --ignore-src \
             --rosdistro humble \
-            --dependency-types build --dependency-types buildtool --dependency-types test \
+            --skip-keys "orbbec_camera ydlidar_ros2_driver" \
             -r -y
+
+      - name: Validate classroom source and documentation
+        working-directory: ros2_ws/src/studica_vmxpi_ros2
+        run: ./scripts/check_project.sh
 
       - name: Build
         run: |
@@ -57,7 +69,8 @@ jobs:
           cd ros2_ws
           colcon build \
             --event-handlers console_direct+ \
-            --packages-select studica_drivers studica_ros2_control studica_vmxpi_ros2
+            --packages-select \
+              studica_drivers studica_robot_monitor studica_ros2_control studica_vmxpi_ros2
 
       - name: Test
         run: |
@@ -67,7 +80,23 @@ jobs:
           colcon test \
             --event-handlers console_direct+ \
             --return-code-on-test-failure \
-            --packages-select studica_drivers studica_ros2_control studica_vmxpi_ros2
+            --packages-select \
+              studica_drivers studica_robot_monitor studica_ros2_control studica_vmxpi_ros2
           test_rc=$?
           colcon test-result --verbose || true
           exit $test_rc
+
+  headless-harmonic:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 60
+    env:
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+        with:
+          path: ros2_ws/src/studica_vmxpi_ros2
+
+      - name: Install, build, and run headless Harmonic contracts
+        working-directory: ros2_ws/src/studica_vmxpi_ros2
+        run: ./scripts/setup_ubuntu.sh --mode simulation --non-interactive

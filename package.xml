@@ -3,7 +3,7 @@
 <package format="3">
   <name>studica_vmxpi_ros2</name>
   <version>0.1.0</version>
-  <description>Demo package for `studica_vmxpi_ros2` simulation with Studica Robot and VMXPI based on ros2_control.</description>
+  <description>Simulation-first ROS 2 classroom stack and safe VMXPi hardware interface for Studica robots.</description>
 
   <maintainer email="denis.stogl@stoglrobotics.de">Dr.-Ing. Denis Štogl</maintainer>
   <maintainer email="bence.magyar.robotics@gmail.com">Bence Magyar</maintainer>
@@ -23,6 +23,7 @@
   <depend>mecanum_drive_controller</depend>
   <depend>imu_sensor_broadcaster</depend>
   <depend>geometry_msgs</depend>
+  <depend>builtin_interfaces</depend>
   <depend>nav_msgs</depend>
   <depend>sensor_msgs</depend>
   <depend>tf2_msgs</depend>
@@ -34,6 +35,9 @@
   <depend>rclcpp_lifecycle</depend>
 
   <exec_depend>controller_manager</exec_depend>
+  <exec_depend>ament_index_python</exec_depend>
+  <exec_depend>launch</exec_depend>
+  <exec_depend>launch_ros</exec_depend>
   <exec_depend>joint_state_publisher_gui</exec_depend>
   <exec_depend>robot_state_publisher</exec_depend>
   <exec_depend>tf2_ros</exec_depend>
@@ -43,7 +47,6 @@
   <exec_depend>slam_toolbox</exec_depend>
   <exec_depend>ros_gz_sim</exec_depend>
   <exec_depend>ros_gz_bridge</exec_depend>
-  <exec_depend>studica_ros2_control</exec_depend>
   <exec_depend>ydlidar_ros2_driver</exec_depend>
   <exec_depend>orbbec_camera</exec_depend>
   <exec_depend>studica_robot_monitor</exec_depend>
@@ -58,6 +61,7 @@
   <test_depend>ament_cmake_flake8</test_depend>
   <test_depend>ament_cmake_gtest</test_depend>
   <test_depend>ament_cmake_test</test_depend>
+  <test_depend>python3-pytest</test_depend>
 
   <export>
     <build_type>ament_cmake</build_type>

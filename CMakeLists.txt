@@ -119,6 +119,7 @@ if(EXISTS "/usr/bin/python3")
   set(Python3_EXECUTABLE "/usr/bin/python3" CACHE FILEPATH "System Python3 executable" FORCE)
 endif()
 find_package(Python3 REQUIRED COMPONENTS Interpreter Development)
+find_package(builtin_interfaces REQUIRED)
 find_package(rclcpp REQUIRED)
 find_package(geometry_msgs REQUIRED)
 find_package(nav_msgs REQUIRED)
@@ -190,8 +191,17 @@ install(
   DIRECTORY foxglove
   DESTINATION share/studica_vmxpi_ros2
 )
+install(
+  DIRECTORY maps
+  DESTINATION share/studica_vmxpi_ros2
+)
+install(
+  DIRECTORY dependencies examples
+  DESTINATION share/studica_vmxpi_ros2
+  PATTERN "__pycache__" EXCLUDE
+  PATTERN "*.pyc" EXCLUDE
+)
 install(PROGRAMS
-  scripts/motor_smoke_test.sh
   scripts/create_profile.sh
   scripts/install_git_hooks.sh
   scripts/check_project.sh
@@ -199,16 +209,13 @@ install(PROGRAMS
   DESTINATION lib/${PROJECT_NAME}
 )
 
-add_executable(robot_patrol_node src/patrol.cpp)
-ament_target_dependencies(robot_patrol_node rclcpp sensor_msgs geometry_msgs)
-target_compile_features(robot_patrol_node PUBLIC cxx_std_17)
-
 add_executable(topic_adapter_node src/topic_adapter_node.cpp)
-ament_target_dependencies(topic_adapter_node rclcpp geometry_msgs nav_msgs sensor_msgs tf2_msgs)
+ament_target_dependencies(
+  topic_adapter_node builtin_interfaces rclcpp geometry_msgs nav_msgs sensor_msgs tf2_msgs)
+target_include_directories(topic_adapter_node PRIVATE hardware/include)
 target_compile_features(topic_adapter_node PUBLIC cxx_std_17)
 
 install(TARGETS
-  robot_patrol_node
   topic_adapter_node
   DESTINATION lib/${PROJECT_NAME}
 )
@@ -225,6 +232,10 @@ if(BUILD_TESTING)
   find_package(ament_cmake_gtest REQUIRED)
   ament_add_gtest(test_velocity_pid_safety test/test_velocity_pid_safety.cpp)
   target_include_directories(test_velocity_pid_safety PRIVATE hardware/include)
+  ament_add_gtest(test_topic_adapter test/test_topic_adapter.cpp)
+  target_include_directories(test_topic_adapter PRIVATE hardware/include)
+  ament_target_dependencies(
+    test_topic_adapter builtin_interfaces geometry_msgs nav_msgs sensor_msgs)
   find_package(ament_lint_auto REQUIRED)
   find_package(ament_lint_common REQUIRED)
   set(ament_cmake_flake8_CONFIG_FILE "${CMAKE_CURRENT_SOURCE_DIR}/.flake8")
@@ -247,6 +258,59 @@ if(BUILD_TESTING)
       --profiles-dir
       ${CMAKE_CURRENT_SOURCE_DIR}/bringup/config/profiles
   )
+  ament_add_test(
+    validate_beginner_launches
+    GENERATE_RESULT_FOR_RETURN_CODE_ZERO
+    COMMAND ${Python3_EXECUTABLE}
+      ${CMAKE_CURRENT_SOURCE_DIR}/test/test_beginner_launches.py
+      ${CMAKE_CURRENT_SOURCE_DIR}
+  )
+  ament_add_test(
+    validate_classroom_source
+    GENERATE_RESULT_FOR_RETURN_CODE_ZERO
+    COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/scripts/check_project.sh
+  )
+  ament_add_test(
+    validate_setup_contract
+    GENERATE_RESULT_FOR_RETURN_CODE_ZERO
+    COMMAND ${Python3_EXECUTABLE}
+      ${CMAKE_CURRENT_SOURCE_DIR}/test/test_setup_contract.py
+      ${CMAKE_CURRENT_SOURCE_DIR}
+  )
+  ament_add_test(
+    validate_python_examples
+    GENERATE_RESULT_FOR_RETURN_CODE_ZERO
+    COMMAND ${Python3_EXECUTABLE} -m pytest -q
+      ${CMAKE_CURRENT_SOURCE_DIR}/examples/python/tests/test_python_examples.py
+  )
+  ament_add_test(
+    validate_mock_runtime
+    GENERATE_RESULT_FOR_RETURN_CODE_ZERO
+    TIMEOUT 90
+    COMMAND ${Python3_EXECUTABLE}
+      ${CMAKE_CURRENT_SOURCE_DIR}/test/test_runtime_contract.py
+      --mode mock
+  )
+  ament_add_test(
+    validate_headless_gz_runtime
+    GENERATE_RESULT_FOR_RETURN_CODE_ZERO
+    TIMEOUT 150
+    COMMAND ${Python3_EXECUTABLE}
+      ${CMAKE_CURRENT_SOURCE_DIR}/test/test_runtime_contract.py
+      --mode gz
+      --allow-skip
+  )
+  foreach(classroom_mode IN ITEMS mapping navigation)
+    ament_add_test(
+      validate_headless_${classroom_mode}
+      GENERATE_RESULT_FOR_RETURN_CODE_ZERO
+      TIMEOUT 180
+      COMMAND ${Python3_EXECUTABLE}
+        ${CMAKE_CURRENT_SOURCE_DIR}/test/test_runtime_contract.py
+        --mode ${classroom_mode}
+        --allow-skip
+    )
+  endforeach()
 endif()
 
 ## EXPORTS

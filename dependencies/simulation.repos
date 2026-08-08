@@ -1,0 +1,13 @@
+repositories:
+  studica_drivers:
+    type: git
+    url: https://github.com/MohammadRobot/studica_drivers.git
+    version: main
+  studica_robot_monitor:
+    type: git
+    url: https://github.com/MohammadRobot/studica_robot_monitor.git
+    version: main
+  gz_ros2_control:
+    type: git
+    url: https://github.com/ros-controls/gz_ros2_control.git
+    version: a2d290e37be67ba082744e323339d82031f051c0

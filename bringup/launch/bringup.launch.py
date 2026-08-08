@@ -55,7 +55,6 @@ def _runtime_actions(context, *args, **kwargs):
     from profile_validation import drive_topics, validate_profile_for_launch
 
     mode = LaunchConfiguration("mode").perform(context).strip().lower()
-    use_joystick = LaunchConfiguration("use_joystick").perform(context)
     gui = LaunchConfiguration("gui").perform(context)
     robot_profile = LaunchConfiguration("robot_profile").perform(context)
     use_sim_time = LaunchConfiguration("use_sim_time").perform(context).strip()
@@ -109,9 +108,6 @@ def _runtime_actions(context, *args, **kwargs):
     camera_tf_qy = LaunchConfiguration("camera_tf_qy").perform(context)
     camera_tf_qz = LaunchConfiguration("camera_tf_qz").perform(context)
     camera_tf_qw = LaunchConfiguration("camera_tf_qw").perform(context)
-    joystick_cmd_vel_topic = LaunchConfiguration("joystick_cmd_vel_topic").perform(context)
-    joystick_publish_stamped = LaunchConfiguration("joystick_publish_stamped").perform(context)
-
     pkg_share = get_package_share_directory("studica_vmxpi_ros2")
     if not rviz_config_file:
         # Keep a safe default when wrappers don't pass an explicit RViz config.
@@ -189,7 +185,6 @@ def _runtime_actions(context, *args, **kwargs):
         "sim_lidar_update_rate": sim_lidar_update_rate,
         "sim_lidar_visualize": sim_lidar_visualize,
         "sim_imu_update_rate": sim_imu_update_rate,
-        "use_joystick": use_joystick,
         "use_lidar": use_lidar,
         "lidar_type": lidar_type,
         "ydlidar_params_file": ydlidar_params_file,
@@ -221,8 +216,6 @@ def _runtime_actions(context, *args, **kwargs):
         "camera_tf_qy": camera_tf_qy,
         "camera_tf_qz": camera_tf_qz,
         "camera_tf_qw": camera_tf_qw,
-        "joystick_cmd_vel_topic": joystick_cmd_vel_topic,
-        "joystick_publish_stamped": joystick_publish_stamped,
         "drive_controller_name": drive_controller_name,
         "drive_controller_type": drive_controller_type,
         "drive_cmd_topic": drive_cmd_topic,
@@ -234,7 +227,7 @@ def _runtime_actions(context, *args, **kwargs):
     return [
         IncludeLaunchDescription(
             PythonLaunchDescriptionSource(
-                os.path.join(pkg_share, "launch", "robot_gz_sim.launch.py")
+                os.path.join(pkg_share, "launch", "_robot_runtime.launch.py")
             ),
             launch_arguments=robot_launch_args.items(),
             )
@@ -263,7 +256,7 @@ def generate_launch_description():
             ),
             _declare_arg(
                 "robot_profile",
-                "training_4wd",
+                "class_4wd",
                 "Robot profile under config/profiles.",
             ),
             _declare_arg(
@@ -273,7 +266,7 @@ def generate_launch_description():
             ),
             _declare_arg(
                 "use_ground_truth_odom_tf",
-                "true",
+                "false",
                 "In gz_sim, source /odom and /tf from Gazebo odometry topics.",
             ),
             _declare_arg(
@@ -356,11 +349,6 @@ def generate_launch_description():
                 "sim_imu_update_rate",
                 "100.0",
                 "Sim IMU update rate (Hz).",
-            ),
-            _declare_arg(
-                "use_joystick",
-                "false",
-                "Launch joystick teleop from studica_ros2_control.",
             ),
             _declare_arg(
                 "use_lidar",
@@ -518,16 +506,6 @@ def generate_launch_description():
                 "camera_tf_qw",
                 "1.0",
                 "Camera static TF quaternion W.",
-            ),
-            _declare_arg(
-                "joystick_cmd_vel_topic",
-                "",
-                "Joystick command velocity output topic (empty = auto from drive profile).",
-            ),
-            _declare_arg(
-                "joystick_publish_stamped",
-                "true",
-                "Publish TwistStamped joystick commands.",
             ),
             OpaqueFunction(function=_runtime_actions),
         ]

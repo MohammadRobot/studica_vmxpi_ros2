@@ -1,125 +1,162 @@
-# Profile Authoring Guide
+# Advanced Robot Profiles
 
-Profiles define robot geometry, hardware mapping, and controller tuning.
+Profiles are an instructor/advanced feature. The classroom default is always
+`class_4wd`; student code continues to publish `/cmd_vel` and subscribe to the
+standard feedback topics regardless of the controller used internally.
 
-Profile files:
+The retained variants are:
 
-- `bringup/config/profiles/<profile_name>/robot_profile.yaml`
-- `bringup/config/profiles/<profile_name>/robot_controllers.yaml`
+| Profile | Layout | Intended use |
+|---|---|---|
+| `class_4wd` | four-wheel differential | tested course default |
+| `class_2wd` | two-wheel differential | advanced variant lesson |
+| `class_mecanum` | four mecanum wheels | advanced holonomic lesson |
+| `class_omni` | four omni wheels | advanced holonomic lesson |
 
-Template source:
+Do not rename a variant to make it the default. Select it explicitly through
+advanced `bringup.launch.py` only after its simulation acceptance passes.
 
-- `bringup/config/profile_template/robot_profile.yaml`
-- `bringup/config/profile_template/robot_controllers.yaml`
+## Profile files
 
-## 1. Create a new profile
+Each directory below `bringup/config/profiles/<PROFILE>/` contains:
 
-Recommended (scripted):
+- `robot_profile.yaml`: geometry, layout, sensor defaults, motor mapping, and
+  hardware safety settings;
+- `robot_controllers.yaml`: controller joints, kinematics, rate, limits, and
+  timeout.
+
+The schema examples are in `bringup/config/profile_template/`. Runtime launch
+validates values before building the robot description.
+
+## Create a profile
+
+Use a workspace variable instead of a machine-specific path:
 
 ```bash
-cd ~/ros2_ws/src/studica_vmxpi_ros2
-scripts/create_profile.sh my_robot_4wd
+cd "$STUDICA_WS/src/studica_vmxpi_ros2"
+./scripts/create_profile.sh my_robot_4wd --from-profile class_4wd
 ```
 
-Optional clone from an existing profile:
+Names may contain letters, numbers, underscores, and hyphens. A name should
+describe physical hardware, not a student team or temporary experiment.
 
-```bash
-scripts/create_profile.sh my_robot_4wd --from-profile training_4wd
+Review every copied number. Cloning a profile does not prove that its dimensions,
+motor channels, signs, encoder scale, or temperature limit are correct for a new
+robot.
+
+## Geometry and the single wheel radius
+
+Set measured physical values under `xacro` and `drive`:
+
+```yaml
+xacro:
+  base_width: <METRES>
+  base_length: <METRES>
+  base_height: <METRES>
+drive:
+  wheel_layout: diff_4wd
+  controller_name: robot_base_controller
+  controller_type: diff_drive_controller/DiffDriveController
+  wheel_radius_m: <MEASURED_METRES>
 ```
 
-Manual copy approach:
+`drive.wheel_radius_m` is the single source for URDF geometry, hardware encoder
+conversion, and injected controller kinematics. Do not add `wheel_radius` or
+`kinematics.wheels_radius` to `robot_controllers.yaml`.
+
+Measure the loaded wheel at several orientations. Leave
+`hardware.wheel_radius_calibrated: false` until an instructor reviews the value.
+Hardware motion must remain unavailable while false.
+
+## Layout and controller pairing
+
+Valid combinations are:
+
+- `diff` or `diff_4wd` with
+  `diff_drive_controller/DiffDriveController`;
+- `mecanum` or `omni` with
+  `mecanum_drive_controller/MecanumDriveController`.
+
+The omni URDF uses an X-drive wheel orientation. A holonomic controller needs
+all four joint names and
+`kinematics.sum_of_robot_center_projection_on_X_Y_axis`, equal to the absolute
+wheel-joint X offset plus its absolute Y offset.
+
+Controller files must keep a finite command timeout and conservative velocity
+and acceleration limits. Launch supplies the public `/cmd_vel` adapter and
+`/odom` alias; profile authors must not introduce another command publisher.
+
+## Hardware mapping
+
+For a physical profile, review:
+
+- Titan CAN ID and motor frequency;
+- encoder ticks per rotation;
+- active motor channels from `0` through `3`;
+- motor and encoder inversion flags;
+- maximum wheel angular velocity;
+- MCV2 PID type, sensitivity, and required-support flag;
+- encoder feedback warning/error timeouts;
+- temperature limit and freshness timeout;
+- LiDAR type and sensor mounting transforms.
+
+Use `-1` only for a genuinely unused channel. At least one left and one right
+motor are required. `diff_4wd`, `mecanum`, and `omni` require all four channels.
+Set every inversion value explicitly.
+
+The `class_4wd` hardware profile requires `velocity_pid`, PID type `mcv2`, and
+confirmed firmware support. There is no silent open-loop fallback.
+
+## Validate without motion
 
 ```bash
-cd ~/ros2_ws/src/studica_vmxpi_ros2
-PROFILE=my_robot_4wd
-mkdir -p bringup/config/profiles/${PROFILE}
-cp bringup/config/profile_template/robot_profile.yaml bringup/config/profiles/${PROFILE}/
-cp bringup/config/profile_template/robot_controllers.yaml bringup/config/profiles/${PROFILE}/
+cd "$STUDICA_WS/src/studica_vmxpi_ros2"
+python3 scripts/validate_profiles.py \
+  --profiles-dir bringup/config/profiles
+./scripts/check_project.sh
 ```
 
-Profile name rules:
-
-- Allowed characters: letters, numbers, `_`, `-`
-- Example valid names: `training_4wd`, `my_robot_v1`, `chassis-a`
-
-## 2. Edit `robot_profile.yaml`
-
-Set physical and hardware values:
-
-- `xacro.*`: base dimensions, mass, wheel/caster geometry, laser mounting height.
-- `drive.*`: drive layout and controller selection.
-  - `wheel_radius_m`: the single measured wheel radius used by URDF, hardware conversion,
-    and runtime drive-controller parameters.
-  - `wheel_layout`: `diff` | `diff_4wd` | `mecanum` | `omni`
-    - `omni` uses X-drive wheel mounting (45 deg wheel yaw in URDF).
-  - `controller_name`: name used in `robot_controllers.yaml`
-  - `controller_type`:
-    - `diff_drive_controller/DiffDriveController` for `wheel_layout: diff` or `wheel_layout: diff_4wd`
-    - `mecanum_drive_controller/MecanumDriveController` for `wheel_layout: mecanum` or `wheel_layout: omni`
-- `hardware.*`: CAN ID, motor frequency, encoder ticks, speed scaling, control mode, and optional LiDAR model default.
-  - Set `wheel_radius_calibrated: true` only after measuring the physical wheel.
-  - `hardware.lidar_type` (optional): default YDLIDAR preset for hardware mode (for example `tmini`, `x2`, `x4`, `g4`, `gs2`, `sdm15`).
-  - Launch-arg `lidar_type:=...` still overrides the profile value.
-- Motor index mapping:
-  - Valid values are `0..3` for active motors.
-  - Use `-1` for an unused motor slot.
-  - At least one left motor and one right motor must be active.
-- For `wheel_layout: diff_4wd`, `wheel_layout: mecanum`, or `wheel_layout: omni`, all four motors must be active (`>= 0`).
-- Set every `invert_*` field explicitly as `true` or `false`.
-
-## 3. Edit `robot_controllers.yaml`
-
-Set controller behavior:
-
-- Keep required top-level keys:
-  - `controller_manager`
-  - the drive controller key from `drive.controller_name`
-- For diff drive (`controller_type: diff_drive_controller/DiffDriveController`):
-  - tune `wheel_separation`, velocity/acceleration limits, covariance, and publish rate
-  - do not add `wheel_radius`; launch injects `drive.wheel_radius_m`
-- For holonomic layouts (`controller_type: mecanum_drive_controller/MecanumDriveController`):
-  - set wheel joint names (`front_left_*`, `front_right_*`, `rear_left_*`, `rear_right_*`)
-  - do not set `kinematics.wheels_radius`; launch injects `drive.wheel_radius_m`
-  - set `kinematics.sum_of_robot_center_projection_on_X_Y_axis` (`lx + ly` from robot center to wheel center)
-    - Example from current URDF wheel origin: `abs(x_joint) + abs(y_joint)`
-    - `class_mecanum`: `0.35`, `class_omni`: `0.33`
-
-## 4. Validate profile
-
-Build and source:
+Then build and start mock mode:
 
 ```bash
-cd ~/ros2_ws
-colcon build --packages-select studica_vmxpi_ros2
+cd "$STUDICA_WS"
+colcon build --symlink-install --packages-select studica_vmxpi_ros2
 source install/setup.bash
-```
-
-Run a short launch validation:
-
-```bash
-timeout 10s ros2 launch studica_vmxpi_ros2 bringup.launch.py \
+timeout 15s ros2 launch studica_vmxpi_ros2 bringup.launch.py \
   mode:=mock robot_profile:=my_robot_4wd gui:=false
 ```
 
-Expected result:
+Expected: profile validation succeeds, controllers load, standard topics are
+created, and no physical driver is opened. A timeout exit after a healthy launch
+is expected from this short smoke command.
 
-- No immediate schema error from `bringup.launch.py`.
-- If a key/type/range is wrong, launch exits with a clear error message naming the file and field.
+## Simulation acceptance
 
-Run the full local checks used by pre-commit (recommended):
-
-```bash
-scripts/check_project.sh
-```
-
-Optional standalone profile lint (profiles only):
+Select the new profile explicitly:
 
 ```bash
-python3 scripts/validate_profiles.py --profiles-dir bringup/config/profiles
+ros2 launch studica_vmxpi_ros2 bringup.launch.py \
+  mode:=gz_sim robot_profile:=my_robot_4wd gui:=true
 ```
 
-## 5. Classroom workflow
+Require:
 
-1. Keep one profile per robot build.
-2. Commit profile changes with a short calibration note in commit message.
-3. Test profile in `mode:=gz_sim` before hardware mode.
+- correct wheel placement and rotation axes;
+- active drive, joint-state, and IMU controllers;
+- `/cmd_vel` accepts `geometry_msgs/msg/Twist`;
+- `/odom`, `/imu`, `/scan`, `/joint_states`, and TF are present;
+- straight and rotational command signs are correct;
+- timeout stops motion;
+- no second publisher commands `/cmd_vel`.
+
+Record the profile name and validation result with the change.
+
+## Physical acceptance
+
+Never move directly from YAML editing to a floor test. Follow the instructor
+order in [Supervised hardware](HARDWARE.md): inspect, read-only health checks,
+guarded lifted-wheel validation, then measured low-speed floor calibration.
+
+Any change to motor channels, inversion, encoder conversion, PID, safety
+timeouts, wheel radius, or wheel separation invalidates the previous physical
+baseline and requires a new signed report.

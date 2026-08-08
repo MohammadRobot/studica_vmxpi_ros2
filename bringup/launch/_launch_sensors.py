@@ -1,6 +1,6 @@
 # Copyright (c) 2026 studica_vmxpi_ros2 contributors
 # SPDX-License-Identifier: Apache-2.0
-"""OpaqueFunction handlers for hardware sensors: gamepad, LiDAR, and camera."""
+"""OpaqueFunction handlers for hardware LiDAR and camera sensors."""
 
 import os
 import sys
@@ -15,39 +15,6 @@ from ament_index_python.packages import PackageNotFoundError, get_package_share_
 from launch.actions import IncludeLaunchDescription, LogInfo  # noqa: E402
 from launch.launch_description_sources import PythonLaunchDescriptionSource  # noqa: E402
 from launch.substitutions import LaunchConfiguration  # noqa: E402
-
-
-def _maybe_include_gamepad(context, *args, **kwargs):
-    use_joystick = LaunchConfiguration("use_joystick").perform(context)
-    if not _is_true(use_joystick):
-        return []
-
-    use_sim_time_value = LaunchConfiguration("use_sim_time").perform(context)
-    if _is_true(LaunchConfiguration("use_gz_sim").perform(context)):
-        # Keep stamped joystick commands valid even if /clock is unavailable.
-        use_sim_time_value = "false"
-
-    try:
-        studica_pkg = get_package_share_directory("studica_ros2_control")
-    except PackageNotFoundError:
-        return [LogInfo(msg="studica_ros2_control not found; skipping joystick launch.")]
-
-    joystick_cmd_vel_topic = LaunchConfiguration("joystick_cmd_vel_topic").perform(context).strip()
-    if not joystick_cmd_vel_topic:
-        joystick_cmd_vel_topic = LaunchConfiguration("drive_cmd_topic").perform(context).strip()
-
-    return [
-        IncludeLaunchDescription(
-            PythonLaunchDescriptionSource(
-                os.path.join(studica_pkg, "launch", "gamepad_launch.py")
-            ),
-            launch_arguments={
-                "use_sim_time": use_sim_time_value,
-                "cmd_vel_topic": joystick_cmd_vel_topic,
-                "publish_stamped": LaunchConfiguration("joystick_publish_stamped").perform(context),
-            }.items(),
-        )
-    ]
 
 
 def _maybe_include_lidar(context, *args, **kwargs):
@@ -76,7 +43,7 @@ def _maybe_include_lidar(context, *args, **kwargs):
     return [
         IncludeLaunchDescription(
             PythonLaunchDescriptionSource(
-                os.path.join(studica_pkg, "launch", "lidar_hw.launch.py")
+                os.path.join(studica_pkg, "launch", "_lidar_hw.launch.py")
             ),
             launch_arguments={
                 "lidar_type": lidar_type,
@@ -121,7 +88,7 @@ def _maybe_include_camera(context, *args, **kwargs):
     if not camera_child_frame:
         camera_child_frame = f"{camera_name}_link"
 
-    robot_profile = LaunchConfiguration("robot_profile").perform(context).strip() or "training_4wd"
+    robot_profile = LaunchConfiguration("robot_profile").perform(context).strip() or "class_4wd"
     camera_tf = None
     camera_tf_error = None
     try:
@@ -206,7 +173,7 @@ def _maybe_include_camera(context, *args, **kwargs):
     actions.append(
         IncludeLaunchDescription(
             PythonLaunchDescriptionSource(
-                os.path.join(studica_pkg, "launch", "camera_hw.launch.py")
+                os.path.join(studica_pkg, "launch", "_camera_hw.launch.py")
             ),
             launch_arguments=launch_arguments.items(),
         )
