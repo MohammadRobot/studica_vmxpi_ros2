@@ -11,7 +11,7 @@ from std_srvs.srv import Trigger
 
 
 class SensorReporter(Node):
-    """Observe odometry and publish a student-readable summary."""
+    """Observe odometry and publish a developer-readable summary."""
 
     def __init__(self) -> None:
         super().__init__("sensor_reporter")
@@ -20,7 +20,7 @@ class SensorReporter(Node):
         # TODO 1: Declare a string parameter named "robot_name" with the
         # default value "class_4wd".
 
-        # TODO 2: Create a String publisher on /student/odom_summary.
+        # TODO 2: Create a String publisher on /apps/odom_summary.
         self._summary_publisher = None
 
         # TODO 3: Subscribe to /odom with Odometry, self._on_odom, and
@@ -28,7 +28,7 @@ class SensorReporter(Node):
         self._odom_qos = qos_profile_sensor_data
         self._odom_subscription = None
 
-        # TODO 4: Create a Trigger service named /student/report_now that uses
+        # TODO 4: Create a Trigger service named /apps/report_now that uses
         # self._on_report_now.
         self._report_service = None
 

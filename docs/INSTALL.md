@@ -4,6 +4,9 @@ This guide prepares Ubuntu 22.04 for the ROS 2 Humble classroom. Simulation is
 the default. Hardware mode is for the arm64 VMXPi robot image and requires the
 Studica vendor SDK to be installed already.
 
+After installation, continue with [Quick start](QUICK_START.md) for the shortest
+simulation and physical mapping launch sequences.
+
 ## Before you begin
 
 You need:
@@ -20,10 +23,12 @@ unpredictable.
 
 ## 1. Put the repository in a workspace
 
-Choose the workspace once:
+Use the dedicated `~/studica_ws` workspace. Separating this pinned simulation
+stack from a general-purpose ROS workspace avoids dependency and overlay
+collisions. `STUDICA_WS` keeps the remaining commands independent of usernames.
 
 ```bash
-export STUDICA_WS="$HOME/ros2_ws"
+export STUDICA_WS="$HOME/studica_ws"
 mkdir -p "$STUDICA_WS/src"
 git clone https://github.com/MohammadRobot/studica_vmxpi_ros2.git \
   "$STUDICA_WS/src/studica_vmxpi_ros2"
@@ -35,7 +40,7 @@ If your instructor supplied the repository another way, it must still be at
 
 ## 2. Check without changing the computer
 
-For a student PC:
+For a development PC:
 
 ```bash
 ./scripts/setup_ubuntu.sh --mode simulation --check-only
@@ -72,17 +77,38 @@ The script performs these visible, repeatable operations:
 5. pins `gz_ros2_control` to commit
    `a2d290e37be67ba082744e323339d82031f051c0`;
 6. runs `rosdep`, validates profiles and launch syntax, and builds with
-   `colcon --symlink-install`;
+   `colcon build --symlink-install`;
 7. runs first-party non-motion tests.
 
 The script never edits `.bashrc`, launches Gazebo, or publishes `/cmd_vel`.
 
-## 4. Source each terminal
-
-After installation, every new terminal needs:
+For a later manual simulation rebuild, select Harmonic before invoking
+`colcon`; otherwise the pinned Humble overlay assumes Gazebo Fortress:
 
 ```bash
-export STUDICA_WS="$HOME/ros2_ws"
+export GZ_VERSION=harmonic
+cd "$STUDICA_WS"
+source /opt/ros/humble/setup.bash
+source install/local_setup.bash
+colcon build --symlink-install \
+  --packages-select gz_ros2_control studica_vmxpi_ros2 \
+  --allow-overriding gz_ros2_control
+```
+
+## 4. Configure simulation and source each terminal
+
+Generate the loopback-only Cyclone DDS profile once after installation:
+
+```bash
+cd "$STUDICA_WS/src/studica_vmxpi_ros2"
+./scripts/configure_cyclonedds.py sim --domain-id 1
+```
+
+After that, every new simulation terminal needs:
+
+```bash
+export STUDICA_WS="$HOME/studica_ws"
+source "$HOME/.ros/studica_sim.env"
 source /opt/ros/humble/setup.bash
 source "$STUDICA_WS/install/setup.bash"
 ```
@@ -98,6 +124,53 @@ Expected values include `humble` and a path below `$STUDICA_WS/install`.
 
 The setup script prints the exact source command at the end. Adding it to a
 shell startup file is a personal choice; the project does not do that for you.
+
+The simulation environment selects loopback discovery and exports
+`GZ_VERSION=harmonic`, so later builds select the Harmonic compatibility path.
+
+For a PC-to-VMXPi session, generate a peer profile separately on each computer
+with its current interface and address. The helper validates the local address,
+prints the narrow UFW rule, and never edits shell startup files. Follow
+[Networking and Cyclone DDS](NETWORKING.md) for Wi-Fi and Ethernet examples.
+
+Use one workspace overlay per terminal. Check for an older automatically sourced
+workspace with:
+
+```bash
+printenv AMENT_PREFIX_PATH | tr ':' '\n'
+```
+
+The current workspace should precede its dependencies. If an unrelated or older
+workspace appears, remove its `install/setup.bash` line from the shell startup
+file and open a new login session before rebuilding. Sourcing `/opt/ros/humble`
+does not reliably erase paths inherited from an earlier overlay.
+
+## Recover missing system dependencies
+
+If a launch reports a missing Debian-provided ROS package such as
+`diagnostic_aggregator`, install all declared dependencies instead of repairing
+them one at a time:
+
+```bash
+export STUDICA_WS="$HOME/studica_ws"
+source /opt/ros/humble/setup.bash
+sudo apt update
+rosdep install --from-paths "$STUDICA_WS/src" --ignore-src \
+  --rosdistro humble -r -y
+```
+
+Confirm the package, source the workspace, and relaunch:
+
+```bash
+ros2 pkg prefix diagnostic_aggregator
+source "$STUDICA_WS/install/setup.bash"
+ros2 launch studica_vmxpi_ros2 sim.launch.py
+```
+
+Installing a runtime dependency does not normally require a rebuild. A Python
+`pkg_resources is deprecated` warning from the Ubuntu `rosdep` launcher is not
+the failure if the command ends with `All required rosdeps installed
+successfully`.
 
 ## 5. Prove idempotence
 
@@ -139,7 +212,8 @@ Hardware mode imports:
 - the pinned YDLidar SDK source when the image does not already provide it.
 
 It does not install Gazebo on the robot and does not start the HAL or motors.
-Continue with [Supervised hardware](HARDWARE.md), not with an improvised launch.
+Generate and test the selected peer DDS profile, then continue with
+[Supervised hardware](HARDWARE.md), not with an improvised launch.
 
 ## What the manifests mean
 
@@ -155,6 +229,7 @@ commits to prevent an upstream update from changing a lesson unexpectedly.
 
 ```bash
 cd "$STUDICA_WS"
+source "$HOME/.ros/studica_sim.env"
 source /opt/ros/humble/setup.bash
 colcon build --symlink-install
 source install/setup.bash
@@ -167,6 +242,18 @@ colcon build --symlink-install --packages-select <PACKAGE_NAME>
 ```
 
 Always source `install/setup.bash` again after a build.
+
+Keep the build mode consistent. The project installer creates a symlink-install
+workspace, so its later builds should retain `--symlink-install`. If an existing
+workspace was originally built with plain `colcon build`, continue without the
+flag. Switching modes in the same `build/` and `install/` trees can cause an
+`existing path cannot be removed: Is a directory` error. See
+[Troubleshooting](TROUBLESHOOTING.md#colcon-cannot-create-a-symbolic-link).
+
+Normal project behavior belongs in the sibling `studica_robot_apps` package,
+not in the platform or vendor dependencies. Build that package selectively,
+test it in simulation, then copy source only and build it natively on the
+VMXPi. Follow [Application development and deployment](DEVELOPMENT.md).
 
 ## Uninstall scope
 

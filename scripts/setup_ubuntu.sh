@@ -166,11 +166,62 @@ as_root() {
   fi
 }
 
+source_setup_file() {
+  local setup_file="$1"
+  [[ -r "${setup_file}" ]] || die "setup file is missing: ${setup_file}"
+
+  # Some generated ROS setup files inspect optional variables without a
+  # default. Temporarily suspend nounset while they establish the environment.
+  set +u
+  # shellcheck disable=SC1090
+  source "${setup_file}"
+  set -u
+}
+
 install_ros_repository() {
   info "configuring the ROS 2 Humble package repository"
+
+  local managed_source=false
+  local managed_source_file="/etc/apt/sources.list.d/ros2.sources"
+  local legacy_source_file="/etc/apt/sources.list.d/ros2.list"
+  local noisy_backup_file="${legacy_source_file}.disabled-by-studica-setup"
+  local legacy_backup_file="/etc/apt/ros2.list.disabled-by-studica-setup"
+
+  if [[ -r "${managed_source_file}" ]] && \
+      dpkg-query -W -f='${Status}\n' ros2-apt-source 2>/dev/null | \
+        grep -qx 'install ok installed'; then
+    managed_source=true
+  fi
+
+  # APT warns about every unrecognized filename kept inside sources.list.d.
+  # Move a backup made by an earlier setup version to /etc/apt without deleting
+  # it or changing its contents.
+  if ${managed_source} && [[ -f "${noisy_backup_file}" ]]; then
+    [[ ! -e "${legacy_backup_file}" ]] || die \
+      "cannot relocate ${noisy_backup_file}; ${legacy_backup_file} already exists"
+    info "relocating the preserved legacy ROS source outside sources.list.d"
+    as_root mv -- "${noisy_backup_file}" "${legacy_backup_file}"
+  fi
+
+  # ros2-apt-source owns a Deb822 source with an embedded signing key. A legacy
+  # ros2.list entry for the same repository makes APT reject both Signed-By
+  # values. Preserve the legacy file under an explicit, reversible name.
+  if ${managed_source} && [[ -f "${legacy_source_file}" ]] && \
+      grep -qF 'packages.ros.org/ros2/ubuntu' "${legacy_source_file}"; then
+    [[ ! -e "${legacy_backup_file}" ]] || die \
+      "cannot archive ${legacy_source_file}; ${legacy_backup_file} already exists"
+    info "disabling legacy ROS source ${legacy_source_file}"
+    as_root mv -- "${legacy_source_file}" "${legacy_backup_file}"
+  fi
+
   as_root apt-get update
   as_root apt-get install -y curl gnupg lsb-release locales software-properties-common
   as_root add-apt-repository -y universe
+
+  if ${managed_source}; then
+    info "using the repository managed by ros2-apt-source"
+    return
+  fi
 
   curl -fsSL https://raw.githubusercontent.com/ros/rosdistro/master/ros.key \
     -o "${temporary_dir}/ros-archive-keyring.gpg"
@@ -179,6 +230,7 @@ install_ros_repository() {
 
   local architecture codename source_line
   architecture="$(dpkg --print-architecture)"
+  # shellcheck disable=SC1091
   codename="$(. /etc/os-release && printf '%s' "${UBUNTU_CODENAME}")"
   source_line="deb [arch=${architecture} signed-by=/usr/share/keyrings/ros-archive-keyring.gpg] http://packages.ros.org/ros2/ubuntu ${codename} main"
   printf '%s\n' "${source_line}" | as_root tee /etc/apt/sources.list.d/ros2.list >/dev/null
@@ -193,6 +245,7 @@ install_gazebo_repository() {
 
   local architecture codename source_line
   architecture="$(dpkg --print-architecture)"
+  # shellcheck disable=SC1091
   codename="$(. /etc/os-release && printf '%s' "${UBUNTU_CODENAME}")"
   source_line="deb [arch=${architecture} signed-by=/usr/share/keyrings/pkgs-osrf-archive-keyring.gpg] https://packages.osrfoundation.org/gazebo/ubuntu-stable ${codename} main"
   printf '%s\n' "${source_line}" | as_root tee \
@@ -227,6 +280,7 @@ install_packages() {
     ros-humble-joy
     ros-humble-nav2-bringup
     ros-humble-navigation2
+    ros-humble-robot-localization
     ros-humble-robot-state-publisher
     ros-humble-ros2-control
     ros-humble-ros2-controllers
@@ -292,8 +346,7 @@ install_ydlidar_sdk() {
 }
 
 install_workspace_dependencies() {
-  # shellcheck disable=SC1091
-  source "/opt/ros/${ROS_DISTRO_NAME}/setup.bash"
+  source_setup_file "/opt/ros/${ROS_DISTRO_NAME}/setup.bash"
   if [[ ! -r /etc/ros/rosdep/sources.list.d/20-default.list ]]; then
     info "initializing rosdep"
     as_root rosdep init
@@ -305,7 +358,9 @@ install_workspace_dependencies() {
     # The versioned Harmonic packages above provide these two dependencies.
     # Resolving their unversioned rosdep keys would install Humble's default
     # Fortress packages alongside Harmonic.
-    skip_keys="orbbec_camera ydlidar_ros2_driver ros_gz_bridge ros_gz_sim"
+    # Gazebo Harmonic is installed above from the OSRF repository. Its Jammy
+    # packages do not have rosdep rules for these versioned source keys.
+    skip_keys="orbbec_camera ydlidar_ros2_driver ros_gz_bridge ros_gz_sim gz-sim8 gz-plugin2"
   else
     skip_keys="gz_ros2_control ros_gz_bridge ros_gz_sim"
   fi
@@ -315,8 +370,7 @@ install_workspace_dependencies() {
 }
 
 build_and_validate() {
-  # shellcheck disable=SC1091
-  source "/opt/ros/${ROS_DISTRO_NAME}/setup.bash"
+  source_setup_file "/opt/ros/${ROS_DISTRO_NAME}/setup.bash"
   info "running source validation"
   "${repo_root}/scripts/check_project.sh"
 
@@ -329,8 +383,7 @@ build_and_validate() {
     --event-handlers console_direct+ \
     --cmake-args -DCMAKE_BUILD_TYPE=RelWithDebInfo
 
-  # shellcheck disable=SC1091
-  source "${workspace}/install/setup.bash"
+  source_setup_file "${workspace}/install/setup.bash"
   info "running first-party package tests"
   local test_packages=(
     studica_drivers
@@ -341,7 +394,18 @@ build_and_validate() {
       grep -qx studica_ros2_control; then
     test_packages+=(studica_ros2_control)
   fi
-  colcon --log-base "${workspace}/log" test \
+
+  # Test results are generated artifacts. Remove results from an earlier run
+  # so a repaired rerun cannot be reported as failed by stale CTest XML.
+  colcon test-result --test-result-base "${workspace}/build" \
+    --delete-yes >/dev/null 2>&1 || true
+
+  # Installation validation is local-only and must not inherit an operator's
+  # Ethernet-specific Cyclone profile. Runtime networking remains untouched.
+  env -u CYCLONEDDS_URI \
+    RMW_IMPLEMENTATION=rmw_cyclonedds_cpp \
+    ROS_LOCALHOST_ONLY=1 \
+    colcon --log-base "${workspace}/log" test \
     --base-paths "${workspace}/src" \
     --build-base "${workspace}/build" \
     --install-base "${workspace}/install" \

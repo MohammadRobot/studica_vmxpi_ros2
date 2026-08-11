@@ -1,29 +1,50 @@
 xacro:
-  base_mass: 10.0
-  base_width: 0.35
-  base_length: 0.288
-  base_height: 0.1
+  # Measured physical geometry. Sensor poses are relative to chassis_link:
+  # x forward, y left, z up. base_link remains on the ground plane.
+  robot_mass: 8.0
+  base_mass: 6.79
+  base_width: 0.29
+  base_length: 0.34
+  base_height: 0.20
+  ground_clearance: 0.08
+  wheelbase: 0.19
+  wheel_track: 0.34
+  overall_length: 0.35
+  overall_width: 0.385
+  use_chassis_mesh: false
   wheel_mass: 0.3
-  wheel_len: 0.04
-  wheel_z_offset: -0.027
+  wheel_len: 0.045
   caster_wheel_mass: 0.1
   caster_wheel_radius: 0.05
-  laser_pos_x: 0.192
-  laser_pos_z: 0.0
-  laser_frame_z: 0.03
-  cam_pos_x: 0.192
+  # laser_pos_z is the measured scan-plane height relative to chassis_link.
+  laser_pos_x: 0.12
+  laser_pos_y: 0.0
+  laser_pos_z: 0.13
+  laser_roll: 0.0
+  laser_pitch: 0.0
+  laser_yaw: 0.0
+  laser_frame_z: 0.0
+  cam_pos_x: 0.13
   cam_pos_y: 0.0
-  cam_pos_z: 0.1
+  cam_pos_z: 0.08
   cam_roll: 0.0
   cam_pitch: 0.0
   cam_yaw: 0.0
+  imu_pos_x: 0.08
+  imu_pos_y: 0.0
+  imu_pos_z: 0.03
+  imu_roll: 0.0
+  imu_pitch: 0.0
+  # Positive 90 degrees: counterclockwise when viewed from above.
+  imu_yaw: 1.5707963267948966
 
 drive:
   wheel_layout: diff_4wd
   controller_name: robot_base_controller
   controller_type: diff_drive_controller/DiffDriveController
-  # Single source for URDF geometry, encoder conversion, and controller validation.
-  wheel_radius_m: 0.0625
+  # Measured 120 mm loaded wheel diameter. This is the single source for URDF
+  # geometry, encoder conversion, and controller validation.
+  wheel_radius_m: 0.060
 
 hardware:
   can_id: 42

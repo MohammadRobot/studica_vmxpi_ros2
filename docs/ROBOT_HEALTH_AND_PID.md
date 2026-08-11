@@ -1,7 +1,7 @@
 # Robot Health and Titan Velocity PID
 
 This is the implementation reference for the supervised `class_4wd` robot. The
-student-facing procedure is [Supervised hardware](HARDWARE.md).
+user-facing procedure is [Supervised hardware](HARDWARE.md).
 
 ## Safety guarantees
 
@@ -95,21 +95,16 @@ Stale data while a wheel is commanded is unsafe: all motors are zeroed and the
 fault is latched. Stale temperature while moving receives the same fail-safe
 response.
 
-## Titan 2.0.5 temperature units
+## Titan temperature units
 
-Titan firmware 2.0.5 encodes `MCU_TEMP` in degrees Fahrenheit. The driver
-converts it once:
-
-```text
-celsius = (fahrenheit - 32) * 5 / 9
-```
-
-Published state and diagnostics are Celsius. The configured 80 °C limit is
-compared to that converted value. Older known firmware that reports Celsius is
-not converted; unknown firmware families are not guessed.
-
-Unit tests cover the Fahrenheit conversion, Celsius compatibility path, and
-temperature-limit decisions. A dashboard must label the final value as °C.
+The Titan `MCU_TEMP` frame provides whole and hundredths bytes without a unit
+flag. The upstream API decodes the numeric payload directly, but physical
+testing confirms firmware 2.0.5 emits Fahrenheit-like values. The driver uses
+the probed firmware version to convert exactly 2.0.5 to Celsius. It deliberately
+does not extrapolate that workaround to an untested version; an unknown high
+payload therefore remains blocked by the startup safety gate. Published state,
+diagnostics, the configured 80 °C limit, and dashboards all use normalized °C.
+Unit tests cover the firmware conversion and temperature-limit decisions.
 
 ## Latched fault causes
 
@@ -130,19 +125,30 @@ wiring or CAN faults from silently resuming a previous command.
 `studica_robot_monitor` observes:
 
 - four wheel encoders and tracking behavior;
-- `/imu`, `/scan`, `/odom`, camera streams, joint states, and TF;
+- `/imu`, `/scan`, `/odom`, enabled camera-stream `CameraInfo`, joint states, and TF;
 - controller-manager state;
 - Titan PID capability, firmware, fault latch, and temperature;
 - Pi CPU, memory, disk, and temperature.
 
 It detects missing/stale or malformed data, invalid IMU quaternion, missing TF,
 inactive controllers, stuck/reversed encoders, excessive error, overspeed, and
-left/right disagreement. It publishes `/diagnostics`.
+left/right disagreement. Camera checks validate timestamp, optical frame, image
+width, and image height using the metadata that accompanies active streams.
+The always-on monitor does not subscribe to compressed image transports, so it
+does not activate JPEG or compressed-depth encoding merely to report camera
+health. It publishes `/diagnostics`.
 
 `diagnostic_aggregator` groups `/diagnostics_agg` and
 `/diagnostics_toplevel_state` into Motors, Sensors, Control, and Compute. The
 standalone `robot_check` samples the graph read-only and presents a finite
 PASS/WARN/FAIL table suitable for a lab checkpoint.
+
+The temporary checker normally verifies TF with its own buffer. Under a loaded
+hardware graph, transient-local static-transform replay can arrive after its
+finite observation window. In that case only, an `OK` `Robot/Control/TF`
+status from the continuously running monitor is accepted as independent current
+evidence. A missing, warning, stale, or error monitor status never overrides a
+failed local TF check.
 
 ## Guarded validator
 

@@ -17,16 +17,18 @@
 ### Terminal 1 — launch simulation
 
 ```bash
-export STUDICA_WS="$HOME/ros2_ws"
+export STUDICA_WS="$HOME/studica_ws"
+source "$HOME/.ros/studica_sim.env"
 source /opt/ros/humble/setup.bash
 source "$STUDICA_WS/install/setup.bash"
-ros2 launch studica_vmxpi_ros2 sim.launch.py
+ros2 launch studica_vmxpi_ros2 sim.launch.py use_joystick:=false
 ```
 
 ### Terminal 2 — observe commands
 
 ```bash
-export STUDICA_WS="$HOME/ros2_ws"
+export STUDICA_WS="$HOME/studica_ws"
+source "$HOME/.ros/studica_sim.env"
 source /opt/ros/humble/setup.bash
 source "$STUDICA_WS/install/setup.bash"
 ros2 topic echo /cmd_vel
@@ -37,7 +39,8 @@ It is normal to see nothing until a command source starts.
 ### Terminal 3 — drive slowly
 
 ```bash
-export STUDICA_WS="$HOME/ros2_ws"
+export STUDICA_WS="$HOME/studica_ws"
+source "$HOME/.ros/studica_sim.env"
 source /opt/ros/humble/setup.bash
 source "$STUDICA_WS/install/setup.bash"
 ros2 run teleop_twist_keyboard teleop_twist_keyboard \
@@ -50,7 +53,8 @@ to stop. Use short taps and avoid the maze walls.
 ### Terminal 4 — inspect the interface
 
 ```bash
-export STUDICA_WS="$HOME/ros2_ws"
+export STUDICA_WS="$HOME/studica_ws"
+source "$HOME/.ros/studica_sim.env"
 source /opt/ros/humble/setup.bash
 source "$STUDICA_WS/install/setup.bash"
 ros2 interface show geometry_msgs/msg/Twist
@@ -58,6 +62,20 @@ ros2 topic hz /cmd_vel
 ```
 
 Press `Ctrl+C` after measuring the rate.
+
+## Optional DualShock 4 path
+
+After completing the keyboard checkpoint, stop the launch and Terminal 3, then
+relaunch without the override to use the default joystick. Follow
+[Joystick teleoperation](../JOYSTICK.md) to:
+
+1. verify that Linux created `/dev/input/js0`;
+2. prove the stick values change on `/joy`;
+3. confirm the launch started `teleop_twist_joy` with the L1 deadman;
+4. publish the same `geometry_msgs/msg/Twist` contract on `/cmd_vel`.
+
+Keep Terminal 2 open. It should show the same message type whether commands come
+from the keyboard or joystick. Do not run both teleop programs at once.
 
 ## Expected output
 

@@ -24,7 +24,7 @@ class SensorReporter(Node):
         self.declare_parameter("robot_name", "class_4wd")
         self.declare_parameter("report_period_sec", 1.0)
 
-        self._summary_publisher = self.create_publisher(String, "/student/odom_summary", 10)
+        self._summary_publisher = self.create_publisher(String, "/apps/odom_summary", 10)
         self._odom_subscription = self.create_subscription(
             Odometry,
             "/odom",
@@ -33,7 +33,7 @@ class SensorReporter(Node):
         )
         self._report_service = self.create_service(
             Trigger,
-            "/student/report_now",
+            "/apps/report_now",
             self._on_report_now,
         )
         period = float(self.get_parameter("report_period_sec").value)

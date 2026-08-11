@@ -1,1 +1,1 @@
-"""Student ROS 2 Python examples."""
+"""Guided ROS 2 Python examples."""

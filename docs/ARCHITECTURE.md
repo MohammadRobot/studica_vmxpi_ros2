@@ -7,9 +7,9 @@ or physical hardware underneath it. `class_4wd` is the teaching default.
 
 | Launch | Runtime | Added feature |
 |---|---|---|
-| `sim.launch.py` | Gazebo Harmonic, maze | RViz; low-rate LiDAR/IMU; camera optional |
-| `mapping.launch.py` | Gazebo Harmonic, office | RViz and SLAM Toolbox |
-| `navigation.launch.py` | Gazebo Harmonic, office | RViz, map server, AMCL, and Nav2 |
+| `sim.launch.py` | Gazebo Harmonic, maze | RViz, sensors, and deadman joystick teleop |
+| `mapping.launch.py` | Gazebo office or PC connected to VMXPi | RViz, SLAM Toolbox, and deadman joystick teleop |
+| `navigation.launch.py` | Office simulation or remote VMXPi | RViz, map server, AMCL, and Nav2 |
 | `robot.launch.py` | VMXPi/Titan hardware | LiDAR, monitoring, optional camera/Foxglove |
 | `bringup.launch.py` | simulation, mock, or hardware | advanced profile and sensor arguments |
 
@@ -19,13 +19,14 @@ profile and delegates to the private `_robot_runtime.launch.py` module. Private
 files beginning with `_` are implementation details and are not launched
 directly.
 
-No launch starts keyboard, gamepad, patrol, or another motion publisher.
+Simulation and mapping start the configured gamepad publisher by default, but
+it commands motion only while L1 is held. Navigation and hardware keep it off.
 
 ## Runtime flow
 
 ```mermaid
 flowchart TD
-    S[Student or Nav2 publishes /cmd_vel Twist] --> A[Topic adapter]
+    S[Application or Nav2 publishes /cmd_vel Twist] --> A[Topic adapter]
     A --> C[Profile-selected ros2_control drive controller]
     C --> H{Runtime mode}
     H -->|gz_sim| G[gz_ros2_control + Gazebo Harmonic]
@@ -33,28 +34,44 @@ flowchart TD
     H -->|hardware| V[VMX system + Titan MCV2]
     G --> F[Controller odometry and joint feedback]
     M --> F
-    V --> F
+    V --> W[Encoder odometry]
     F --> A
     A --> O[/odom and standard sensor aliases]
-    G --> Z[/imu, /scan, optional camera]
+    W --> WO[/wheel/odom: forward velocity]
+    V --> I[/imu: yaw and yaw rate]
+    WO --> E[Hardware odometry EKF]
+    I --> E
+    E --> O
+    G --> Z[/imu, /scan, optional RGB-D camera]
+    Z --> P[Optional depth-to-PointCloud2 converter]
+    P --> PC[/camera/depth/points]
+    PC --> PF[TF + height/range/body filter]
+    PF --> PO[/camera/depth/points_filtered in base_link]
     M --> Q[/imu fallback and clear mock /scan]
     V --> R[VMX IMU + YDLidar + Orbbec]
     V --> D[Motor state + diagnostics]
 ```
 
 The adapter converts public `geometry_msgs/msg/Twist` into the stamped command
-expected by the selected controller, and republishes controller odometry as
-`/odom`. Student programs never need controller names or internal topic rules.
+expected by the selected controller. In simulation and mock mode it republishes
+controller odometry directly as `/odom`. Hardware defaults to a VMXPi-local EKF:
+the adapter exposes raw encoder odometry as `/wheel/odom`, and the EKF combines
+only its calibrated forward velocity with IMU yaw and yaw rate to publish
+`/odom`. Encoder-derived yaw is intentionally excluded because skid-steer tire
+scrub makes it unreliable. Application nodes never need controller names or
+internal topic rules.
 
 ## Stable ROS interface
 
-| Interface | Direction from student code | Owner |
+| Interface | Direction from application code | Owner |
 |---|---|---|
 | `/cmd_vel` (`Twist`) | publish | topic adapter subscription |
 | `/odom` (`Odometry`) | subscribe | topic adapter alias |
 | `/imu` (`Imu`) | subscribe | simulated/VMX sensor or mock fallback |
 | `/scan` (`LaserScan`) | subscribe | Gazebo/YDLidar or clear mock scan |
 | `/joint_states` (`JointState`) | subscribe | joint-state broadcaster |
+| `/camera/depth/points` (`PointCloud2`) | subscribe | optional simulator converter or camera driver |
+| `/camera/depth/points_filtered` (`PointCloud2`) | subscribe | optional ground-referenced obstacle filter |
 | `/tf`, `/tf_static` | subscribe | controllers and state/static publishers |
 | `/diagnostics` | subscribe | robot monitor and diagnostic publishers |
 | `/robot_status/motors` | subscribe | hardware monitor |
@@ -70,10 +87,10 @@ contract fixture, not a physical sensor model.
 | control manager | Gazebo plugin | local `ros2_control_node` | local `ros2_control_node` |
 | hardware interface | `gz_ros2_control` | `RobotSystemHardware` | `VMXSystemHardware` |
 | wheel feedback | simulator | command-following stub | Titan encoders/RPM |
-| odometry | drive controller | drive controller | drive controller |
+| odometry | drive controller | drive controller | EKF from encoder `vx` + IMU yaw |
 | IMU | Gazebo bridge | odometry-based fallback | VMX broadcaster |
 | LiDAR | Gazebo bridge | clear fixture scan | YDLidar driver |
-| camera | optional Gazebo sensors | absent | optional Orbbec driver |
+| camera | optional RGB-D, raw cloud, and filtered obstacles | absent | optional Orbbec cloud; filter started separately |
 | monitoring | optional/usually off | optional/off | on by default |
 | Foxglove | off | off | read-only; loopback by default |
 
@@ -93,6 +110,12 @@ The model is assembled from:
 Launch validates the profile before invoking Xacro. `drive.wheel_radius_m` is
 injected into geometry, encoder conversion, and controller parameters so no
 second radius can drift.
+
+Measured profiles keep body length/width/height, clearance, wheelbase,
+physical wheel track, outer envelope, and chassis-relative sensor poses in the
+same YAML. Wheel joints do not derive their spacing from body dimensions. The
+outer envelope supplies the Nav2 footprint, while controller multipliers and
+effective wheel separation remain empirical drivetrain calibration.
 
 The retained 2WD, mecanum, and omni profiles are explicit advanced variants.
 They still use the public `/cmd_vel` and `/odom` adapter.
@@ -118,22 +141,44 @@ map -> odom -> base_footprint -> base_link -> wheels and sensors
 ```
 
 - SLAM or localization owns `map -> odom`.
-- The drive controller owns `odom -> base_footprint`.
+- In simulation/mock mode, the drive controller owns `odom -> base_footprint`.
+- In hardware mode with the default `use_imu_odometry:=true`, the EKF owns
+  `odom -> base_footprint`; launch disables the controller's odometry TF.
 - Runtime publishes the fixed base transform.
 - `robot_state_publisher` owns link/joint transforms from the URDF.
 - Sensor drivers may publish their calibrated optical frames.
 
-Each transform has one owner. Adding a duplicate static transform can hide an
-upstream error and create an unstable TF tree.
+Each transform has one owner. The hardware launch materializes a private
+controller YAML with `enable_odom_tf: false` before starting the EKF, so both
+publishers cannot own the same edge. Adding a duplicate static transform can
+hide an upstream error and create an unstable TF tree.
 
 ## Mapping and navigation
 
-`mapping.launch.py` composes core simulation with SLAM Toolbox. External teleop
-is the only motion source while mapping.
+`mapping.launch.py` defaults to core simulation plus SLAM Toolbox and the
+deadman-protected joystick nodes. With `mode:=hardware`, it becomes a PC-only
+client for a separately running VMXPi: SLAM, RViz, and joystick start locally,
+while controllers, sensors, odometry, robot model, and monitoring remain owned
+by `robot.launch.py` on the VMXPi.
 
-`navigation.launch.py` composes core simulation with the map server,
-localization, planners, controller server, and RViz. Nav2 publishes `/cmd_vel`
-only after a user sends a goal. It does not include a teleop publisher.
+`navigation.launch.py` defaults to core simulation plus map server,
+localization, planners, controller server, depth-point pipeline, and RViz. With
+`mode:=hardware`, it becomes a PC-only client for a separately launched VMXPi:
+map server, AMCL, Nav2, and RViz run locally while the VMXPi retains hardware,
+sensor, fused-odometry, and TF ownership. Hardware mode disables the point cloud
+by default and overlays conservative controller, velocity-smoother, recovery,
+and AMCL settings. In either mode Nav2 publishes `/cmd_vel` only after a goal;
+joystick remains disabled to prevent competing publishers.
+
+When enabled, the filtered `base_link` cloud marks the local Nav2 costmap and
+the raw optical cloud only ray-clears it. The global costmap remains
+map/LiDAR-based.
+
+The Nav2 RViz configuration separates the grayscale occupancy **Map** from the
+colored **Global Costmap** and **Local Costmap** overlays. The optional
+`run_waypoint_route.py` client previews the bundled office route by default and
+requires `--start` before sending `FollowWaypoints`; it is never included in a
+launch file.
 
 ## Health and observation
 
@@ -149,7 +194,8 @@ graph capability. Browser controls are not part of the motor command path.
 ## Repository boundaries
 
 ```text
-studica_vmxpi_ros2       student app, model, runtime, control hardware, labs
+studica_robot_apps       developer-owned behaviors and project configuration
+studica_vmxpi_ros2       model, runtime, control hardware, safety, and labs
 studica_robot_monitor    diagnostics, read-only checks, guarded validation
 studica_drivers          low-level VMXPi/Titan C++ infrastructure
 studica_ros2_control     optional non-drive accessory container
@@ -162,7 +208,7 @@ automatic tuning path.
 
 ## Extension rule
 
-New classroom features should preserve the standard topics and add a focused
-launch or Python node. Changes that require students to know controller-specific
-topics, duplicate TF, or introduce an automatic command publisher belong in an
-advanced design review rather than the beginner surface.
+New applications should preserve the standard topics and add a focused launch
+or Python node in `studica_robot_apps`. Changes to controller-specific topics,
+TF ownership, hardware safety, or automatic command publishing require a
+platform design review. See [Application development](DEVELOPMENT.md).

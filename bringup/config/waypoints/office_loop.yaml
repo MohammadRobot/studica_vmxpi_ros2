@@ -1,0 +1,22 @@
+frame_id: map
+waypoints:
+  - name: northwest
+    x: -3.5
+    y: 3.2
+    yaw: 0.0
+  - name: northeast
+    x: 3.5
+    y: 3.2
+    yaw: -1.5708
+  - name: southeast
+    x: 3.5
+    y: -3.7
+    yaw: 3.1416
+  - name: southwest
+    x: -3.5
+    y: -3.7
+    yaw: 1.5708
+  - name: home
+    x: 0.0
+    y: 0.0
+    yaw: 0.0

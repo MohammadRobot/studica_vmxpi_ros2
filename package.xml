@@ -40,6 +40,7 @@
   <exec_depend>launch_ros</exec_depend>
   <exec_depend>joint_state_publisher_gui</exec_depend>
   <exec_depend>robot_state_publisher</exec_depend>
+  <exec_depend>robot_localization</exec_depend>
   <exec_depend>tf2_ros</exec_depend>
   <exec_depend>ros2controlcli</exec_depend>
   <exec_depend>rviz2</exec_depend>
@@ -54,7 +55,15 @@
   <exec_depend>foxglove_bridge</exec_depend>
   <exec_depend>forward_command_controller</exec_depend>
   <exec_depend>rosbag2_storage_mcap</exec_depend>
+  <exec_depend>joy</exec_depend>
+  <exec_depend>teleop_twist_joy</exec_depend>
+  <exec_depend>teleop_twist_keyboard</exec_depend>
+  <exec_depend>rmw_cyclonedds_cpp</exec_depend>
+  <exec_depend>rclpy</exec_depend>
+  <exec_depend>nav2_msgs</exec_depend>
+  <exec_depend>action_msgs</exec_depend>
   <exec_depend>python3-yaml</exec_depend>
+  <exec_depend>python3-numpy</exec_depend>
  
   <test_depend>ament_lint_auto</test_depend>
   <test_depend>ament_lint_common</test_depend>

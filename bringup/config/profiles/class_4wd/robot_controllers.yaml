@@ -25,8 +25,10 @@ robot_base_controller:
     # wheel_radius is injected from robot_profile.yaml drive.wheel_radius_m at launch.
 
     wheel_separation_multiplier: 1.0
-    left_wheel_radius_multiplier: 1.0
-    right_wheel_radius_multiplier: 1.0
+    # Symmetric correction from 1.70 m forward and 1.71 m reverse floor runs.
+    # Keep the physical 120 mm wheel diameter in robot_profile.yaml.
+    left_wheel_radius_multiplier: 1.0173
+    right_wheel_radius_multiplier: 1.0173
 
     publish_rate: 100.0
     odom_frame_id: odom

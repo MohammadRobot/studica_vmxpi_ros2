@@ -18,9 +18,9 @@ setup(
     install_requires=["setuptools"],
     tests_require=["pytest"],
     zip_safe=True,
-    maintainer="Student",
-    maintainer_email="student@example.com",
-    description="Student TODO package for the Studica ROS 2 classroom course.",
+    maintainer="Developer",
+    maintainer_email="developer@example.com",
+    description="Guided TODO package for the Studica ROS 2 classroom course.",
     license="Apache-2.0",
     entry_points={
         "console_scripts": [

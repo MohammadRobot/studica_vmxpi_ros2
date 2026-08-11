@@ -17,7 +17,8 @@
 ### Terminal 1 — launch simulation and RViz
 
 ```bash
-export STUDICA_WS="$HOME/ros2_ws"
+export STUDICA_WS="$HOME/studica_ws"
+source "$HOME/.ros/studica_sim.env"
 source /opt/ros/humble/setup.bash
 source "$STUDICA_WS/install/setup.bash"
 ros2 launch studica_vmxpi_ros2 sim.launch.py
@@ -26,7 +27,8 @@ ros2 launch studica_vmxpi_ros2 sim.launch.py
 ### Terminal 2 — sample each sensor interface
 
 ```bash
-export STUDICA_WS="$HOME/ros2_ws"
+export STUDICA_WS="$HOME/studica_ws"
+source "$HOME/.ros/studica_sim.env"
 source /opt/ros/humble/setup.bash
 source "$STUDICA_WS/install/setup.bash"
 ros2 topic echo /imu --once
@@ -45,7 +47,8 @@ ros2 topic hz /scan
 ### Terminal 3 — inspect TF
 
 ```bash
-export STUDICA_WS="$HOME/ros2_ws"
+export STUDICA_WS="$HOME/studica_ws"
+source "$HOME/.ros/studica_sim.env"
 source /opt/ros/humble/setup.bash
 source "$STUDICA_WS/install/setup.bash"
 ros2 run tf2_ros tf2_echo odom base_link
@@ -63,7 +66,8 @@ Open the generated `frames.pdf` and find `odom`, `base_link`, `imu_link`, and
 ### Terminal 4 — compare QoS
 
 ```bash
-export STUDICA_WS="$HOME/ros2_ws"
+export STUDICA_WS="$HOME/studica_ws"
+source "$HOME/.ros/studica_sim.env"
 source /opt/ros/humble/setup.bash
 source "$STUDICA_WS/install/setup.bash"
 ros2 topic info /scan --verbose

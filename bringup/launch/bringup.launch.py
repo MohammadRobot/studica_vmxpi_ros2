@@ -9,7 +9,9 @@ from pathlib import Path
 from ament_index_python.packages import get_package_share_directory
 from launch import LaunchDescription
 from launch.actions import DeclareLaunchArgument, IncludeLaunchDescription, OpaqueFunction
+from launch.conditions import IfCondition
 from launch.launch_description_sources import PythonLaunchDescriptionSource
+from launch_ros.actions import Node
 from launch_ros.substitutions import FindPackageShare
 from launch.substitutions import LaunchConfiguration, PathJoinSubstitution
 
@@ -62,9 +64,17 @@ def _runtime_actions(context, *args, **kwargs):
     use_camera = LaunchConfiguration("use_camera").perform(context).strip()
     use_monitoring = LaunchConfiguration("use_monitoring").perform(context).strip()
     use_foxglove = LaunchConfiguration("use_foxglove").perform(context).strip()
+    use_joystick = LaunchConfiguration("use_joystick").perform(context).strip()
+    hardware_control_rate_hz = LaunchConfiguration("hardware_control_rate_hz").perform(
+        context
+    ).strip()
+    joystick_config_file = LaunchConfiguration("joystick_config_file").perform(
+        context
+    ).strip()
     foxglove_address = LaunchConfiguration("foxglove_address").perform(context).strip()
     foxglove_port = LaunchConfiguration("foxglove_port").perform(context).strip()
     use_ground_truth_odom_tf = LaunchConfiguration("use_ground_truth_odom_tf").perform(context).strip()
+    use_imu_odometry = LaunchConfiguration("use_imu_odometry").perform(context).strip()
     world = LaunchConfiguration("world").perform(context).strip()
     world_arg = world
     rviz_config_file = LaunchConfiguration("rviz_config_file").perform(context).strip()
@@ -157,6 +167,8 @@ def _runtime_actions(context, *args, **kwargs):
         use_monitoring = "true" if mode == "hardware" else "false"
     if not use_foxglove:
         use_foxglove = "true" if mode == "hardware" else "false"
+    if not use_imu_odometry:
+        use_imu_odometry = "true" if mode == "hardware" else "false"
 
     if mode not in ("gz_sim", "hardware", "mock"):
         raise RuntimeError("Invalid mode. Use one of: gz_sim, hardware, mock.")
@@ -169,6 +181,8 @@ def _runtime_actions(context, *args, **kwargs):
         "use_gz_sim": use_gz_sim,
         "use_sim_time": use_sim_time,
         "use_ground_truth_odom_tf": use_ground_truth_odom_tf,
+        "use_imu_odometry": use_imu_odometry,
+        "hardware_control_rate_hz": hardware_control_rate_hz,
         "world": world,
         "world_name": world_name,
         "gz_headless": gz_headless,
@@ -224,14 +238,31 @@ def _runtime_actions(context, *args, **kwargs):
         "robot_profile": robot_profile,
     }
 
-    return [
-        IncludeLaunchDescription(
+    robot_runtime = IncludeLaunchDescription(
             PythonLaunchDescriptionSource(
                 os.path.join(pkg_share, "launch", "_robot_runtime.launch.py")
             ),
             launch_arguments=robot_launch_args.items(),
-            )
-    ]
+    )
+    joystick = Node(
+        package="joy",
+        executable="joy_node",
+        name="joy_node",
+        output="screen",
+        parameters=[joystick_config_file],
+        condition=IfCondition(use_joystick),
+    )
+    joystick_teleop = Node(
+        package="teleop_twist_joy",
+        executable="teleop_node",
+        name="teleop_twist_joy_node",
+        output="screen",
+        parameters=[joystick_config_file],
+        remappings=[("cmd_vel", "/cmd_vel")],
+        condition=IfCondition(use_joystick),
+    )
+
+    return [robot_runtime, joystick, joystick_teleop]
 
 
 def generate_launch_description():
@@ -268,6 +299,16 @@ def generate_launch_description():
                 "use_ground_truth_odom_tf",
                 "false",
                 "In gz_sim, source /odom and /tf from Gazebo odometry topics.",
+            ),
+            _declare_arg(
+                "hardware_control_rate_hz",
+                "25",
+                "ros2_control update and odometry publication rate in hardware mode only.",
+            ),
+            _declare_arg(
+                "use_imu_odometry",
+                "",
+                "Fuse wheel forward velocity with IMU yaw in hardware mode; empty enables it only for hardware.",
             ),
             _declare_arg(
                 "world",
@@ -383,6 +424,18 @@ def generate_launch_description():
                 "Leave empty to enable the read-only Foxglove bridge in hardware mode only.",
             ),
             _declare_arg(
+                "use_joystick",
+                "false",
+                "Start joy_node and deadman-protected DualShock teleoperation.",
+            ),
+            _declare_arg(
+                "joystick_config_file",
+                PathJoinSubstitution(
+                    [FindPackageShare("studica_vmxpi_ros2"), "config", "dualshock4_teleop.yaml"]
+                ),
+                "Joystick and teleop_twist_joy parameter file.",
+            ),
+            _declare_arg(
                 "foxglove_address",
                 "127.0.0.1",
                 "Private LAN interface address used by Foxglove Bridge (loopback by default).",
@@ -414,48 +467,48 @@ def generate_launch_description():
             ),
             _declare_arg(
                 "orbbec_enable_color",
-                "",
-                "Optional override for Orbbec launch arg enable_color (hardware mode only).",
+                "false",
+                "Enable color streaming (hardware only; false preserves thermal headroom).",
             ),
             _declare_arg(
                 "orbbec_enable_depth",
-                "",
-                "Optional override for Orbbec launch arg enable_depth (hardware mode only).",
+                "true",
+                "Enable depth streaming (hardware mode only).",
             ),
             _declare_arg(
                 "orbbec_enable_ir",
-                "",
-                "Optional override for Orbbec launch arg enable_ir (hardware mode only).",
+                "false",
+                "Enable infrared streaming (hardware mode only).",
             ),
             _declare_arg(
                 "orbbec_color_width",
-                "",
-                "Optional override for Orbbec launch arg color_width (hardware mode only).",
+                "640",
+                "Color width when enabled (hardware mode only).",
             ),
             _declare_arg(
                 "orbbec_color_height",
-                "",
-                "Optional override for Orbbec launch arg color_height (hardware mode only).",
+                "480",
+                "Color height when enabled (hardware mode only).",
             ),
             _declare_arg(
                 "orbbec_color_fps",
-                "",
-                "Optional override for Orbbec launch arg color_fps (hardware mode only).",
+                "15",
+                "Color frame rate when enabled (hardware mode only).",
             ),
             _declare_arg(
                 "orbbec_depth_width",
-                "",
-                "Optional override for Orbbec launch arg depth_width (hardware mode only).",
+                "320",
+                "Depth width; 320 is the VMXPi low-load default.",
             ),
             _declare_arg(
                 "orbbec_depth_height",
-                "",
-                "Optional override for Orbbec launch arg depth_height (hardware mode only).",
+                "240",
+                "Depth height; 240 is the VMXPi low-load default.",
             ),
             _declare_arg(
                 "orbbec_depth_fps",
-                "",
-                "Optional override for Orbbec launch arg depth_fps (hardware mode only).",
+                "5",
+                "Depth frame rate; 5 Hz is the VMXPi low-load default.",
             ),
             _declare_arg(
                 "publish_camera_tf",

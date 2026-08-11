@@ -2,8 +2,8 @@
 <package format="3">
   <name>robot_course_examples</name>
   <version>0.0.0</version>
-  <description>Student TODO package for the Studica ROS 2 classroom course.</description>
-  <maintainer email="student@example.com">Student</maintainer>
+  <description>Guided TODO package for the Studica ROS 2 classroom course.</description>
+  <maintainer email="developer@example.com">Developer</maintainer>
   <license>Apache-2.0</license>
 
   <buildtool_depend>ament_python</buildtool_depend>

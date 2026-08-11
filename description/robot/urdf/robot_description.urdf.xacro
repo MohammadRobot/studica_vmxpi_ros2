@@ -1,18 +1,19 @@
 <?xml version="1.0"?>
 <robot xmlns:xacro="http://www.ros.org/wiki/xacro">
 
-  <xacro:macro name="robot_description" params="prefix wheel_radius base_mass:=10.0 base_width:=0.4 base_length:=0.4 base_height:=0.1 wheel_mass:=0.3 wheel_len:=0.04 wheel_z_offset:=-0.027 caster_wheel_mass:=0.1 caster_wheel_radius:=0.05 laser_pos_x:=0.192 laser_pos_z:=0.0 laser_frame_z:=0.03 cam_pos_x:=${base_length/2.0} cam_pos_y:=0.0 cam_pos_z:=${base_height/2.0} cam_roll:=0.0 cam_pitch:=0.0 cam_yaw:=0.0 wheel_layout:=diff">
+  <xacro:macro name="robot_description" params="prefix wheel_radius base_mass:=10.0 base_width:=0.4 base_length:=0.4 base_height:=0.1 chassis_center_z:=0.077 wheelbase:=${base_length} wheel_track:=${base_width} use_chassis_mesh:=true wheel_mass:=0.3 wheel_len:=0.04 caster_wheel_mass:=0.1 caster_wheel_radius:=0.05 laser_pos_x:=0.192 laser_pos_y:=0.0 laser_pos_z:=0.0 laser_roll:=0.0 laser_pitch:=0.0 laser_yaw:=0.0 laser_frame_z:=0.03 cam_pos_x:=${base_length/2.0} cam_pos_y:=0.0 cam_pos_z:=${base_height/2.0} cam_roll:=0.0 cam_pitch:=0.0 cam_yaw:=0.0 imu_pos_x:=0.0 imu_pos_y:=0.0 imu_pos_z:=0.0 imu_roll:=0.0 imu_pitch:=0.0 imu_yaw:=0.0 wheel_layout:=diff">
 
     <!-- Constants for robot dimensions -->
     <xacro:property name="PI" value="3.1415926535897931"/>
-    <!-- <xacro:property name="z_offset" value="${wheel_z_offset}"/> -->
     <xacro:property name="wheel_layout_resolved" value="${wheel_layout if wheel_layout in ['diff', 'diff_4wd', 'mecanum', 'omni'] else 'diff'}"/>
+    <xacro:property name="use_chassis_mesh_resolved" value="${str(use_chassis_mesh).lower() in ['true', '1', 'yes', 'on']}"/>
+    <xacro:property name="wheel_center_z" value="${float(wheel_radius) - float(chassis_center_z)}"/>
     <xacro:property name="front_left_wheel_yaw" value="${-PI/4 if wheel_layout_resolved == 'omni' else 0.0}"/>
     <xacro:property name="front_right_wheel_yaw" value="${PI/4 if wheel_layout_resolved == 'omni' else 0.0}"/>
     <xacro:property name="rear_left_wheel_yaw" value="${PI/4 if wheel_layout_resolved == 'omni' else 0.0}"/>
     <xacro:property name="rear_right_wheel_yaw" value="${-PI/4 if wheel_layout_resolved == 'omni' else 0.0}"/>
     <!-- Keep base_link/base_footprint on the ground plane. -->
-    <xacro:property name="base_to_chassis_z" value="${float(wheel_radius) - float(wheel_z_offset)}"/>
+    <xacro:property name="base_to_chassis_z" value="${float(chassis_center_z)}"/>
     
     <xacro:if value="${wheel_layout_resolved == 'diff'}">
       <xacro:property name="robot_frame_mesh_file" value="package://studica_vmxpi_ros2/description/meshes/frames/robot_frame_4wd.dae"/>
@@ -43,26 +44,32 @@
       <collision>
         <origin xyz="0 0 0" rpy="0 0 0"/>
         <geometry>
-          <!-- Keep collision primitive simple/stable for physics engines (DART). -->
-          <box size="${base_length - wheel_len} ${base_width - wheel_len} ${base_height}"/>
+          <!-- Measured body envelope; keep collision primitive stable for DART. -->
+          <box size="${base_length} ${base_width} ${base_height}"/>
         </geometry>
       </collision>
 
       <visual>
         <origin xyz="0 0 0" rpy="0 0 0"/>
         <geometry>
-          <!-- <box size="${base_length} ${base_width} ${base_height}"/> -->
-          <mesh filename="${robot_frame_mesh_file}" scale="1.0 1.0 1.0"/>
+          <xacro:if value="${use_chassis_mesh_resolved}">
+            <mesh filename="${robot_frame_mesh_file}" scale="1.0 1.0 1.0"/>
+          </xacro:if>
+          <xacro:unless value="${use_chassis_mesh_resolved}">
+            <box size="${base_length} ${base_width} ${base_height}"/>
+          </xacro:unless>
         </geometry>
-        <!-- <material name="orange"/> -->
+        <xacro:unless value="${use_chassis_mesh_resolved}">
+          <material name="orange"/>
+        </xacro:unless>
       </visual>
 
       <inertial>
         <origin xyz="0 0 0" rpy="0 0 0"/>
         <mass value="${base_mass}"/>
         <inertia
-          ixx="${base_mass / 12.0 * (base_length*base_length + base_height*base_height)}" ixy="0.0" ixz="0.0"
-          iyy="${base_mass / 12.0 * (base_height*base_height + base_width*base_width)}" iyz="0.0"
+          ixx="${base_mass / 12.0 * (base_width*base_width + base_height*base_height)}" ixy="0.0" ixz="0.0"
+          iyy="${base_mass / 12.0 * (base_length*base_length + base_height*base_height)}" iyz="0.0"
           izz="${base_mass / 12.0 * (base_width*base_width + base_length*base_length)}"/>
       </inertial>
     </link>
@@ -77,7 +84,7 @@
       <joint name="${prefix}left_wheel_joint" type="continuous">
         <parent link="${prefix}chassis_link"/>
         <child link="${prefix}left_wheel"/>
-        <origin xyz="${base_length/2} ${base_width/2} ${wheel_z_offset}" rpy="0 0 0"/>
+        <origin xyz="${wheelbase/2} ${wheel_track/2} ${wheel_center_z}" rpy="0 0 0"/>
         <axis xyz="0 1 0"/>
         <dynamics damping="0.05"/>
         <limit effort="100" velocity="20.0"/>
@@ -113,7 +120,7 @@
       <joint name="${prefix}right_wheel_joint" type="continuous">
         <parent link="${prefix}chassis_link"/>
         <child link="${prefix}right_wheel"/>
-        <origin xyz="${base_length/2} -${base_width/2} ${wheel_z_offset}" rpy="0 0 0"/>
+        <origin xyz="${wheelbase/2} -${wheel_track/2} ${wheel_center_z}" rpy="0 0 0"/>
         <axis xyz="0 1 0"/>
         <dynamics damping="0.05"/>
         <limit effort="100" velocity="20.0"/>
@@ -149,7 +156,7 @@
       <joint name="${prefix}caster_left_wheel_joint" type="continuous">
         <parent link="${prefix}chassis_link"/>
         <child link="${prefix}caster_left_wheel"/>
-        <origin xyz="${-base_length/2} ${base_width/2} ${wheel_z_offset}" rpy="0 0 ${rear_left_wheel_yaw}"/>
+        <origin xyz="${-wheelbase/2} ${wheel_track/2} ${wheel_center_z}" rpy="0 0 ${rear_left_wheel_yaw}"/>
         <axis xyz="0 1 0"/>
         <dynamics damping="0.05"/>
         <limit effort="100" velocity="20.0"/>
@@ -183,7 +190,7 @@
       <joint name="${prefix}caster_right_wheel_joint" type="continuous">
         <parent link="${prefix}chassis_link"/>
         <child link="${prefix}caster_right_wheel"/>
-        <origin xyz="${-base_length/2} -${base_width/2} ${wheel_z_offset}" rpy="0 0 ${rear_right_wheel_yaw}"/>
+        <origin xyz="${-wheelbase/2} -${wheel_track/2} ${wheel_center_z}" rpy="0 0 ${rear_right_wheel_yaw}"/>
         <axis xyz="0 1 0"/>
         <dynamics damping="0.05"/>
         <limit effort="100" velocity="20.0"/>     
@@ -219,7 +226,7 @@
       <joint name="${prefix}front_left_wheel_joint" type="continuous">
         <parent link="${prefix}chassis_link"/>
         <child link="${prefix}front_left_wheel"/>
-        <origin xyz="${base_length/2} ${base_width/2} ${wheel_z_offset}" rpy="0 0 ${front_left_wheel_yaw}"/>
+        <origin xyz="${wheelbase/2} ${wheel_track/2} ${wheel_center_z}" rpy="0 0 ${front_left_wheel_yaw}"/>
         <axis xyz="0 1 0"/>
         <dynamics damping="0.05"/>
         <limit effort="100" velocity="20.0"/>
@@ -253,7 +260,7 @@
       <joint name="${prefix}front_right_wheel_joint" type="continuous">
         <parent link="${prefix}chassis_link"/>
         <child link="${prefix}front_right_wheel"/>
-        <origin xyz="${base_length/2} -${base_width/2} ${wheel_z_offset}" rpy="0 0 ${front_right_wheel_yaw}"/>
+        <origin xyz="${wheelbase/2} -${wheel_track/2} ${wheel_center_z}" rpy="0 0 ${front_right_wheel_yaw}"/>
         <axis xyz="0 1 0"/>
         <dynamics damping="0.05"/>
         <limit effort="100" velocity="20.0"/>
@@ -287,7 +294,7 @@
       <joint name="${prefix}rear_left_wheel_joint" type="continuous">
         <parent link="${prefix}chassis_link"/>
         <child link="${prefix}rear_left_wheel"/>
-        <origin xyz="${-base_length/2} ${base_width/2} ${wheel_z_offset}" rpy="0 0 ${rear_left_wheel_yaw}"/>
+        <origin xyz="${-wheelbase/2} ${wheel_track/2} ${wheel_center_z}" rpy="0 0 ${rear_left_wheel_yaw}"/>
         <axis xyz="0 1 0"/>
         <dynamics damping="0.05"/>
         <limit effort="100" velocity="20.0"/>
@@ -321,7 +328,7 @@
       <joint name="${prefix}rear_right_wheel_joint" type="continuous">
         <parent link="${prefix}chassis_link"/>
         <child link="${prefix}rear_right_wheel"/>
-        <origin xyz="${-base_length/2} -${base_width/2} ${wheel_z_offset}" rpy="0 0 ${rear_right_wheel_yaw}"/>
+        <origin xyz="${-wheelbase/2} -${wheel_track/2} ${wheel_center_z}" rpy="0 0 ${rear_right_wheel_yaw}"/>
         <axis xyz="0 1 0"/>
         <dynamics damping="0.05"/>
         <limit effort="100" velocity="20.0"/>
@@ -376,7 +383,9 @@
     </link>
 
     <joint name="${prefix}laser_scan_model_link_joint" type="fixed">
-      <origin rpy="0 0 0" xyz="${laser_pos_x} 0 ${laser_pos_z}"/>
+      <origin
+        rpy="${laser_roll} ${laser_pitch} ${laser_yaw}"
+        xyz="${laser_pos_x} ${laser_pos_y} ${laser_pos_z}"/>
       <parent link="${prefix}chassis_link"/>
       <child link="${prefix}laser_model_link"/>
       <axis xyz="0 0 0"/>
@@ -397,7 +406,9 @@
     </link>
 
     <joint name="${prefix}imu_link_joint" type="fixed">
-      <origin rpy="0 0 0" xyz="0 0 0"/>
+      <origin
+        rpy="${imu_roll} ${imu_pitch} ${imu_yaw}"
+        xyz="${imu_pos_x} ${imu_pos_y} ${imu_pos_z}"/>
       <parent link="${prefix}chassis_link"/>
       <child link="${prefix}imu_link"/>
     </joint>

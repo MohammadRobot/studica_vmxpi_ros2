@@ -13,6 +13,7 @@
 // limitations under the License.
 
 #include "studica_vmxpi_ros2/vmx_system.hpp"
+#include "studica_vmxpi_ros2/imu_conventions.hpp"
 #include "studica_vmxpi_ros2/velocity_pid_safety.hpp"
 
 #include <algorithm>
@@ -33,7 +34,6 @@ namespace
 constexpr double kPi = 3.14159265358979323846;
 constexpr double kRpmToRadPerSec = 2.0 * kPi / 60.0;
 constexpr double kDegreesToRadians = kPi / 180.0;
-constexpr double kGToMetersPerSecondSquared = 9.80665;
 }  // namespace
 
 namespace studica_vmxpi_ros2
@@ -938,9 +938,18 @@ hardware_interface::return_type VmxSystemHardware::read(
     imu_angular_velocity_y_ = imu_driver_->GetRawGyroY() * kDegreesToRadians;
     imu_angular_velocity_z_ = imu_driver_->GetRawGyroZ() * kDegreesToRadians;
 
-    imu_linear_acceleration_x_ = imu_driver_->GetWorldLinearAccelX() * kGToMetersPerSecondSquared;
-    imu_linear_acceleration_y_ = imu_driver_->GetWorldLinearAccelY() * kGToMetersPerSecondSquared;
-    imu_linear_acceleration_z_ = imu_driver_->GetWorldLinearAccelZ() * kGToMetersPerSecondSquared;
+    // REP-145 requires acceleration in the sensor frame named by frame_id.
+    // VMX GetWorldLinearAccel* is gravity-corrected and rotated into the yaw
+    // reference frame, so it must not be published as imu_link acceleration.
+    imu_linear_acceleration_x_ =
+      imu_conventions::acceleration_g_to_meters_per_second_squared(
+      imu_driver_->GetRawAccelX());
+    imu_linear_acceleration_y_ =
+      imu_conventions::acceleration_g_to_meters_per_second_squared(
+      imu_driver_->GetRawAccelY());
+    imu_linear_acceleration_z_ =
+      imu_conventions::acceleration_g_to_meters_per_second_squared(
+      imu_driver_->GetRawAccelZ());
   }
 
   return hardware_interface::return_type::OK;

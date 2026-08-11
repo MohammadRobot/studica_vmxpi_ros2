@@ -4,7 +4,7 @@ These are ordinary `ament_python` packages intended to be copied into the
 workspace `src` directory. They are not installed as part of
 `studica_vmxpi_ros2`.
 
-- `starters/robot_course_examples`: syntactically valid TODO package for students
+- `starters/robot_course_examples`: syntactically valid guided TODO package
 - `solutions/robot_course_examples_solution`: complete reference package for instructors
 
 Copy only the starter at the beginning of Lab 5:
@@ -40,4 +40,4 @@ ros2 launch robot_course_examples_solution sensor_reporter_solution.launch.py
 ```
 
 The different package/executable names prevent the solution from silently
-replacing a student's work.
+replacing a developer's work.

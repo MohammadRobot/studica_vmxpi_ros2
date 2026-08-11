@@ -1,4 +1,4 @@
-"""TODO launch file for the student sensor reporter."""
+"""TODO launch file for the guided sensor reporter."""
 
 from launch import LaunchDescription
 

@@ -1,7 +1,7 @@
 # Studica ROS 2 Classroom Robot
-
 Learn ROS 2 by driving and programming one robot in simulation before touching
-real hardware. The `class_4wd` beginner API is identical in simulation and hardware.
+real hardware. No robotics experience is required; Lab 1 introduces terminal
+skills. The `class_4wd` beginner API is identical in simulation and hardware.
 
 ## What you will learn
 
@@ -9,13 +9,11 @@ You will learn how to:
 
 - launch a ROS 2 system and inspect its nodes, topics, and TF frames;
 - drive safely through `/cmd_vel` using `geometry_msgs/msg/Twist`;
-- read wheel encoders, odometry, IMU, LiDAR, and camera data;
+- read wheel encoders, odometry, IMU, LiDAR, and camera data with hardware sensor fusion;
 - write Python publishers, subscribers, services, parameters, and launch files;
 - understand `ros2_control`, controller state, and robot diagnostics;
 - create a map with SLAM Toolbox and navigate with Nav2;
 - check a real robot without bypassing its safety gates.
-
-No robotics experience is required. Lab 1 introduces the required terminal skills.
 
 ## Supported classroom platform
 
@@ -23,25 +21,27 @@ No robotics experience is required. Lab 1 introduces the required terminal skill
 - ROS 2 Humble
 - Gazebo Harmonic
 - `class_4wd` robot profile
-- Python 3 for student programs
+- Python 3 for application development
 
 The Humble `gz_ros2_control` overlay is pinned for Harmonic; do not replace it.
+The default simulation and hardware launches share the measured `class_4wd`
+body, wheel placement, sensor transforms, and navigation footprint.
 
 ## Safety boundary
 
 Simulation is the safe default. Real hardware requires an instructor, a clear
 work area, and a reachable physical emergency stop.
 
-Setup, tests, checks, mapping, and navigation never command motion automatically.
-Never run hardware commands on a desk or with people near the wheels.
+Joystick-enabled simulation remains stationary until L1 is held and a stick is
+moved. Never run hardware commands on a desk or with people near the wheels.
 
 ## Fresh installation
 
-Choose a workspace location once. This README uses `STUDICA_WS`, so no username
-or machine-specific path is built into the commands.
+Use the dedicated `~/studica_ws` workspace shown below. Keeping this project out
+of a general ROS workspace prevents stale overlays from shadowing pinned packages.
 
 ```bash
-export STUDICA_WS="$HOME/ros2_ws"
+export STUDICA_WS="$HOME/studica_ws"
 mkdir -p "$STUDICA_WS/src"
 git clone https://github.com/MohammadRobot/studica_vmxpi_ros2.git \
   "$STUDICA_WS/src/studica_vmxpi_ros2"
@@ -69,19 +69,21 @@ only if you chose a different directory.
 Terminal 1 — launch the maze, robot, controllers, sensors, and RViz:
 
 ```bash
-export STUDICA_WS="$HOME/ros2_ws"
+export STUDICA_WS="$HOME/studica_ws"
+source "$HOME/.ros/studica_sim.env"
 source /opt/ros/humble/setup.bash
 source "$STUDICA_WS/install/setup.bash"
 ros2 launch studica_vmxpi_ros2 sim.launch.py
 ```
 
 Expected result: Gazebo opens with the four-wheel robot in a maze, RViz shows
-the robot and sensor data, and the terminal reports active controllers.
+sensor data, the controllers become active, and `/joy` is available.
 
 Terminal 2 — inspect the system:
 
 ```bash
-export STUDICA_WS="$HOME/ros2_ws"
+export STUDICA_WS="$HOME/studica_ws"
+source "$HOME/.ros/studica_sim.env"
 source /opt/ros/humble/setup.bash
 source "$STUDICA_WS/install/setup.bash"
 ros2 node list
@@ -89,28 +91,17 @@ ros2 topic list
 ros2 topic hz /scan
 ```
 
-Press `Ctrl+C` after observing the scan rate.
+Drive with the connected DualShock: hold L1, use the left stick vertically, and
+use the right stick horizontally. R1 enables turbo while L1 remains held. To use
+keyboard teleop instead, relaunch with `use_joystick:=false` and follow the
+[joystick guide](docs/JOYSTICK.md) motion-publisher rules.
 
-Terminal 3 — drive slowly with the keyboard:
-
-```bash
-export STUDICA_WS="$HOME/ros2_ws"
-source /opt/ros/humble/setup.bash
-source "$STUDICA_WS/install/setup.bash"
-ros2 run teleop_twist_keyboard teleop_twist_keyboard \
-  --ros-args -r cmd_vel:=/cmd_vel
-```
-
-Keep this terminal focused so it receives your keys. Start at the displayed
-default speed, avoid walls, and press the space bar to stop. The robot also
-stops when command messages time out.
-
-When finished, press `Ctrl+C` in the teleop terminal and then in the launch
-terminal. Confirm that Gazebo closes before starting another launch.
+When finished, release L1 and press `Ctrl+C` in the launch terminal. Confirm
+that Gazebo closes before starting another launch.
 
 ## One public motion interface
 
-Student programs publish only this message:
+Application nodes publish motion only through this message:
 
 ```text
 Topic: /cmd_vel
@@ -125,7 +116,7 @@ ros2 topic pub --once /cmd_vel geometry_msgs/msg/Twist \
 ```
 
 Internal controller topics vary by drive controller. A project adapter owns
-that detail so student code stays portable. Do not publish directly to a
+that detail so application code stays portable. Do not publish directly to a
 controller's internal command topic.
 
 ## Essential robot topics
@@ -134,7 +125,7 @@ controller's internal command topic.
 |---|---|---|
 | `/cmd_vel` | `geometry_msgs/msg/Twist` | Requested robot speed |
 | `/odom` | `nav_msgs/msg/Odometry` | Estimated motion and pose |
-| `/imu` | `sensor_msgs/msg/Imu` | Orientation, acceleration, and rotation |
+| `/imu` | `sensor_msgs/msg/Imu` | Orientation plus sensor-frame acceleration and rotation |
 | `/scan` | `sensor_msgs/msg/LaserScan` | LiDAR distance scan |
 | `/joint_states` | `sensor_msgs/msg/JointState` | Wheel position and velocity |
 | `/tf`, `/tf_static` | `tf2_msgs/msg/TFMessage` | Coordinate-frame relationships |
@@ -166,10 +157,10 @@ required component returns `1`; a usage or setup error returns `2`. Add
 
 | Launch file | Purpose | Starts a motion publisher? |
 |---|---|---|
-| `sim.launch.py` | Maze simulation and RViz | No |
-| `mapping.launch.py` | Office simulation and SLAM Toolbox | No |
-| `navigation.launch.py` | Office simulation, saved map, and Nav2 | No |
-| `robot.launch.py` | Supervised `class_4wd` hardware | No |
+| `sim.launch.py` | Maze simulation and RViz | Joystick, L1 deadman required |
+| `mapping.launch.py` | Office simulation or PC-side real-robot SLAM | Joystick, L1 deadman required |
+| `navigation.launch.py` | Office simulation or PC-side physical Nav2 | Nav2 only; joystick off |
+| `robot.launch.py` | Supervised `class_4wd` hardware | No; joystick opt-in |
 
 `bringup.launch.py` remains available for instructors and advanced robot
 profiles. Beginners should use the four small launch files above.
@@ -205,27 +196,31 @@ and use the guarded lifted-wheel validator before any floor test.
 
 ## Documentation
 
+- [Quick start](docs/QUICK_START.md)
 - [Documentation index](docs/README.md)
 - [Installation](docs/INSTALL.md)
+- [Launch arguments](docs/LAUNCH_ARGUMENTS.md)
 - [Course and labs](docs/COURSE.md)
 - [Troubleshooting](docs/TROUBLESHOOTING.md)
 - [Architecture](docs/ARCHITECTURE.md)
+- [Application development and deployment](docs/DEVELOPMENT.md)
 - [Mapping and navigation](docs/MAPPING_NAVIGATION.md)
 - [Supervised hardware](docs/HARDWARE.md)
-- [Networking and remote Foxglove](docs/NETWORKING.md)
+- [Networking, Cyclone DDS, and remote Foxglove](docs/NETWORKING.md)
 - [Advanced robot profiles](docs/PROFILE_AUTHORING.md)
 - [Instructor guide](docs/INSTRUCTOR_GUIDE.md)
 
 ## Repository roles
 
-- `studica_vmxpi_ros2`: student launches, robot model, `ros2_control`, and labs
+- `studica_robot_apps`: developer-owned behaviors, launch files, config, and tests
+- `studica_vmxpi_ros2`: robot model, bringup, `ros2_control`, safety, and labs
 - `studica_robot_monitor`: diagnostics, `robot_check`, recordings, and guarded validation
 - `studica_drivers`: low-level VMXPi/Titan infrastructure
 - `studica_ros2_control`: optional accessory components for advanced projects
 - Orbbec and YDLidar repositories: unchanged vendor sensor drivers
 
-Students normally work in this repository. The other repositories are
-dependencies, not separate course entry points.
+Developers normally edit only `studica_robot_apps`. The other repositories form
+the platform and its dependencies; see the [development workflow](docs/DEVELOPMENT.md).
 
 ## Check a change
 
@@ -240,11 +235,16 @@ Before sharing a change, build and run tests from the workspace root:
 
 ```bash
 cd "$STUDICA_WS"
+source "$HOME/.ros/studica_sim.env"
+source /opt/ros/humble/setup.bash
 colcon build --symlink-install
 colcon test --packages-select \
   studica_drivers studica_robot_monitor studica_ros2_control studica_vmxpi_ros2
 colcon test-result --verbose
 ```
 
-Tests and setup must never initiate motor motion. Physical regression tests are
-separate, supervised activities documented for instructors.
+Keep the workspace's existing copied or symlink install mode consistent; see
+[Installation](docs/INSTALL.md#manual-build-after-editing-code).
+
+Tests and setup never initiate motion; physical regression is separate and
+instructor-supervised.

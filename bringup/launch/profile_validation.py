@@ -5,6 +5,7 @@
 
 from __future__ import annotations
 
+import math
 import re
 from numbers import Real
 from pathlib import Path
@@ -32,6 +33,48 @@ REQUIRED_XACRO_KEYS = (
     "caster_wheel_radius",
     "laser_pos_z",
     "laser_frame_z",
+)
+
+POSITIVE_XACRO_KEYS = (
+    "base_mass",
+    "base_width",
+    "base_length",
+    "base_height",
+    "wheel_mass",
+    "wheel_len",
+    "caster_wheel_mass",
+    "caster_wheel_radius",
+)
+
+PHYSICAL_GEOMETRY_KEYS = (
+    "robot_mass",
+    "ground_clearance",
+    "wheelbase",
+    "wheel_track",
+    "overall_length",
+    "overall_width",
+    "use_chassis_mesh",
+)
+
+MEASURED_SENSOR_POSE_KEYS = (
+    "laser_pos_x",
+    "laser_pos_y",
+    "laser_pos_z",
+    "laser_roll",
+    "laser_pitch",
+    "laser_yaw",
+    "cam_pos_x",
+    "cam_pos_y",
+    "cam_pos_z",
+    "cam_roll",
+    "cam_pitch",
+    "cam_yaw",
+    "imu_pos_x",
+    "imu_pos_y",
+    "imu_pos_z",
+    "imu_roll",
+    "imu_pitch",
+    "imu_yaw",
 )
 
 REQUIRED_HW_KEYS = (
@@ -80,7 +123,11 @@ DEFAULT_WHEEL_LAYOUT = "diff"
 
 
 def _is_number(value: Any) -> bool:
-    return isinstance(value, Real) and not isinstance(value, bool)
+    return (
+        isinstance(value, Real)
+        and not isinstance(value, bool)
+        and math.isfinite(float(value))
+    )
 
 
 def load_yaml(path: Path | str) -> dict[str, Any]:
@@ -222,8 +269,48 @@ def validate_profile_files(
         if key not in hw_cfg:
             errors.append(f"{profile_name}: {profile_path} missing hardware key '{key}'")
 
+    uses_physical_geometry = any(key in xacro_cfg for key in PHYSICAL_GEOMETRY_KEYS)
+    if uses_physical_geometry:
+        for key in PHYSICAL_GEOMETRY_KEYS:
+            if key not in xacro_cfg:
+                errors.append(
+                    f"{profile_name}: {profile_path} measured geometry requires "
+                    f"xacro key '{key}'"
+                )
+        for key in MEASURED_SENSOR_POSE_KEYS:
+            if key not in xacro_cfg:
+                errors.append(
+                    f"{profile_name}: {profile_path} measured geometry requires "
+                    f"sensor pose key '{key}'"
+                )
+
     if errors:
         return errors, drive_controller_name, drive_controller_type, drive_wheel_layout
+
+    for key in POSITIVE_XACRO_KEYS:
+        if float(xacro_cfg[key]) <= 0.0:
+            errors.append(
+                f"{profile_name}: {profile_path} xacro key '{key}' must be > 0"
+            )
+
+    if uses_physical_geometry:
+        for key in PHYSICAL_GEOMETRY_KEYS:
+            if key == "use_chassis_mesh":
+                if not isinstance(xacro_cfg[key], bool):
+                    errors.append(
+                        f"{profile_name}: {profile_path} xacro key "
+                        "'use_chassis_mesh' must be bool"
+                    )
+                continue
+            if not _is_number(xacro_cfg[key]):
+                errors.append(
+                    f"{profile_name}: {profile_path} xacro key '{key}' must be numeric"
+                )
+        for key in MEASURED_SENSOR_POSE_KEYS:
+            if not _is_number(xacro_cfg[key]):
+                errors.append(
+                    f"{profile_name}: {profile_path} sensor pose key '{key}' must be numeric"
+                )
 
     for key in NUMERIC_HW_KEYS:
         if not _is_number(hw_cfg[key]):
@@ -251,6 +338,57 @@ def validate_profile_files(
     wheel_radius = float(wheel_radius_value)
     speed_scale = float(hw_cfg["speed_scale"])
     max_wheel_rad_s = float(hw_cfg["max_wheel_angular_velocity_rad_s"])
+
+    if uses_physical_geometry:
+        robot_mass = float(xacro_cfg["robot_mass"])
+        base_mass = float(xacro_cfg["base_mass"])
+        base_length = float(xacro_cfg["base_length"])
+        base_width = float(xacro_cfg["base_width"])
+        ground_clearance = float(xacro_cfg["ground_clearance"])
+        wheelbase = float(xacro_cfg["wheelbase"])
+        wheel_track = float(xacro_cfg["wheel_track"])
+        wheel_width = float(xacro_cfg["wheel_len"])
+        overall_length = float(xacro_cfg["overall_length"])
+        overall_width = float(xacro_cfg["overall_width"])
+
+        for key, value in (
+            ("robot_mass", robot_mass),
+            ("wheelbase", wheelbase),
+            ("wheel_track", wheel_track),
+            ("overall_length", overall_length),
+            ("overall_width", overall_width),
+        ):
+            if value <= 0.0:
+                errors.append(
+                    f"{profile_name}: {profile_path} xacro key '{key}' must be > 0"
+                )
+        if ground_clearance < 0.0:
+            errors.append(
+                f"{profile_name}: {profile_path} xacro.ground_clearance must be >= 0"
+            )
+        if base_length > overall_length:
+            errors.append(
+                f"{profile_name}: {profile_path} base_length exceeds overall_length"
+            )
+        if base_width > overall_width:
+            errors.append(
+                f"{profile_name}: {profile_path} base_width exceeds overall_width"
+            )
+        if wheelbase + 2.0 * wheel_radius > overall_length + 1.0e-6:
+            errors.append(
+                f"{profile_name}: {profile_path} wheelbase plus wheel diameter "
+                "exceeds overall_length"
+            )
+        if wheel_track + wheel_width > overall_width + 1.0e-6:
+            errors.append(
+                f"{profile_name}: {profile_path} wheel_track plus wheel width "
+                "exceeds overall_width"
+            )
+        if base_mass + 4.0 * float(xacro_cfg["wheel_mass"]) > robot_mass:
+            errors.append(
+                f"{profile_name}: {profile_path} modeled base and wheel masses "
+                "exceed robot_mass"
+            )
 
     left_front_motor = int(hw_cfg["left_front_motor"])
     left_rear_motor = int(hw_cfg["left_rear_motor"])

@@ -1,29 +1,29 @@
 # Instructor Guide
 
-This guide separates normal student work from operations that require hardware,
-network, or profile authority. Students spend Labs 1–8 in simulation. Lab 9 is
+This guide separates normal learner work from operations that require hardware,
+network, or profile authority. Learners spend Labs 1–8 in simulation. Lab 9 is
 optional and supervised.
 
 ## Course invariants
 
 - Core robot: `class_4wd`.
-- Student language: Python 3.
-- Student motion API: `/cmd_vel` with `geometry_msgs/msg/Twist`.
+- Application language: Python 3.
+- Application motion API: `/cmd_vel` with `geometry_msgs/msg/Twist`.
 - Standard feedback: `/odom`, `/imu`, `/scan`, `/joint_states`, and TF.
-- Teleop is an external tool; launches never start competing publishers.
-- Mapping and navigation do not move until a human drives or sends a goal.
+- Simulation and mapping start one L1-deadman joystick publisher by default.
+- Navigation keeps joystick off and does not move until a human sends a goal.
 - Setup, CI, checks, and documentation tests never initiate motor motion.
-- Titan autotune is absent from the student path.
+- Titan autotune is absent from the learning path.
 
 Do not teach controller-internal command topics as alternatives. The adapter is
 there so every lesson and robot variant keeps the same public API.
 
-## Prepare student PCs
+## Prepare development PCs
 
 On a clean Ubuntu 22.04 image:
 
 ```bash
-export STUDICA_WS="$HOME/ros2_ws"
+export STUDICA_WS="$HOME/studica_ws"
 mkdir -p "$STUDICA_WS/src"
 git clone https://github.com/MohammadRobot/studica_vmxpi_ros2.git \
   "$STUDICA_WS/src/studica_vmxpi_ros2"
@@ -37,10 +37,11 @@ change, duplicate repository entry, or overlay drift occurs.
 For each prepared PC:
 
 ```bash
+source "$HOME/.ros/studica_sim.env"
 source /opt/ros/humble/setup.bash
 source "$STUDICA_WS/install/setup.bash"
 ros2 launch studica_vmxpi_ros2 sim.launch.py \
-  gui:=false gz_headless:=true
+  gui:=false gz_headless:=true use_joystick:=false
 ```
 
 In another terminal, require:
@@ -55,15 +56,17 @@ lesson without rate or memory warnings.
 
 ## Classroom repository layout
 
-- `studica_vmxpi_ros2`: the only student entry repository;
+- `studica_robot_apps`: the normal developer-owned application package;
+- `studica_vmxpi_ros2`: platform, simulation, hardware safety, and course material;
 - `studica_robot_monitor`: installed course health tools;
 - `studica_drivers`: low-level infrastructure, not a beginner API;
 - `studica_ros2_control`: optional accessory components for advanced work;
 - vendor camera/LiDAR repositories: hardware dependencies, left unchanged.
 
 Avoid assigning edits inside generated `build`, `install`, or `log` trees.
-Student Python work belongs in a package under the workspace `src` directory,
-using the provided starter as a model.
+Python application work belongs in `studica_robot_apps` under the workspace
+`src` directory. Keep the platform and vendor repositories unchanged during
+normal application development.
 
 ## Lab delivery
 
@@ -82,11 +85,11 @@ Suggested pacing:
 | 5 | 2–3 | Python package and tests |
 | 6 | 1–2 | controller/odometry/diagnostic report |
 | 7 | 1–2 | saved map and artifact analysis |
-| 8 | 1–2 | localized Nav2 goal and cleanup |
+| 8 | 1–2 | localized goal, colored costmaps, and waypoint route |
 | 9 | supervised | signed readiness and baseline report |
 
 Reference solutions are separate from TODO starters. Release them after a
-checkpoint or use them for instructor validation, not as the initial student
+checkpoint or use them for instructor validation, not as the initial learner
 workspace.
 
 ## Resource-limited computers
@@ -149,7 +152,8 @@ Also require:
 - no ELF binaries, caches, backup files, or generated maps are tracked;
 - headless launch tests see active controllers and standard topics;
 - timeout testing confirms motion commands decay to zero;
-- mapping and navigation have no competing command publishers.
+- mapping has one deadman teleop publisher and navigation has no non-Nav2
+  command publisher;
 
 If Harmonic cannot run on the build host, mark the graphical/headless simulator
 test as an environmental limitation and run it on the qualified classroom PC.
@@ -176,6 +180,6 @@ state, or profile defaults does.
 
 `class_2wd`, `class_mecanum`, and `class_omni` are retained for an advanced
 variants lesson. They are not implicit defaults and should not be introduced
-before students understand `/cmd_vel`, TF, and `ros2_control`. Use
+before developers understand `/cmd_vel`, TF, and `ros2_control`. Use
 [Advanced profiles](PROFILE_AUTHORING.md) and create a separate acceptance sheet
 for any physical variant.

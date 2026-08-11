@@ -28,12 +28,31 @@
   <xacro:property name="geometry_cfg" value="${profile['xacro']}"/>
   <xacro:property name="drive_cfg" value="${profile['drive'] if 'drive' in profile else dict()}"/>
   <xacro:property name="wheel_layout" value="${str(drive_cfg.get('wheel_layout', 'diff')).lower()}"/>
+  <xacro:property name="wheel_radius" value="${float(drive_cfg['wheel_radius_m'])}"/>
+  <xacro:property name="legacy_wheel_z_offset" value="${float(geometry_cfg.get('wheel_z_offset', -0.027))}"/>
+  <xacro:property name="chassis_center_z" value="${float(geometry_cfg['ground_clearance']) + float(geometry_cfg['base_height']) / 2.0 if 'ground_clearance' in geometry_cfg else wheel_radius - legacy_wheel_z_offset}"/>
+  <xacro:property name="wheelbase" value="${geometry_cfg.get('wheelbase', geometry_cfg['base_length'])}"/>
+  <xacro:property name="wheel_track" value="${geometry_cfg.get('wheel_track', geometry_cfg['base_width'])}"/>
+  <xacro:property name="use_chassis_mesh" value="${geometry_cfg.get('use_chassis_mesh', True)}"/>
+  <xacro:property name="laser_pos_x" value="${geometry_cfg.get('laser_pos_x', 0.192)}"/>
+  <xacro:property name="laser_pos_y" value="${geometry_cfg.get('laser_pos_y', 0.0)}"/>
+  <xacro:property name="laser_pos_z" value="${geometry_cfg.get('laser_pos_z', 0.0)}"/>
+  <xacro:property name="laser_roll" value="${geometry_cfg.get('laser_roll', 0.0)}"/>
+  <xacro:property name="laser_pitch" value="${geometry_cfg.get('laser_pitch', 0.0)}"/>
+  <xacro:property name="laser_yaw" value="${geometry_cfg.get('laser_yaw', 0.0)}"/>
+  <xacro:property name="laser_frame_z" value="${geometry_cfg.get('laser_frame_z', 0.03)}"/>
   <xacro:property name="cam_pos_x" value="${geometry_cfg.get('cam_pos_x', geometry_cfg['base_length'] / 4.0)}"/>
   <xacro:property name="cam_pos_y" value="${geometry_cfg.get('cam_pos_y', 0.0)}"/>
   <xacro:property name="cam_pos_z" value="${geometry_cfg.get('cam_pos_z', geometry_cfg['base_height'] / 2.0)}"/>
   <xacro:property name="cam_roll" value="${geometry_cfg.get('cam_roll', 0.0)}"/>
   <xacro:property name="cam_pitch" value="${geometry_cfg.get('cam_pitch', 0.0)}"/>
   <xacro:property name="cam_yaw" value="${geometry_cfg.get('cam_yaw', 0.0)}"/>
+  <xacro:property name="imu_pos_x" value="${geometry_cfg.get('imu_pos_x', 0.0)}"/>
+  <xacro:property name="imu_pos_y" value="${geometry_cfg.get('imu_pos_y', 0.0)}"/>
+  <xacro:property name="imu_pos_z" value="${geometry_cfg.get('imu_pos_z', 0.0)}"/>
+  <xacro:property name="imu_roll" value="${geometry_cfg.get('imu_roll', 0.0)}"/>
+  <xacro:property name="imu_pitch" value="${geometry_cfg.get('imu_pitch', 0.0)}"/>
+  <xacro:property name="imu_yaw" value="${geometry_cfg.get('imu_yaw', 0.0)}"/>
 
   <xacro:robot_description
     prefix="$(arg prefix)"
@@ -41,19 +60,34 @@
     base_width="${geometry_cfg['base_width']}"
     base_length="${geometry_cfg['base_length']}"
     base_height="${geometry_cfg['base_height']}"
+    chassis_center_z="${chassis_center_z}"
+    wheelbase="${wheelbase}"
+    wheel_track="${wheel_track}"
+    use_chassis_mesh="${use_chassis_mesh}"
     wheel_mass="${geometry_cfg['wheel_mass']}"
     wheel_len="${geometry_cfg['wheel_len']}"
-    wheel_radius="${drive_cfg['wheel_radius_m']}"
+    wheel_radius="${wheel_radius}"
     caster_wheel_mass="${geometry_cfg['caster_wheel_mass']}"
     caster_wheel_radius="${geometry_cfg['caster_wheel_radius']}"
-    laser_pos_z="${geometry_cfg['laser_pos_z']}"
-    laser_frame_z="${geometry_cfg['laser_frame_z']}"
+    laser_pos_x="${laser_pos_x}"
+    laser_pos_y="${laser_pos_y}"
+    laser_pos_z="${laser_pos_z}"
+    laser_roll="${laser_roll}"
+    laser_pitch="${laser_pitch}"
+    laser_yaw="${laser_yaw}"
+    laser_frame_z="${laser_frame_z}"
     cam_pos_x="${cam_pos_x}"
     cam_pos_y="${cam_pos_y}"
     cam_pos_z="${cam_pos_z}"
     cam_roll="${cam_roll}"
     cam_pitch="${cam_pitch}"
     cam_yaw="${cam_yaw}"
+    imu_pos_x="${imu_pos_x}"
+    imu_pos_y="${imu_pos_y}"
+    imu_pos_z="${imu_pos_z}"
+    imu_roll="${imu_roll}"
+    imu_pitch="${imu_pitch}"
+    imu_yaw="${imu_yaw}"
     wheel_layout="${wheel_layout}"/>
 
   <xacro:robot_ros2_control

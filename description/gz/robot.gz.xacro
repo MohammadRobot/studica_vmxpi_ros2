@@ -155,7 +155,7 @@
     </gazebo>
 
     <!-- IMU publishes on Gazebo topic /imu; ros_gz_bridge forwards to ROS /imu -->
-    <gazebo reference="${prefix}chassis_link">
+    <gazebo reference="${prefix}imu_link">
       <sensor name="imu_sensor" type="imu">
         <pose>0 0 0 0 0 0</pose>
         <topic>/imu</topic>

@@ -105,16 +105,31 @@ def wait_until_ready(process, env, timeout=40):
     raise RuntimeError(f"Controllers did not become active:\n{last_output}")
 
 
-def verify_topic_contract(env):
-    output = run_cli(
-        ["ros2", "topic", "list", "--no-daemon", "--spin-time", "2", "-t"],
-        env,
-        timeout=10,
-    ).stdout
-    for topic, message_type in TOPIC_TYPES.items():
-        expected = f"{topic} [{message_type}]"
-        if expected not in output:
-            raise RuntimeError(f"Missing topic contract '{expected}':\n{output}")
+def verify_topic_contract(env, timeout=20):
+    """Wait for DDS discovery to expose the complete classroom topic graph."""
+    deadline = time.monotonic() + timeout
+    output = ""
+    missing = []
+    while time.monotonic() < deadline:
+        result = run_cli(
+            ["ros2", "topic", "list", "--no-daemon", "--spin-time", "2", "-t"],
+            env,
+            timeout=10,
+            check=False,
+        )
+        output = result.stdout
+        missing = [
+            f"{topic} [{message_type}]"
+            for topic, message_type in TOPIC_TYPES.items()
+            if f"{topic} [{message_type}]" not in output
+        ]
+        if not missing:
+            return
+        time.sleep(0.5)
+    raise RuntimeError(
+        "DDS discovery did not expose the complete topic contract; missing "
+        f"{missing}:\n{output}"
+    )
 
 
 def verify_twist_adapter(env):
@@ -234,13 +249,22 @@ def main():
     args = parser.parse_args()
 
     env = os.environ.copy()
-    env.pop("CYCLONEDDS_URI", None)
     env.pop("ROS_DISCOVERY_SERVER", None)
+    cyclone_config = (
+        Path(__file__).resolve().parents[1]
+        / "bringup"
+        / "config"
+        / "network"
+        / "cyclonedds_sim.xml"
+    )
     env.update(
         {
-            "RMW_IMPLEMENTATION": "rmw_fastrtps_cpp",
+            "CYCLONEDDS_URI": cyclone_config.as_uri(),
+            "RMW_IMPLEMENTATION": "rmw_cyclonedds_cpp",
             "ROS_DOMAIN_ID": str(random.randint(101, 220)),
-            "ROS_LOCALHOST_ONLY": "1",
+            # The checked-in Cyclone profile explicitly selects loopback. Keep
+            # ROS_LOCALHOST_ONLY off so Cyclone does not select `lo` a second time.
+            "ROS_LOCALHOST_ONLY": "0",
         }
     )
 
@@ -262,6 +286,7 @@ def main():
             "use_camera:=false",
             "use_monitoring:=false",
             "use_foxglove:=false",
+            "use_joystick:=false",
         ]
     elif args.mode == "gz":
         launch_arguments = [
@@ -269,11 +294,22 @@ def main():
             "gui:=false",
             "gz_headless:=true",
             "use_camera:=false",
+            "use_joystick:=false",
         ]
     elif args.mode == "mapping":
-        launch_arguments = ["mapping.launch.py", "gui:=false", "gz_headless:=true"]
+        launch_arguments = [
+            "mapping.launch.py",
+            "gui:=false",
+            "gz_headless:=true",
+            "use_joystick:=false",
+        ]
     else:
-        launch_arguments = ["navigation.launch.py", "gui:=false", "gz_headless:=true"]
+        launch_arguments = [
+            "navigation.launch.py",
+            "gui:=false",
+            "gz_headless:=true",
+            "use_joystick:=false",
+        ]
 
     with tempfile.TemporaryDirectory(prefix="studica_runtime_test_") as temp_dir:
         log_path = Path(temp_dir) / "launch.log"

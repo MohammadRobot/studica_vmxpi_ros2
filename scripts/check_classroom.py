@@ -126,12 +126,12 @@ def check_public_contract(root: Path, failures: list[str]) -> None:
     pinned = simulation["repositories"]["gz_ros2_control"]["version"]
     fail_if(pinned != GZ_CONTROL_COMMIT, "gz_ros2_control overlay pin changed", failures)
 
-    student_docs = [root / "README.md", *root.joinpath("docs", "labs").glob("*.md")]
-    for path in student_docs:
+    public_docs = [root / "README.md", *root.joinpath("docs", "labs").glob("*.md")]
+    for path in public_docs:
         if path.is_file():
             fail_if(
                 "autotune" in path.read_text(encoding="utf-8").lower(),
-                f"Titan autotune leaked into student documentation: {path.relative_to(root)}",
+                f"Titan autotune leaked into public documentation: {path.relative_to(root)}",
                 failures,
             )
 

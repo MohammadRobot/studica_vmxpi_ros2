@@ -11,7 +11,8 @@ Use Ubuntu 22.04, ROS 2 Humble, and Gazebo Harmonic. Complete
 Each new terminal needs:
 
 ```bash
-export STUDICA_WS="$HOME/ros2_ws"
+export STUDICA_WS="$HOME/studica_ws"
+source "$HOME/.ros/studica_sim.env"
 source /opt/ros/humble/setup.bash
 source "$STUDICA_WS/install/setup.bash"
 ```
@@ -28,19 +29,19 @@ with the value supplied by the instructor.
 | [2](labs/02_simulation_graph.md) | Launch simulation and inspect the graph | Node/topic sketch |
 | [3](labs/03_topics_teleop.md) | Topics, `Twist`, and keyboard teleop | Annotated `/cmd_vel` message |
 | [4](labs/04_sensors_tf_qos.md) | Sensors, TF, RViz, and QoS | Sensor/TF worksheet |
-| [5](labs/05_python_nodes.md) | Python publisher, subscriber, parameters, service, launch | Working student package |
+| [5](labs/05_python_nodes.md) | Python publisher, subscriber, parameters, service, launch | Working application package |
 | [6](labs/06_control_odometry_diagnostics.md) | `ros2_control`, odometry, diagnostics | Controller health report |
 | [7](labs/07_slam.md) | SLAM and map saving | PGM/YAML map pair |
-| [8](labs/08_navigation.md) | AMCL, Nav2, and goals | Localized goal observation |
+| [8](labs/08_navigation.md) | AMCL, costmaps, goals, and waypoints | Goal and route evidence |
 | [9](labs/09_supervised_hardware.md) | Supervised hardware readiness | Signed check and validation report |
 
 Complete the labs in order. A checkpoint is a gate, not an optional review: fix
 the current lab before continuing. Each challenge is optional and must preserve
 the public interfaces below.
 
-## Stable student interfaces
+## Stable application interfaces
 
-| Topic | Type | Student use |
+| Topic | Type | Application use |
 |---|---|---|
 | `/cmd_vel` | `geometry_msgs/msg/Twist` | Publish requested robot speed |
 | `/odom` | `nav_msgs/msg/Odometry` | Observe estimated pose and velocity |
@@ -50,7 +51,7 @@ the public interfaces below.
 | `/tf`, `/tf_static` | `tf2_msgs/msg/TFMessage` | Observe frame relationships |
 
 Never publish directly to a controller-internal topic. The same `/cmd_vel`
-interface works in simulation and on the real robot. Student code must not add a
+interface works in simulation and on the real robot. Application code must not add a
 second odometry or TF publisher to “fix” a display problem.
 
 ## Working habits
@@ -58,7 +59,7 @@ second odometry or TF publisher to “fix” a display problem.
 - Label terminals in notes exactly as each lab does.
 - Start one launch at a time and stop command publishers before launch files.
 - Read the first error, not only the final process summary.
-- Keep generated maps and student packages outside the course source package.
+- Keep generated maps and application packages outside the course source package.
 - Rebuild only after source changes, then source `install/setup.bash` again.
 - Save checkpoint evidence before attempting a challenge.
 
@@ -68,10 +69,10 @@ edit generated files under `build`, `install`, or `log`.
 
 ## Safety boundary
 
-Simulation is the independent student environment. No setup command, launch
-file, health check, documentation test, mapping start, or navigation start moves
-the robot automatically. Movement occurs only after a person starts teleop,
-publishes `/cmd_vel`, or sends a Nav2 goal.
+Simulation is the independent development environment. Setup, checks, and launch
+startup do not move the robot. Movement occurs only after a person holds the
+joystick deadman and moves a stick, publishes `/cmd_vel`, sends a Nav2 goal, or
+explicitly starts a reviewed waypoint route with `--start`.
 
 Real hardware adds stored energy, pinch points, network delay, and persistent
 fault handling. Lab 9 requires all of the following:

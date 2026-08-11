@@ -9,7 +9,7 @@
 ## Prerequisites
 
 - Labs 1–5 complete.
-- The Lab 5 student node stopped.
+- The Lab 5 application node stopped.
 - `studica_robot_monitor` built in the classroom workspace.
 
 ## Terminals
@@ -17,16 +17,18 @@
 ### Terminal 1 — launch simulation
 
 ```bash
-export STUDICA_WS="$HOME/ros2_ws"
+export STUDICA_WS="$HOME/studica_ws"
+source "$HOME/.ros/studica_sim.env"
 source /opt/ros/humble/setup.bash
 source "$STUDICA_WS/install/setup.bash"
-ros2 launch studica_vmxpi_ros2 sim.launch.py
+ros2 launch studica_vmxpi_ros2 sim.launch.py use_joystick:=false
 ```
 
 ### Terminal 2 — launch simulation-aware monitoring
 
 ```bash
-export STUDICA_WS="$HOME/ros2_ws"
+export STUDICA_WS="$HOME/studica_ws"
+source "$HOME/.ros/studica_sim.env"
 source /opt/ros/humble/setup.bash
 source "$STUDICA_WS/install/setup.bash"
 ros2 launch studica_robot_monitor monitoring.launch.py \
@@ -38,7 +40,8 @@ This observer does not publish `/cmd_vel` or switch controllers.
 ### Terminal 3 — inspect control and health
 
 ```bash
-export STUDICA_WS="$HOME/ros2_ws"
+export STUDICA_WS="$HOME/studica_ws"
+source "$HOME/.ros/studica_sim.env"
 source /opt/ros/humble/setup.bash
 source "$STUDICA_WS/install/setup.bash"
 ros2 control list_controllers
@@ -56,7 +59,8 @@ for simulation and remains read-only.
 ### Terminal 4 — create feedback with low-speed teleop
 
 ```bash
-export STUDICA_WS="$HOME/ros2_ws"
+export STUDICA_WS="$HOME/studica_ws"
+source "$HOME/.ros/studica_sim.env"
 source /opt/ros/humble/setup.bash
 source "$STUDICA_WS/install/setup.bash"
 ros2 run teleop_twist_keyboard teleop_twist_keyboard \

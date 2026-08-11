@@ -1,0 +1,41 @@
+hardware_odometry_filter:
+  ros__parameters:
+    # The launch file overrides frequency to match hardware_control_rate_hz.
+    frequency: 25.0
+    sensor_timeout: 0.25
+    two_d_mode: true
+    transform_time_offset: 0.0
+    transform_timeout: 0.1
+    print_diagnostics: false
+    publish_acceleration: false
+    publish_tf: true
+
+    map_frame: map
+    odom_frame: odom
+    base_link_frame: base_footprint
+    world_frame: odom
+
+    # Sticky skid-steer tires make encoder-derived yaw unreliable. Keep only
+    # calibrated forward velocity from wheel odometry.
+    odom0: /wheel/odom
+    odom0_config: [false, false, false,
+                   false, false, false,
+                   true,  false, false,
+                   false, false, false,
+                   false, false, false]
+    odom0_queue_size: 10
+    odom0_differential: false
+    odom0_relative: false
+
+    # The VMX IMU pose has been measured in the URDF. Relative mode makes the
+    # robot's startup heading zero while retaining measured yaw changes.
+    imu0: /imu
+    imu0_config: [false, false, false,
+                  false, false, true,
+                  false, false, false,
+                  false, false, true,
+                  false, false, false]
+    imu0_queue_size: 20
+    imu0_differential: false
+    imu0_relative: true
+    imu0_remove_gravitational_acceleration: false

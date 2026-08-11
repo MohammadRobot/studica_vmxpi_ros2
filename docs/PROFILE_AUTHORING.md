@@ -1,7 +1,7 @@
 # Advanced Robot Profiles
 
 Profiles are an instructor/advanced feature. The classroom default is always
-`class_4wd`; student code continues to publish `/cmd_vel` and subscribe to the
+`class_4wd`; application code continues to publish `/cmd_vel` and subscribe to the
 standard feedback topics regardless of the controller used internally.
 
 The retained variants are:
@@ -38,21 +38,27 @@ cd "$STUDICA_WS/src/studica_vmxpi_ros2"
 ```
 
 Names may contain letters, numbers, underscores, and hyphens. A name should
-describe physical hardware, not a student team or temporary experiment.
+describe physical hardware, not a developer group or temporary experiment.
 
 Review every copied number. Cloning a profile does not prove that its dimensions,
 motor channels, signs, encoder scale, or temperature limit are correct for a new
 robot.
 
-## Geometry and the single wheel radius
+## Physical geometry and calibrated kinematics
 
 Set measured physical values under `xacro` and `drive`:
 
 ```yaml
 xacro:
-  base_width: <METRES>
   base_length: <METRES>
+  base_width: <METRES>
   base_height: <METRES>
+  ground_clearance: <METRES>
+  wheelbase: <FRONT_TO_REAR_WHEEL_CENTRES_METRES>
+  wheel_track: <LEFT_TO_RIGHT_WHEEL_CENTRES_METRES>
+  overall_length: <OUTER_ENVELOPE_METRES>
+  overall_width: <OUTER_ENVELOPE_METRES>
+  use_chassis_mesh: false
 drive:
   wheel_layout: diff_4wd
   controller_name: robot_base_controller
@@ -60,9 +66,38 @@ drive:
   wheel_radius_m: <MEASURED_METRES>
 ```
 
+`base_link` is the ground-plane origin centred between the four wheel contact
+points. `chassis_link` is centred inside the measured body: X points forward,
+Y left, and Z up. Wheelbase and wheel track are independent of body length and
+width. This matters when wheels sit inside the body ends or outside its sides.
+
+Set `use_chassis_mesh: false` when the bundled visual mesh is not the measured
+robot. The generated box then uses the same dimensions as collision and
+inertia. Enable a custom mesh only after its native scale matches the physical
+body.
+
+LiDAR, camera, and IMU XYZ/RPY values are measured relative to `chassis_link`.
+Angles use radians. `laser_pos_z` identifies the scan plane; any retained
+`laser_frame_z` is a visual-model-to-scan offset and should be zero when the
+scan plane itself was measured. Simulation sensors attach to the same URDF
+links used by hardware so one TF tree describes both modes.
+
 `drive.wheel_radius_m` is the single source for URDF geometry, hardware encoder
 conversion, and injected controller kinematics. Do not add `wheel_radius` or
 `kinematics.wheels_radius` to `robot_controllers.yaml`.
+
+For differential-drive floor calibration, retain the measured physical radius
+and adjust the controller's existing `left_wheel_radius_multiplier` and
+`right_wheel_radius_multiplier`. Start with equal values; use different values
+only when repeated forward and reverse measurements prove a side-specific
+scale error. These dimensionless corrections do not create a second physical
+wheel-radius setting.
+
+Likewise, physical `xacro.wheel_track` places the wheel links, while a
+differential controller's `wheel_separation` is its effective turning value. A
+four-wheel skid-steer platform can require an effective value larger than its
+measured track because the tyres scrub during a turn. Do not overwrite a
+validated controller value merely to make those numbers look equal.
 
 Measure the loaded wheel at several orientations. Leave
 `hardware.wheel_radius_calibrated: false` until an instructor reviews the value.

@@ -236,7 +236,7 @@ def _maybe_add_gz_sim_runtime_nodes(context, *args, **kwargs):
             period=2.0,
             actions=[
                 ExecuteProcess(
-                    cmd=["bash", "-lc", spawn_script],
+                    cmd=["bash", "-c", spawn_script],
                     output="screen",
                 )
             ],
@@ -282,10 +282,6 @@ run_spawner() {{
   local output
   local rc
 
-  if controller_is_active "$name" "$cm"; then
-    return 0
-  fi
-
   output="$(ros2 run controller_manager spawner "$name" --controller-manager "$cm" \
     --controller-manager-timeout 20 2>&1)"
   rc=$?
@@ -316,7 +312,9 @@ controller_is_active() {{
   local cm="$2"
   local output
 
-  output="$(ros2 control list_controllers --controller-manager "$cm" 2>/dev/null | \
+  # The CLI can otherwise wait forever while Gazebo is still creating the
+  # controller manager, preventing this retry loop from making progress.
+  output="$(timeout 3 ros2 control list_controllers --controller-manager "$cm" 2>/dev/null | \
     sed -E 's/\x1B\\[[0-9;]*[mK]//g')"
   echo "$output" | grep -Eq "^${{name}}[[:space:]].*[[:space:]]active([[:space:]]|$)"
 }}
@@ -353,7 +351,7 @@ exit 1
 """
 
     spawner_process = ExecuteProcess(
-        cmd=["bash", "-lc", spawn_script],
+        cmd=["bash", "-c", spawn_script],
         output="screen",
     )
 

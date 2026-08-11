@@ -202,8 +202,12 @@ install(
   PATTERN "*.pyc" EXCLUDE
 )
 install(PROGRAMS
+  scripts/configure_cyclonedds.py
   scripts/create_profile.sh
+  scripts/depth_to_pointcloud.py
   scripts/install_git_hooks.sh
+  scripts/point_cloud_filter.py
+  scripts/run_waypoint_route.py
   scripts/check_project.sh
   scripts/validate_profiles.py
   DESTINATION lib/${PROJECT_NAME}
@@ -230,6 +234,9 @@ install(TARGETS studica_vmxpi_ros2
 if(BUILD_TESTING)
   option(STUDICA_STRICT_LINT "Enable full strict lint checks" OFF)
   find_package(ament_cmake_gtest REQUIRED)
+  ament_add_gtest(test_imu_conventions test/test_imu_conventions.cpp)
+  target_include_directories(test_imu_conventions PRIVATE hardware/include)
+  target_compile_features(test_imu_conventions PUBLIC cxx_std_17)
   ament_add_gtest(test_velocity_pid_safety test/test_velocity_pid_safety.cpp)
   target_include_directories(test_velocity_pid_safety PRIVATE hardware/include)
   ament_add_gtest(test_topic_adapter test/test_topic_adapter.cpp)
@@ -250,6 +257,24 @@ if(BUILD_TESTING)
   ament_lint_auto_find_test_dependencies()
 
   find_package(ament_cmake_test REQUIRED)
+  ament_add_test(
+    validate_depth_to_pointcloud
+    GENERATE_RESULT_FOR_RETURN_CODE_ZERO
+    COMMAND ${Python3_EXECUTABLE} -m pytest -q
+      ${CMAKE_CURRENT_SOURCE_DIR}/test/test_depth_to_pointcloud.py
+  )
+  ament_add_test(
+    validate_point_cloud_filter
+    GENERATE_RESULT_FOR_RETURN_CODE_ZERO
+    COMMAND ${Python3_EXECUTABLE} -m pytest -q
+      ${CMAKE_CURRENT_SOURCE_DIR}/test/test_point_cloud_filter.py
+  )
+  ament_add_test(
+    validate_nav2_perception
+    GENERATE_RESULT_FOR_RETURN_CODE_ZERO
+    COMMAND ${Python3_EXECUTABLE} -m pytest -q
+      ${CMAKE_CURRENT_SOURCE_DIR}/test/test_nav2_perception.py
+  )
   ament_add_test(
     validate_robot_profiles
     GENERATE_RESULT_FOR_RETURN_CODE_ZERO

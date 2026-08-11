@@ -38,6 +38,7 @@ from _launch_helpers import (  # noqa: E402
     _declare_arg,
     _expr_is_false,
     _expr_is_true,
+    _is_true,
     _profile_assets,
     _sanitize_ld_library_path_for_rviz,
 )
@@ -55,8 +56,31 @@ from _launch_sensors import (  # noqa: E402
 def _set_runtime_controller_file(context, *args, **kwargs):
     """Resolve the controller YAML with wheel radius injected from the profile."""
     profile_name = LaunchConfiguration("robot_profile").perform(context).strip()
-    _, controllers_file = _profile_assets(profile_name)
-    return [SetLaunchConfiguration("runtime_controllers_file", controllers_file)]
+    use_hardware = _is_true(LaunchConfiguration("use_hardware").perform(context).strip())
+    use_imu_odometry = use_hardware and _is_true(
+        LaunchConfiguration("use_imu_odometry").perform(context).strip()
+    )
+    control_rate_hz = None
+    actions = []
+    if use_hardware:
+        control_rate_hz = LaunchConfiguration("hardware_control_rate_hz").perform(context).strip()
+        actions.append(LogInfo(msg=["Hardware ros2_control rate: ", control_rate_hz, " Hz"]))
+        actions.append(
+            LogInfo(
+                msg=(
+                    "Hardware odometry: encoder vx + IMU yaw EKF"
+                    if use_imu_odometry
+                    else "Hardware odometry: drive controller only"
+                )
+            )
+        )
+    _, controllers_file = _profile_assets(
+        profile_name,
+        control_rate_hz=control_rate_hz,
+        enable_odom_tf=False if use_imu_odometry else None,
+    )
+    actions.append(SetLaunchConfiguration("runtime_controllers_file", controllers_file))
+    return actions
 
 
 def generate_launch_description():
@@ -178,6 +202,16 @@ def generate_launch_description():
             "Preferred controller_manager service root for controller spawners.",
         ),
         _declare_arg(
+            "hardware_control_rate_hz",
+            "25",
+            "ros2_control update and odometry publication rate in hardware mode.",
+        ),
+        _declare_arg(
+            "use_imu_odometry",
+            "false",
+            "Fuse wheel forward velocity with IMU yaw and own hardware odometry TF.",
+        ),
+        _declare_arg(
             "use_lidar",
             LaunchConfiguration("use_hardware"),
             "Launch YDLIDAR in real hardware mode (defaults to use_hardware).",
@@ -256,48 +290,44 @@ def generate_launch_description():
         ),
         _declare_arg(
             "orbbec_enable_color",
-            "",
-            "Optional override for Orbbec launch arg enable_color.",
+            "false",
+            "Enable color streaming; false preserves hardware thermal headroom.",
         ),
         _declare_arg(
             "orbbec_enable_depth",
-            "",
-            "Optional override for Orbbec launch arg enable_depth.",
+            "true",
+            "Enable depth streaming.",
         ),
         _declare_arg(
             "orbbec_enable_ir",
-            "",
-            "Optional override for Orbbec launch arg enable_ir.",
+            "false",
+            "Enable infrared streaming.",
         ),
-        _declare_arg(
-            "orbbec_color_width",
-            "",
-            "Optional override for Orbbec launch arg color_width.",
-        ),
+        _declare_arg("orbbec_color_width", "640", "Color width when enabled."),
         _declare_arg(
             "orbbec_color_height",
-            "",
-            "Optional override for Orbbec launch arg color_height.",
+            "480",
+            "Color height when enabled.",
         ),
         _declare_arg(
             "orbbec_color_fps",
-            "",
-            "Optional override for Orbbec launch arg color_fps.",
+            "15",
+            "Color frame rate when enabled.",
         ),
         _declare_arg(
             "orbbec_depth_width",
-            "",
-            "Optional override for Orbbec launch arg depth_width.",
+            "320",
+            "Depth width; 320 is the VMXPi low-load default.",
         ),
         _declare_arg(
             "orbbec_depth_height",
-            "",
-            "Optional override for Orbbec launch arg depth_height.",
+            "240",
+            "Depth height; 240 is the VMXPi low-load default.",
         ),
         _declare_arg(
             "orbbec_depth_fps",
-            "",
-            "Optional override for Orbbec launch arg depth_fps.",
+            "5",
+            "Depth frame rate; 5 Hz is the VMXPi low-load default.",
         ),
         _declare_arg(
             "publish_camera_tf",
@@ -349,6 +379,7 @@ def generate_launch_description():
     use_sim_time = LaunchConfiguration("use_sim_time")
     use_sim_time_param = ParameterValue(use_sim_time, value_type=bool)
     use_ground_truth_odom_tf = LaunchConfiguration("use_ground_truth_odom_tf")
+    use_imu_odometry = LaunchConfiguration("use_imu_odometry")
     robot_profile = LaunchConfiguration("robot_profile")
     rviz_start_delay = LaunchConfiguration("rviz_start_delay")
     drive_controller_name = LaunchConfiguration("drive_controller_name")
@@ -532,7 +563,67 @@ def generate_launch_description():
                 + _expr_is_true(use_gz_sim)
                 + [" and "]
                 + _expr_is_true(use_ground_truth_odom_tf)
+                + [") and not ("]
+                + _expr_is_true(use_hardware)
+                + [" and "]
+                + _expr_is_true(use_imu_odometry)
                 + [")"]
+            )
+        ),
+    )
+
+    hardware_control_api_bridge_node = Node(
+        package="studica_vmxpi_ros2",
+        executable="topic_adapter_node",
+        name="hardware_imu_odometry_bridge",
+        output="screen",
+        parameters=[
+            {
+                "use_sim_time": use_sim_time_param,
+                "enable_nav2_bridge": True,
+                "input_cmd_vel_topic": "/cmd_vel",
+                "output_cmd_vel_topic": drive_cmd_topic,
+                "input_odom_topic": drive_odom_topic,
+                "output_odom_topic": "/wheel/odom",
+                "cmd_vel_frame_id": "base_link",
+            }
+        ],
+        condition=IfCondition(
+            PythonExpression(
+                _expr_is_true(use_hardware)
+                + [" and "]
+                + _expr_is_true(use_imu_odometry)
+            )
+        ),
+    )
+
+    hardware_odometry_filter = Node(
+        package="robot_localization",
+        executable="ekf_node",
+        name="hardware_odometry_filter",
+        output="screen",
+        parameters=[
+            PathJoinSubstitution(
+                [
+                    FindPackageShare("studica_vmxpi_ros2"),
+                    "config",
+                    "hardware_imu_odometry.yaml",
+                ]
+            ),
+            {
+                "use_sim_time": use_sim_time_param,
+                "frequency": ParameterValue(
+                    LaunchConfiguration("hardware_control_rate_hz"),
+                    value_type=float,
+                ),
+            },
+        ],
+        remappings=[("odometry/filtered", "/odom")],
+        condition=IfCondition(
+            PythonExpression(
+                _expr_is_true(use_hardware)
+                + [" and "]
+                + _expr_is_true(use_imu_odometry)
             )
         ),
     )
@@ -584,6 +675,10 @@ def generate_launch_description():
                 + _expr_is_true(use_gz_sim)
                 + [" and "]
                 + _expr_is_true(use_ground_truth_odom_tf)
+                + [") and not ("]
+                + _expr_is_true(use_hardware)
+                + [" and "]
+                + _expr_is_true(use_imu_odometry)
                 + [")"]
             )
         ),
@@ -650,6 +745,8 @@ def generate_launch_description():
             "use_sim_time": use_sim_time,
             "monitor_lidar": LaunchConfiguration("use_lidar"),
             "monitor_camera": LaunchConfiguration("use_camera"),
+            "monitor_color_camera": LaunchConfiguration("orbbec_enable_color"),
+            "monitor_depth_camera": LaunchConfiguration("orbbec_enable_depth"),
         }.items(),
         condition=IfCondition(use_monitoring),
     )
@@ -704,6 +801,8 @@ def generate_launch_description():
         mock_scan_node,
         control_api_bridge_node_gt,
         control_api_bridge_node,
+        hardware_control_api_bridge_node,
+        hardware_odometry_filter,
         drive_tf_relay_node_gt,
         drive_tf_relay_node,
         robot_controller_spawner,

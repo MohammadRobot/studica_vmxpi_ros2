@@ -17,7 +17,8 @@
 ### Terminal 1 — launch the maze simulation
 
 ```bash
-export STUDICA_WS="$HOME/ros2_ws"
+export STUDICA_WS="$HOME/studica_ws"
+source "$HOME/.ros/studica_sim.env"
 source /opt/ros/humble/setup.bash
 source "$STUDICA_WS/install/setup.bash"
 ros2 launch studica_vmxpi_ros2 sim.launch.py
@@ -28,7 +29,8 @@ Wait until the robot is visible and controller spawners report success.
 ### Terminal 2 — inspect the graph
 
 ```bash
-export STUDICA_WS="$HOME/ros2_ws"
+export STUDICA_WS="$HOME/studica_ws"
+source "$HOME/.ros/studica_sim.env"
 source /opt/ros/humble/setup.bash
 source "$STUDICA_WS/install/setup.bash"
 ros2 node list
@@ -40,7 +42,10 @@ ros2 topic info /cmd_vel --verbose
 ### Terminal 3 — visualize and sample
 
 ```bash
+export STUDICA_WS="$HOME/studica_ws"
+source "$HOME/.ros/studica_sim.env"
 source /opt/ros/humble/setup.bash
+source "$STUDICA_WS/install/setup.bash"
 rqt_graph
 ```
 
@@ -55,8 +60,8 @@ ros2 topic echo /odom --once
 - Gazebo shows the `class_4wd` robot in the maze and RViz displays the model.
 - `/cmd_vel`, `/odom`, `/imu`, `/scan`, and `/joint_states` are listed.
 - `/odom` has type `nav_msgs/msg/Odometry` and a publisher.
-- `/cmd_vel` has type `geometry_msgs/msg/Twist` and a subscriber even though no
-  command publisher is running.
+- `/cmd_vel` has type `geometry_msgs/msg/Twist`; the deadman teleop node is its
+  publisher and the robot adapter is its subscriber.
 - One odometry message contains `pose` and `twist` sections.
 
 ## Checkpoint

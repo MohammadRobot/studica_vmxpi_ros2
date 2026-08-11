@@ -26,3 +26,8 @@ ros2 launch studica_vmxpi_ros2 bringup.launch.py mode:=gz_sim robot_profile:=my_
 `robot_profile.yaml` `hardware` section can also include:
 
 - `lidar_type`: default YDLIDAR preset used in hardware mode when launch arg `lidar_type` is not provided.
+
+For a measured robot, uncomment the complete physical-geometry and sensor-pose
+blocks in `robot_profile.yaml`. Keep `wheel_track` as the physical distance used
+to place the wheel links. Controller `wheel_separation` remains an independently
+calibrated odometry value and does not replace the physical track.

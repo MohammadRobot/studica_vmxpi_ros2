@@ -1,4 +1,13 @@
 xacro:
+  # For a measured robot, enable the complete block below together with the
+  # sensor-pose keys. Poses use chassis_link axes: x forward, y left, z up.
+  # robot_mass: 8.0
+  # ground_clearance: 0.08
+  # wheelbase: 0.19
+  # wheel_track: 0.34
+  # overall_length: 0.35
+  # overall_width: 0.385
+  # use_chassis_mesh: false
   base_mass: 10.0
   base_width: 0.40
   base_length: 0.40
@@ -9,6 +18,23 @@ xacro:
   caster_wheel_radius: 0.05
   laser_pos_z: 0.10
   laser_frame_z: 0.05
+  # laser_pos_x: 0.0
+  # laser_pos_y: 0.0
+  # laser_roll: 0.0
+  # laser_pitch: 0.0
+  # laser_yaw: 0.0
+  # cam_pos_x: 0.0
+  # cam_pos_y: 0.0
+  # cam_pos_z: 0.0
+  # cam_roll: 0.0
+  # cam_pitch: 0.0
+  # cam_yaw: 0.0
+  # imu_pos_x: 0.0
+  # imu_pos_y: 0.0
+  # imu_pos_z: 0.0
+  # imu_roll: 0.0
+  # imu_pitch: 0.0
+  # imu_yaw: 0.0
 
 drive:
   wheel_layout: diff

@@ -1,154 +1,371 @@
-# Networking and Remote Visualization
+# Networking and Cyclone DDS
 
-Use this guide with an instructor. Foxglove Bridge is the recommended remote
-dashboard because it exposes a small, read-only WebSocket surface. Native ROS 2
-DDS is needed only when a supervised laptop must publish `/cmd_vel` or run other
-ROS nodes as part of the same graph.
+Use this guide with an instructor. Simulation stays local to the PC. Real-robot
+sessions use a deliberate peer profile between one PC and one VMXPi over either
+Wi-Fi or Ethernet.
 
-Never expose the robot, DDS ports, or Foxglove port to the internet.
+Never expose DDS, SSH, or Foxglove ports to the internet. Stop robot motion
+before changing a route, address, firewall rule, or DDS profile.
 
-## Choose one robot network
+## The three supported modes
 
-Connect the robot and laptop to the same trusted LAN. Decide whether the lesson
-uses Wi-Fi or Ethernet; avoid switching routes during a run.
+| Mode | Computers | Cyclone DDS interface | Generated environment |
+|---|---|---|---|
+| Simulation | PC only | loopback (`lo`) | `~/.ros/studica_sim.env` |
+| Robot over Wi-Fi | PC and VMXPi | each machine's Wi-Fi address | one peer environment per machine |
+| Robot over Ethernet | PC and VMXPi | each machine's Ethernet address | one peer environment per machine |
 
-On each computer:
+Do not reuse a robot profile for simulation. A profile containing an address
+that is no longer assigned makes Cyclone DDS reject every ROS node.
+
+The repository provides:
+
+- `bringup/config/network/cyclonedds_sim.xml`, the loopback-only template;
+- `bringup/config/network/cyclonedds_peer.xml.in`, the two-machine template;
+- `scripts/configure_cyclonedds.py`, the validated profile generator.
+
+The setup script installs `rmw_cyclonedds_cpp`. Confirm it on both machines:
+
+```bash
+ros2 pkg prefix rmw_cyclonedds_cpp
+```
+
+## Inspect the selected network first
+
+Connect both machines to one trusted network. Use Wi-Fi on both or Ethernet on
+both; avoid changing routes during robot operation.
+
+On the PC and VMXPi:
 
 ```bash
 ip -br address
 ip route
 ```
 
-Record placeholders for the lesson:
+Record:
 
 ```text
-Robot address: <ROBOT_IP>
-Laptop address: <LAPTOP_IP>
-Robot interface: <ROBOT_INTERFACE>
-Laptop interface: <LAPTOP_INTERFACE>
+PC address:       <PC_IP>
+PC interface:     <PC_INTERFACE>
+VMXPi address:    <VMXPI_IP>
+VMXPi interface:  <VMXPI_INTERFACE>
+ROS domain:       <DOMAIN_ID>
 ```
 
-Confirm the selected route:
+Verify both directions:
 
 ```bash
 ip route get <PEER_IP>
 ping -c 3 <PEER_IP>
 ```
 
-The route output should name the intended Wi-Fi or Ethernet interface.
+The route must name the intended interface and source address. Fix IP routing
+before changing ROS settings.
 
-## Recommended: read-only Foxglove
+## Generate the simulation profile
 
-The beginner hardware launch binds Foxglove to loopback by default. Bind it to
-the robot's exact trusted-LAN address only for a supervised dashboard session:
-
-```bash
-ros2 launch studica_vmxpi_ros2 robot.launch.py \
-  foxglove_address:=<ROBOT_IP> foxglove_port:=8765
-```
-
-The real launch normally runs through the root command in
-[Supervised hardware](HARDWARE.md); the arguments above are appended there.
-
-On the laptop, add a Foxglove WebSocket connection:
-
-```text
-ws://<ROBOT_IP>:8765
-```
-
-Import `foxglove/class_4wd_robot_health.layout.json`. The bridge whitelists
-telemetry, diagnostics, TF, logs, compressed color, and compressed depth. Its
-only client capability is the connection graph: remote publishing, services,
-and parameter changes are disabled.
-
-Confirm the listener on the robot:
+Run this once on the PC:
 
 ```bash
-ss -ltn | grep 8765
+export STUDICA_WS="$HOME/studica_ws"
+cd "$STUDICA_WS/src/studica_vmxpi_ros2"
+./scripts/configure_cyclonedds.py sim --domain-id 1
 ```
 
-If Foxglove reports no topics, check the bridge process and URL. If the robot log
-reports `handshake failed`, ensure the connection type is **Foxglove WebSocket**,
-not ROS 2, HTTP, or a browser page.
-
-## Native ROS 2 DDS discovery
-
-Use the same values in the current terminal on both computers:
+Activate it in every simulator, joystick, and simulation-inspection terminal:
 
 ```bash
-export ROS_DOMAIN_ID=<CLASS_DOMAIN_ID>
-export ROS_LOCALHOST_ONLY=0
+source "$HOME/.ros/studica_sim.env"
 source /opt/ros/humble/setup.bash
+source "$HOME/studica_ws/install/setup.bash"
 ```
 
-Use an instructor-assigned domain from `0` through `232`; different classroom
-teams should use different IDs. Source the local workspace too if that computer
-needs Studica message definitions.
-
-Check that both computers use the same middleware:
-
-```bash
-printenv RMW_IMPLEMENTATION
-```
-
-An empty value means both normally use the Humble default. If one computer sets
-an implementation explicitly, install and set the same implementation on the
-other. Keep these exports in the lesson terminal, not `.bashrc`.
-
-Restart discovery after changing DDS variables:
+After switching an existing terminal, refresh its ROS CLI daemon:
 
 ```bash
 ros2 daemon stop
 ros2 daemon start
-ros2 topic list
 ```
 
-## Test multicast before ROS topics
+The generated profile uses only `lo`, disables multicast, and raises Cyclone's
+automatic participant limit to `50` for a full Gazebo launch.
+It also exports `GZ_VERSION=harmonic`, which makes later `colcon build`
+commands select this project's Gazebo Harmonic (`gz-sim8`) compatibility path.
 
-On the receiving computer:
+## Generate PC and VMXPi peer profiles
+
+Run the generator separately on each machine. It validates that the local
+address is currently assigned to the named interface, writes an XML profile,
+and writes a small sourceable `.env` file. It never edits `.bashrc`, changes the
+firewall, starts ROS, or starts robot hardware.
+
+The general PC command is:
 
 ```bash
-ros2 multicast receive
+cd "$HOME/studica_ws/src/studica_vmxpi_ros2"
+./scripts/configure_cyclonedds.py peer \
+  --name pc_<LINK> \
+  --interface <PC_INTERFACE> \
+  --local-address <PC_IP> \
+  --peer-address <VMXPI_IP> \
+  --domain-id <DOMAIN_ID>
 ```
 
-While it waits, run on the other computer:
+The matching VMXPi command is:
 
 ```bash
-ros2 multicast send
+cd "$HOME/studica_ws/src/studica_vmxpi_ros2"
+./scripts/configure_cyclonedds.py peer \
+  --name vmxpi_<LINK> \
+  --interface <VMXPI_INTERFACE> \
+  --local-address <VMXPI_IP> \
+  --peer-address <PC_IP> \
+  --domain-id <DOMAIN_ID>
 ```
 
-Repeat with the computers reversed. Success in only one direction points to a
-firewall, access-point isolation, VPN, or route problem rather than a ROS node.
+Use the same domain on both machines. Different classroom teams should use
+different domain IDs from `0` through `232`.
 
-Disable VPN software temporarily for the supervised test. Some school Wi-Fi
-networks intentionally block client-to-client multicast; use a dedicated robot
-access point or Ethernet instead of weakening the school network.
+If a named profile already exists with another address, the tool refuses to
+overwrite it. Review the new route, then add `--force` deliberately. This is
+normally required after DHCP changes an address.
 
-## Prefer an interface explicitly with Cyclone DDS
+## Wi-Fi example
 
-Only use this section when the computer has multiple active networks and the
-default route is wrong. Install Cyclone DDS on both computers:
+This tested example uses:
 
-```bash
-sudo apt install ros-humble-rmw-cyclonedds-cpp
+```text
+PC:     wlp0s20f3, 192.168.1.118
+VMXPi:  wlan0,     192.168.1.63
+Domain: 1
 ```
 
-In the current terminal, replace the interface placeholder:
+On the PC:
 
 ```bash
-export RMW_IMPLEMENTATION=rmw_cyclonedds_cpp
-export CYCLONEDDS_URI='<CycloneDDS><Domain><General><Interfaces><NetworkInterface name="<INTERFACE>" multicast="default"/></Interfaces></General></Domain></CycloneDDS>'
+cd "$HOME/studica_ws/src/studica_vmxpi_ros2"
+./scripts/configure_cyclonedds.py peer \
+  --name pc_wifi \
+  --interface wlp0s20f3 \
+  --local-address 192.168.1.118 \
+  --peer-address 192.168.1.63 \
+  --domain-id 1
+source "$HOME/.ros/studica_pc_wifi.env"
+```
+
+On the VMXPi:
+
+```bash
+cd "$HOME/studica_ws/src/studica_vmxpi_ros2"
+./scripts/configure_cyclonedds.py peer \
+  --name vmxpi_wifi \
+  --interface wlan0 \
+  --local-address 192.168.1.63 \
+  --peer-address 192.168.1.118 \
+  --domain-id 1
+source "$HOME/.ros/studica_vmxpi_wifi.env"
+```
+
+These addresses are examples, not defaults. Re-read `ip -br address` and use
+the addresses assigned during the current lesson.
+
+## Direct Ethernet example
+
+Configure a static, private subnet with no internet gateway. A common classroom
+pair is:
+
+```text
+PC:     172.22.11.10/24
+VMXPi:  172.22.11.2/24
+Domain: 1
+```
+
+Assign those addresses using Ubuntu Network settings or the classroom's
+NetworkManager connection profiles. Confirm the link with `ip -br address`,
+`ip route get`, and `ping` before generating DDS files.
+
+Example PC profile:
+
+```bash
+cd "$HOME/studica_ws/src/studica_vmxpi_ros2"
+./scripts/configure_cyclonedds.py peer \
+  --name pc_ethernet \
+  --interface enp0s31f6 \
+  --local-address 172.22.11.10 \
+  --peer-address 172.22.11.2 \
+  --domain-id 1
+source "$HOME/.ros/studica_pc_ethernet.env"
+```
+
+Example VMXPi profile:
+
+```bash
+cd "$HOME/studica_ws/src/studica_vmxpi_ros2"
+./scripts/configure_cyclonedds.py peer \
+  --name vmxpi_ethernet \
+  --interface eth0 \
+  --local-address 172.22.11.2 \
+  --peer-address 172.22.11.10 \
+  --domain-id 1
+source "$HOME/.ros/studica_vmxpi_ethernet.env"
+```
+
+Interface names vary. Never copy `enp0s31f6` or `eth0` without checking the
+actual machine.
+
+## Firewall rules
+
+The generated peer profiles use explicit unicast peers and participant indices
+`0` through `50`; they do not require multicast. The helper prints the exact
+incoming UDP range for the selected domain and an address-scoped UFW command.
+
+For domain `1`, the range is `7660:7761`. The Wi-Fi PC example uses:
+
+```bash
+sudo ufw allow in on wlp0s20f3 \
+  proto udp \
+  from 192.168.1.63 \
+  to 192.168.1.118 \
+  port 7660:7761 \
+  comment 'Studica ROS 2 DDS domain 1'
+```
+
+Apply the corresponding printed rule on the VMXPi only if its firewall is
+active. Confirm rules without disabling the firewall:
+
+```bash
+sudo ufw status numbered
+```
+
+For a different domain `D`, the helper calculates the destination range as:
+
+```text
+first = 7410 + 250 × D
+last  = 7511 + 250 × D
+```
+
+Allow only the exact peer, destination address, interface, protocol, and port
+range. Do not use `ufw disable`, expose all UDP ports, or permit the whole LAN.
+SSH, when required, should allow TCP `22` from the instructor PC only.
+
+## Activate a robot session
+
+On the PC, source its selected peer environment before joystick or inspection
+nodes:
+
+```bash
+source "$HOME/.ros/studica_pc_wifi.env"  # or studica_pc_ethernet.env
+source /opt/ros/humble/setup.bash
+source "$HOME/studica_ws/install/setup.bash"
+```
+
+On the VMXPi:
+
+```bash
+source "$HOME/.ros/studica_vmxpi_wifi.env"  # or studica_vmxpi_ethernet.env
+source /opt/ros/humble/setup.bash
+source "$HOME/studica_ws/install/setup.bash"
+```
+
+Check both terminals:
+
+```bash
+printenv ROS_DOMAIN_ID ROS_LOCALHOST_ONLY RMW_IMPLEMENTATION CYCLONEDDS_URI
+```
+
+Do not place a link-specific `CYCLONEDDS_URI` in `.bashrc` or `.profile`.
+Terminal-scoped environments prevent an absent robot interface from breaking
+simulation. The supervised root launch preserves these four selected variables.
+
+Application nodes may run on the PC during a short network test, but the normal
+deployment path copies `studica_robot_apps` source to the VMXPi and builds it
+there. This avoids making physical operation depend on the PC connection. See
+[Application development and deployment](DEVELOPMENT.md).
+
+## Test discovery without robot hardware
+
+Restart the CLI daemon on both machines after changing profiles:
+
+```bash
 ros2 daemon stop
+ros2 daemon start
 ```
 
-Set a matching interface on the peer. Do not copy a sample interface name: Wi-Fi
-and Ethernet names differ by computer. Remove the variables by closing the
-terminal.
+On the VMXPi, start a harmless text publisher:
+
+```bash
+ros2 run demo_nodes_cpp talker
+```
+
+On the PC:
+
+```bash
+ros2 topic list
+ros2 topic echo /chatter std_msgs/msg/String --once
+```
+
+Expected: `/chatter` appears and one `Hello World` message arrives. ROS 2 Humble
+does not accept a global `ros2 --no-daemon` option. Stop the talker before
+hardware bringup.
+
+If discovery fails, check in this order:
+
+```bash
+ip route get <PEER_IP>
+ping -c 3 <PEER_IP>
+printenv ROS_DOMAIN_ID RMW_IMPLEMENTATION CYCLONEDDS_URI
+sudo ufw status numbered
+```
+
+Also confirm that the local address inside the selected XML still appears in
+`ip -br address`. If DHCP changed it, regenerate both peer profiles with the
+new addresses and `--force`, update narrow firewall rules, and restart both ROS
+daemons.
+
+## Keep simulation and robot DDS profiles separate
+
+Switch back to simulation by opening a new terminal and sourcing only:
+
+```bash
+source "$HOME/.ros/studica_sim.env"
+source /opt/ros/humble/setup.bash
+source "$HOME/studica_ws/install/setup.bash"
+ros2 daemon stop
+ros2 daemon start
+```
+
+Errors containing `does not match an available interface`, `failed to create
+domain`, or `rcl node's rmw handle is invalid` normally mean the selected XML
+contains a stale address. They do not identify a failure in the ROS node named
+later in the stack trace.
+
+## Recommended read-only Foxglove access
+
+Foxglove is preferable when the PC only needs visualization. The beginner
+hardware launch binds its bridge to loopback by default. Bind it to the exact
+trusted-LAN VMXPi address for a supervised session:
+
+```bash
+ros2 launch studica_vmxpi_ros2 robot.launch.py \
+  foxglove_address:=<VMXPI_IP> foxglove_port:=8765
+```
+
+The real launch normally runs through the root command in
+[Supervised hardware](HARDWARE.md); append those arguments there. On the PC,
+connect Foxglove to:
+
+```text
+ws://<VMXPI_IP>:8765
+```
+
+The project bridge allows telemetry, diagnostics, TF, logs, and compressed
+camera data. Remote publishing, services, and parameter changes are disabled.
+If the VMXPi firewall is active, allow TCP `8765` only from `<PC_IP>`.
 
 ## Supervised remote driving
 
-Foxglove is observational and cannot drive. For a ROS-enabled laptop, first pass
-the two-way multicast test and confirm these robot topics:
+Native DDS is required when the PC publishes `/cmd_vel`. Before starting any
+teleop node, confirm:
 
 ```bash
 ros2 topic type /cmd_vel
@@ -156,32 +373,15 @@ ros2 topic hz /odom
 ros2 run studica_robot_monitor robot_check --mode hardware
 ```
 
-With the instructor holding the emergency stop and the area clear:
-
-```bash
-ros2 run teleop_twist_keyboard teleop_twist_keyboard \
-  --ros-args -r cmd_vel:=/cmd_vel
-```
-
-Use the lowest speed. Stop teleop before changing Wi-Fi, unplugging Ethernet, or
-closing the laptop. The robot command timeout is a backup, not a substitute for
-the physical emergency stop.
-
-## Firewall policy
-
-Prefer a trusted isolated LAN. Allow only what the lesson needs:
-
-- Foxglove: TCP port `8765` from `<LAPTOP_IP>` to `<ROBOT_IP>`;
-- native DDS: bidirectional UDP discovery/data for the assigned ROS domain;
-- SSH, if used: TCP port `22` from the instructor laptop only.
-
-DDS port calculation varies with domain and participant IDs. Have the network
-administrator define the classroom rule; do not disable the firewall globally.
+Follow [Supervised hardware](HARDWARE.md) and [Joystick teleoperation](JOYSTICK.md).
+Use one motion publisher, keep the emergency stop reachable, and stop teleop
+before changing networks or closing the laptop.
 
 ## End the session
 
-1. stop keyboard/gamepad teleop;
-2. stop hardware bringup and wait for zero targets;
-3. close Foxglove;
-4. remove temporary firewall rules, if any;
-5. close terminals containing DDS interface overrides.
+1. Center the joystick, release the deadman button, and stop teleop.
+2. Verify zero target and measured wheel velocities.
+3. Disable motor power and stop hardware bringup.
+4. Stop temporary talkers and close Foxglove.
+5. Close robot-profile terminals; use `studica_sim.env` for later simulation.
+6. Remove temporary firewall rules only when the corresponding link is retired.

@@ -90,7 +90,8 @@ def _sanitize_ld_library_path_for_rviz() -> str:
     return ":".join(filtered_entries)
 
 
-def _profile_assets(profile_name: str):
+def _profile_assets(profile_name: str, control_rate_hz=None, enable_odom_tf=None):
+    """Materialize controller parameters with runtime control/TF overrides."""
     pkg_share = get_package_share_directory("studica_vmxpi_ros2")
     profile_dir = os.path.join(pkg_share, "config", "profiles", profile_name)
     profile_file = os.path.join(profile_dir, "robot_profile.yaml")
@@ -124,12 +125,48 @@ def _profile_assets(profile_name: str):
     else:
         raise ValueError(f"Unsupported drive controller type: {controller_type}")
 
+    tf_suffix = ""
+    if enable_odom_tf is not None:
+        if not isinstance(enable_odom_tf, bool):
+            raise ValueError("enable_odom_tf must be a boolean when provided")
+        controller_params["enable_odom_tf"] = enable_odom_tf
+        tf_suffix = "_tf" if enable_odom_tf else "_no_tf"
+
+    rate_suffix = ""
+    if control_rate_hz is not None:
+        raw_rate = str(control_rate_hz).strip()
+        try:
+            rate = int(raw_rate)
+        except (TypeError, ValueError) as exc:
+            raise ValueError("control_rate_hz must be a positive integer") from exc
+        if rate <= 0 or str(rate) != raw_rate:
+            raise ValueError("control_rate_hz must be a positive integer")
+
+        manager_cfg = controllers_data.get("controller_manager")
+        manager_params = (
+            manager_cfg.get("ros__parameters") if isinstance(manager_cfg, dict) else None
+        )
+        if not isinstance(manager_params, dict):
+            raise ValueError(
+                f"Missing controller_manager.ros__parameters in {source_controllers_file}"
+            )
+        manager_params["update_rate"] = rate
+        rate_suffix = f"_{rate}hz"
+
+        # A drive controller cannot publish more frequently than the manager
+        # updates it. This keeps hardware odometry at the selected loop rate.
+        if "publish_rate" in controller_params:
+            controller_params["publish_rate"] = float(rate)
+
     safe_profile_name = re.sub(r"[^A-Za-z0-9_-]", "_", profile_name)
-    runtime_dir = os.path.join(tempfile.gettempdir(), "studica_vmxpi_ros2")
-    os.makedirs(runtime_dir, mode=0o700, exist_ok=True)
+    # Hardware launch runs as root while builds and tests run as the normal
+    # account. A shared predictable /tmp directory lets the first user block
+    # the other with ownership and mode 0700. Give every process a private,
+    # securely-created directory instead.
+    runtime_dir = tempfile.mkdtemp(prefix=f"studica_vmxpi_ros2_{os.getpid()}_")
     controllers_file = os.path.join(
         runtime_dir,
-        f"controllers_{os.getpid()}_{safe_profile_name}.yaml",
+        f"controllers_{safe_profile_name}{rate_suffix}{tf_suffix}.yaml",
     )
     with open(controllers_file, "w", encoding="utf-8") as stream:
         yaml.safe_dump(controllers_data, stream, sort_keys=False)
@@ -141,7 +178,8 @@ def _profile_camera_tf_base_link(profile_name: str):
     Resolve base_link -> camera_link transform using the same defaults as robot URDF.
 
     URDF chain:
-      base_link -> chassis_link: z = wheel_radius - wheel_z_offset
+      base_link -> chassis_link: z = ground_clearance + base_height / 2
+        (legacy profiles fall back to wheel_radius - wheel_z_offset)
       chassis_link -> camera_link: (cam_pos_x, cam_pos_y, cam_pos_z, cam_rpy)
     """
     profile_file, _ = _profile_assets(profile_name)
@@ -168,7 +206,10 @@ def _profile_camera_tf_base_link(profile_name: str):
     cam_pitch = float(xacro_cfg.get("cam_pitch", 0.0))
     cam_yaw = float(xacro_cfg.get("cam_yaw", 0.0))
 
-    base_to_chassis_z = wheel_radius - wheel_z_offset
+    if "ground_clearance" in xacro_cfg:
+        base_to_chassis_z = float(xacro_cfg["ground_clearance"]) + base_height / 2.0
+    else:
+        base_to_chassis_z = wheel_radius - wheel_z_offset
     return {
         "x": f"{cam_pos_x:.6f}",
         "y": f"{cam_pos_y:.6f}",

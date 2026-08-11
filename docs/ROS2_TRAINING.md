@@ -12,7 +12,7 @@ simulation-first course. Start at the [course index](COURSE.md).
 5. [Python nodes, parameters, services, and launch](labs/05_python_nodes.md)
 6. [`ros2_control`, odometry, and diagnostics](labs/06_control_odometry_diagnostics.md)
 7. [SLAM and map saving](labs/07_slam.md)
-8. [Nav2 localization and goals](labs/08_navigation.md)
+8. [Nav2 localization, costmaps, goals, and waypoints](labs/08_navigation.md)
 9. [Supervised hardware readiness](labs/09_supervised_hardware.md)
 
 The labs use only the public `/cmd_vel` `geometry_msgs/msg/Twist` motion API and

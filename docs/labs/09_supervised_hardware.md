@@ -18,7 +18,7 @@ a separate, human-operated teleop action.
 - Instructor-provided VMXPi image/SDK and a successful hardware build.
 - Measured `drive.wheel_radius_m` with `wheel_radius_calibrated: true`.
 - Supported Titan MCV2 firmware and a reviewed lifted-wheel validation PASS
-  report prepared by the instructor before this student lab.
+  report prepared by the instructor before this supervised lab.
 - Inspected wiring, battery, CAN, wheel fasteners, stable lift, and test area.
 - Assigned safety operator beside a tested physical emergency stop.
 
@@ -33,7 +33,7 @@ timeout or bypass a diagnostic to continue.
 On the VMXPi, with motor power disabled initially:
 
 ```bash
-export STUDICA_WS="$HOME/ros2_ws"
+export STUDICA_WS="$HOME/studica_ws"
 sudo --preserve-env=ROS_DOMAIN_ID,RMW_IMPLEMENTATION,ROS_LOCALHOST_ONLY,CYCLONEDDS_URI \
   env STUDICA_WS="$STUDICA_WS" bash -lc '
     cd "$STUDICA_WS"
@@ -47,12 +47,12 @@ sudo --preserve-env=ROS_DOMAIN_ID,RMW_IMPLEMENTATION,ROS_LOCALHOST_ONLY,CYCLONED
 The instructor must stop here if HAL, pigpio, firmware, controller, temperature,
 or encoder initialization reports an error.
 
-### Terminal 2 — student runs read-only checks
+### Terminal 2 — operator runs read-only checks
 
 On the VMXPi as the normal user:
 
 ```bash
-export STUDICA_WS="$HOME/ros2_ws"
+export STUDICA_WS="$HOME/studica_ws"
 source /opt/ros/humble/setup.bash
 source "$STUDICA_WS/install/setup.bash"
 ros2 run studica_robot_monitor robot_check --mode hardware --timeout 5
@@ -88,7 +88,7 @@ the wheels on the approved lift for the first direction check. The terminal
 operator runs:
 
 ```bash
-export STUDICA_WS="$HOME/ros2_ws"
+export STUDICA_WS="$HOME/studica_ws"
 source /opt/ros/humble/setup.bash
 source "$STUDICA_WS/install/setup.bash"
 ros2 run teleop_twist_keyboard teleop_twist_keyboard \
@@ -103,7 +103,7 @@ held commands in a marked clear lane.
 ### Terminal 4 — observe feedback during the approved action
 
 ```bash
-export STUDICA_WS="$HOME/ros2_ws"
+export STUDICA_WS="$HOME/studica_ws"
 source /opt/ros/humble/setup.bash
 source "$STUDICA_WS/install/setup.bash"
 ros2 topic echo /robot_status/motors
