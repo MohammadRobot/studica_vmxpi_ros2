@@ -32,6 +32,7 @@ def _runtime_actions(context, *args, **kwargs):
     enable_color = LaunchConfiguration("orbbec_enable_color").perform(context).strip()
     enable_depth = LaunchConfiguration("orbbec_enable_depth").perform(context).strip()
     enable_ir = LaunchConfiguration("orbbec_enable_ir").perform(context).strip()
+    depth_registration = LaunchConfiguration("orbbec_depth_registration").perform(context).strip()
     color_width = LaunchConfiguration("orbbec_color_width").perform(context).strip()
     color_height = LaunchConfiguration("orbbec_color_height").perform(context).strip()
     color_fps = LaunchConfiguration("orbbec_color_fps").perform(context).strip()
@@ -79,6 +80,7 @@ def _runtime_actions(context, *args, **kwargs):
         "enable_color": enable_color,
         "enable_depth": enable_depth,
         "enable_ir": enable_ir,
+        "depth_registration": depth_registration,
         "color_width": color_width,
         "color_height": color_height,
         "color_fps": color_fps,
@@ -193,6 +195,11 @@ def generate_launch_description():
             "orbbec_enable_ir",
             default_value="false",
             description="Enable infrared streaming.",
+        ),
+        DeclareLaunchArgument(
+            "orbbec_depth_registration",
+            default_value="false",
+            description="Align depth to color for matched registered image displays.",
         ),
         DeclareLaunchArgument(
             "orbbec_color_width",

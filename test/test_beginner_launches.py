@@ -72,18 +72,24 @@ class BeginnerLaunchContractTest(unittest.TestCase):
             ),
             "robot.launch.py": (
                 '"mode": "hardware"',
+                'default_value="stack_4wd"',
+                '"robot_profile": robot_profile',
                 '"use_lidar": use_lidar',
                 '"use_monitoring": "true"',
                 '"127.0.0.1"',
                 'default_value="false"',
                 '"use_joystick": use_joystick',
                 '"use_camera_color"',
+                '"use_colored_depth_cloud"',
+                '"orbbec_depth_registration": use_colored_depth_cloud',
+                "'320' if '",
                 '"use_point_cloud"',
+                '"use_point_cloud_filter"',
                 '"orbbec_depth_width": "320"',
                 '"orbbec_depth_height": "240"',
-                '"orbbec_depth_fps": "5"',
+                '"orbbec_depth_fps": PythonExpression',
                 '"stride": 2',
-                'condition=IfCondition(use_point_cloud)',
+                'use_point_cloud_filter,',
             ),
             "mapping.launch.py": (
                 '"office_map"',
@@ -102,6 +108,8 @@ class BeginnerLaunchContractTest(unittest.TestCase):
             ),
             "navigation.launch.py": (
                 '"office_map.yaml"',
+                "'stack_4wd' if '",
+                '"robot_profile": robot_profile',
                 '"nav2_bringup"',
                 'choices=["gz_sim", "hardware"]',
                 '"real_robot_map.yaml"',
@@ -233,8 +241,8 @@ class BeginnerLaunchContractTest(unittest.TestCase):
         self.assertGreaterEqual(float(params["loop_match_minimum_response_coarse"]), 0.5)
         self.assertGreaterEqual(float(params["loop_match_minimum_response_fine"]), 0.6)
 
-    def test_class_4wd_uses_confirmed_physical_geometry_and_calibration(self):
-        profile_dir = ROOT / "bringup" / "config" / "profiles" / "class_4wd"
+    def test_stack_4wd_uses_confirmed_physical_geometry_and_calibration(self):
+        profile_dir = ROOT / "bringup" / "config" / "profiles" / "stack_4wd"
         profile = yaml.safe_load(
             profile_dir.joinpath("robot_profile.yaml").read_text(encoding="utf-8")
         )
@@ -259,8 +267,8 @@ class BeginnerLaunchContractTest(unittest.TestCase):
             {
                 "base_length": 0.34,
                 "base_width": 0.29,
-                "base_height": 0.20,
-                "ground_clearance": 0.08,
+                "base_height": 0.10,
+                "ground_clearance": 0.035,
                 "wheelbase": 0.19,
                 "wheel_track": 0.34,
                 "overall_length": 0.35,
@@ -272,7 +280,8 @@ class BeginnerLaunchContractTest(unittest.TestCase):
         self.assertAlmostEqual(controller["left_wheel_radius_multiplier"], 1.0173)
         self.assertAlmostEqual(controller["right_wheel_radius_multiplier"], 1.0173)
         self.assertAlmostEqual(geometry["imu_yaw"], 1.5707963267948966)
-        self.assertFalse(geometry["use_chassis_mesh"])
+        self.assertTrue(geometry["use_chassis_mesh"])
+        self.assertAlmostEqual(geometry["chassis_mesh_scale"], 1.0)
 
         modeled_mass = geometry["base_mass"] + 4.0 * geometry["wheel_mass"] + 0.01
         self.assertAlmostEqual(modeled_mass, geometry["robot_mass"])
@@ -282,6 +291,8 @@ class BeginnerLaunchContractTest(unittest.TestCase):
         ).read_text(encoding="utf-8")
         self.assertIn('${wheelbase/2} ${wheel_track/2}', description)
         self.assertIn("${imu_pos_x} ${imu_pos_y} ${imu_pos_z}", description)
+        self.assertIn("${cam_pos_x} ${cam_pos_y} ${cam_pos_z}", description)
+        self.assertIn("${chassis_mesh_scale} ${chassis_mesh_scale}", description)
 
     def test_hardware_imu_acceleration_stays_in_the_sensor_frame(self):
         hardware_source = ROOT.joinpath("hardware", "vmx_system.cpp").read_text(

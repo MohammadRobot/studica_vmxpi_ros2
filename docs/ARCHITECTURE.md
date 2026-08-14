@@ -1,7 +1,8 @@
 # System Architecture
 
-The classroom presents one stable ROS API while launch selects simulation, mock,
-or physical hardware underneath it. `class_4wd` is the teaching default.
+The project presents one stable ROS API while launch selects simulation, mock,
+or physical hardware underneath it. `class_4wd` is the simulation default and
+`stack_4wd` is the measured physical default.
 
 ## Public launch surface
 
@@ -13,11 +14,12 @@ or physical hardware underneath it. `class_4wd` is the teaching default.
 | `robot.launch.py` | VMXPi/Titan hardware | LiDAR, monitoring, optional camera/Foxglove |
 | `bringup.launch.py` | simulation, mock, or hardware | advanced profile and sensor arguments |
 
-The first four launches fix `robot_profile:=class_4wd` and expose only the few
-choices needed for their lesson. `bringup.launch.py` validates an advanced
-profile and delegates to the private `_robot_runtime.launch.py` module. Private
-files beginning with `_` are implementation details and are not launched
-directly.
+The small launches select the correct profile for their runtime: simulation uses
+`class_4wd`, while physical bringup and hardware navigation use `stack_4wd`.
+`robot.launch.py` exposes `robot_profile` for an intentional hardware override.
+`bringup.launch.py` validates an advanced profile and delegates to the private
+`_robot_runtime.launch.py` module. Private files beginning with `_` are
+implementation details and are not launched directly.
 
 Simulation and mapping start the configured gamepad publisher by default, but
 it commands motion only while L1 is held. Navigation and hardware keep it off.
@@ -123,7 +125,7 @@ They still use the public `/cmd_vel` and `/odom` adapter.
 ## Control and timeout
 
 The drive controller owns four wheel velocity command interfaces for
-`class_4wd`. A finite command timeout is configured in the controller YAML. If a
+`class_4wd` and `stack_4wd`. A finite command timeout is configured in the controller YAML. If a
 publisher stops, the controller writes zero; mock and hardware state then return
 to zero.
 

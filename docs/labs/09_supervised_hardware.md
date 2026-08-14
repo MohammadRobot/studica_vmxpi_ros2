@@ -8,7 +8,7 @@ a separate, human-operated teleop action.
 ## Learning goals
 
 - Apply a written readiness gate before enabling physical motion.
-- Compare simulation interfaces with the real `class_4wd` robot.
+- Compare simulation interfaces with the real `stack_4wd` robot.
 - Perform and stop one instructor-approved, low-speed teleop observation.
 
 ## Prerequisites

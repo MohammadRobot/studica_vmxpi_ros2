@@ -131,6 +131,29 @@ sudo --preserve-env=ROS_DOMAIN_ID,RMW_IMPLEMENTATION,ROS_LOCALHOST_ONLY,CYCLONED
   '
 ```
 
+`robot.launch.py` selects the measured `stack_4wd` profile by default. Supply
+`robot_profile:=class_4wd` only when intentionally running that physical variant.
+
+For the confirmed navigation setup that also displays the raw Gemini E cloud,
+use this as the final `ros2 launch` command inside the same root wrapper:
+
+```bash
+exec ros2 launch studica_vmxpi_ros2 robot.launch.py \
+  robot_profile:=stack_4wd \
+  use_lidar:=true \
+  use_camera:=true \
+  use_point_cloud:=true \
+  use_point_cloud_filter:=false \
+  use_camera_color:=false \
+  use_colored_depth_cloud:=false \
+  use_foxglove:=false \
+  use_joystick:=false
+```
+
+This publishes `/camera/depth/points` for visualization. LiDAR remains the
+navigation obstacle source; raw camera points must not be connected directly
+to the Nav2 costmap because they include the floor and robot body.
+
 The validated hardware control default is 25 Hz. Use
 `hardware_control_rate_hz:=50` only for a deliberate comparison while watching
 CPU temperature and throttling.
@@ -223,12 +246,13 @@ running with LiDAR enabled, or start it with the command in **Start the physical
 robot** above. Do not run SLAM Toolbox, joystick teleop, or keyboard teleop
 during navigation.
 
-Confirm the saved map pair exists on the PC:
+The confirmed office map uses a YAML/PNG pair. Confirm both files exist on the
+PC:
 
 ```bash
 export STUDICA_WS="$HOME/studica_ws"
-test -s "$STUDICA_WS/project_maps/real_robot_map.yaml"
-test -s "$STUDICA_WS/project_maps/real_robot_map.pgm"
+test -s "$STUDICA_WS/project_maps/office_nav.yaml"
+test -s "$STUDICA_WS/project_maps/office_nav.png"
 ```
 
 Then start the single PC-side navigation launch:
@@ -238,13 +262,24 @@ source "$HOME/.ros/studica_pc_wifi.env"
 source /opt/ros/humble/setup.bash
 source "$STUDICA_WS/install/setup.bash"
 
-ros2 launch studica_vmxpi_ros2 navigation.launch.py mode:=hardware
+ros2 launch studica_vmxpi_ros2 navigation.launch.py \
+  mode:=hardware \
+  map:="$STUDICA_WS/project_maps/office_nav.yaml" \
+  robot_profile:=stack_4wd \
+  use_point_cloud:=false \
+  hardware_max_linear_speed:=0.20 \
+  hardware_max_angular_speed:=0.35
 ```
 
 This starts the saved-map server, AMCL, Nav2, and RViz on the PC. Hardware mode
 uses wall-clock time, the measured 0.350 x 0.385 m footprint, LiDAR-only
 costmaps, and limits of 0.20 m/s and 0.35 rad/s. It does not start
-Gazebo or joystick teleoperation.
+Gazebo or joystick teleoperation. `use_point_cloud:=false` disables the camera
+costmap overlay, not the saved RViz `Raw PointCloud` display.
+
+To use a map created by SLAM instead, keep its YAML and image together and
+change only the `map:=...` argument. Omitting `map` selects
+`$STUDICA_WS/project_maps/real_robot_map.yaml` in hardware mode.
 
 The confirmed default can be reduced or increased within the supported bounds
 without editing a parameter file:

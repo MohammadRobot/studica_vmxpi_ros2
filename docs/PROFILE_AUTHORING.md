@@ -9,6 +9,7 @@ The retained variants are:
 | Profile | Layout | Intended use |
 |---|---|---|
 | `class_4wd` | four-wheel differential | tested course default |
+| `stack_4wd` | compact four-wheel differential | measured physical robot; reuses class meshes |
 | `class_2wd` | two-wheel differential | advanced variant lesson |
 | `class_mecanum` | four mecanum wheels | advanced holonomic lesson |
 | `class_omni` | four omni wheels | advanced holonomic lesson |
@@ -76,6 +77,13 @@ robot. The generated box then uses the same dimensions as collision and
 inertia. Enable a custom mesh only after its native scale matches the physical
 body.
 
+The `stack_4wd` profile reuses the existing chassis, wheel, and sensor meshes.
+`chassis_mesh_scale` controls only the chassis visual; its collision, inertia,
+TF, and navigation footprint continue to use measured profile geometry. Its
+initial geometry, hardware mapping, and odometry calibration are the values
+confirmed during physical testing. Keep future `stack_4wd` calibration changes
+in that profile rather than changing `class_4wd`.
+
 LiDAR, camera, and IMU XYZ/RPY values are measured relative to `chassis_link`.
 Angles use radians. `laser_pos_z` identifies the scan plane; any retained
 `laser_frame_z` is a visual-model-to-scan offset and should be zero when the
@@ -139,8 +147,8 @@ Use `-1` only for a genuinely unused channel. At least one left and one right
 motor are required. `diff_4wd`, `mecanum`, and `omni` require all four channels.
 Set every inversion value explicitly.
 
-The `class_4wd` hardware profile requires `velocity_pid`, PID type `mcv2`, and
-confirmed firmware support. There is no silent open-loop fallback.
+The `class_4wd` and `stack_4wd` hardware profiles require `velocity_pid`, PID
+type `mcv2`, and confirmed firmware support. There is no silent open-loop fallback.
 
 ## Validate without motion
 

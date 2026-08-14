@@ -107,6 +107,7 @@ ros2 launch studica_vmxpi_ros2 navigation.launch.py [arguments]
 | Argument | Default | Purpose |
 |---|---|---|
 | `mode` | `gz_sim` | Use the local office simulation or the PC-side `hardware` client |
+| `robot_profile` | `class_4wd` in simulation; `stack_4wd` in hardware | Geometry used by simulation and the Nav2 footprint |
 | `gui` | `true` | Start RViz |
 | `gz_headless` | `false` | Run Gazebo without its graphical client |
 | `map` | office map in simulation; `~/studica_ws/project_maps/real_robot_map.yaml` in hardware | Map YAML loaded by the map server and AMCL |
@@ -153,10 +154,13 @@ ros2 launch studica_vmxpi_ros2 robot.launch.py [arguments]
 
 | Argument | Default | Purpose |
 |---|---|---|
+| `robot_profile` | `stack_4wd` | Physical profile below `bringup/config/profiles` |
 | `use_lidar` | `true` | Start the YDLidar driver |
 | `use_camera` | `true` | Start the Orbbec low-load depth stream |
 | `use_camera_color` | `false` | Also start 640×480 color at 15 Hz |
-| `use_point_cloud` | `false` | Publish and floor-filter 320×240 depth points at 5 Hz |
+| `use_colored_depth_cloud` | `false` | Start registered 320×240 color and depth at 15 Hz for RViz DepthCloud |
+| `use_point_cloud` | `false` | Publish raw 320×240 depth points at 5 Hz |
+| `use_point_cloud_filter` | `false` | Also publish the floor/body-filtered cloud when raw points are enabled |
 | `use_foxglove` | `true` | Start the read-only Foxglove bridge |
 | `use_joystick` | `false` | Start joystick teleop on the VMXPi |
 | `hardware_control_rate_hz` | `25` | Set the hardware control and odometry rate |
@@ -177,6 +181,10 @@ ros2 launch studica_vmxpi_ros2 robot.launch.py \
   use_point_cloud:=true use_camera_color:=false \
   use_foxglove:=false use_joystick:=false
 ```
+
+This publishes raw Gemini E points only. Add
+`use_point_cloud_filter:=true` when the filtered obstacle cloud is also
+required.
 
 Do not combine color, point-cloud processing, and remote visualization until a
 sustained thermal test passes. The point-cloud filter samples every second raw
@@ -301,6 +309,7 @@ These arguments affect hardware mode only.
 | `orbbec_serial_number` | empty | Select one physical camera |
 | `orbbec_enable_point_cloud` | `false` | Publish the Orbbec point cloud |
 | `orbbec_enable_color` | `false` | Enable color streaming |
+| `orbbec_depth_registration` | `false` | Align depth pixels to the color image |
 | `orbbec_enable_depth` | `true` | Enable depth streaming |
 | `orbbec_enable_ir` | `false` | Enable infrared streaming |
 | `orbbec_color_width`, `orbbec_color_height` | `640`, `480` | Color resolution when enabled |

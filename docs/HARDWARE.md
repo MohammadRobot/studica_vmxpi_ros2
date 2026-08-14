@@ -57,8 +57,8 @@ footprint, and sensor poses before testing motion. Use `base_link` on the
 ground at the centre of the four wheel contact points. Sensor poses in the
 profile are relative to the body-centred `chassis_link`.
 
-For the confirmed `class_4wd` platform, the profile records a 0.340 x 0.290 x
-0.200 m body, 0.080 m clearance, 0.190 m wheelbase, 0.340 m physical track,
+For the confirmed `stack_4wd` platform, the profile records a 0.340 x 0.290 x
+0.100 m body, 0.035 m clearance, 0.190 m wheelbase, 0.340 m physical track,
 and 0.350 x 0.385 m outer envelope. The simulated collision body, wheels,
 LiDAR, camera, IMU, and Nav2 footprint all consume those measurements. The
 controller retains its separately validated effective 0.500 m wheel
@@ -66,7 +66,7 @@ separation.
 
 1. Measure loaded tread diameter in several wheel orientations.
 2. Average the measurements, convert to metres, and divide by two.
-3. Update `bringup/config/profiles/class_4wd/robot_profile.yaml`:
+3. Update `bringup/config/profiles/stack_4wd/robot_profile.yaml`:
 
 ```yaml
 drive:
@@ -326,6 +326,11 @@ ros2 launch studica_vmxpi_ros2 robot.launch.py \
 
 # Depth obstacle test; adds the raw and filtered point clouds.
 ros2 launch studica_vmxpi_ros2 robot.launch.py \
+  use_point_cloud:=true use_point_cloud_filter:=true use_camera_color:=false \
+  use_foxglove:=false use_joystick:=false
+
+# Raw Gemini E PointCloud2 only; do not start the floor/body filter.
+ros2 launch studica_vmxpi_ros2 robot.launch.py \
   use_point_cloud:=true use_camera_color:=false \
   use_foxglove:=false use_joystick:=false
 ```
@@ -333,10 +338,13 @@ ros2 launch studica_vmxpi_ros2 robot.launch.py \
 Run only one hardware launch at a time. After five minutes, check:
 
 ```bash
-timeout 10 ros2 topic hz /camera/depth/points_filtered
+timeout 10 ros2 topic hz /camera/depth/points
 sudo vcgencmd measure_temp
 sudo vcgencmd get_throttled
 ```
+
+When `use_point_cloud_filter:=true` was selected, also check
+`/camera/depth/points_filtered`.
 
 Stop the camera workload if the temperature approaches 80 °C or any active
 low-order throttling bit is set. `0x8` specifically means the soft temperature

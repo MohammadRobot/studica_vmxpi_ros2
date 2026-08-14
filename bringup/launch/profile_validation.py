@@ -293,6 +293,14 @@ def validate_profile_files(
                 f"{profile_name}: {profile_path} xacro key '{key}' must be > 0"
             )
 
+    if "chassis_mesh_scale" in xacro_cfg:
+        mesh_scale = xacro_cfg["chassis_mesh_scale"]
+        if not _is_number(mesh_scale) or float(mesh_scale) <= 0.0:
+            errors.append(
+                f"{profile_name}: {profile_path} xacro key "
+                "'chassis_mesh_scale' must be numeric and > 0"
+            )
+
     if uses_physical_geometry:
         for key in PHYSICAL_GEOMETRY_KEYS:
             if key == "use_chassis_mesh":

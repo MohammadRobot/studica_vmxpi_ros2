@@ -102,6 +102,7 @@ def _runtime_actions(context, *args, **kwargs):
     orbbec_enable_color = LaunchConfiguration("orbbec_enable_color").perform(context)
     orbbec_enable_depth = LaunchConfiguration("orbbec_enable_depth").perform(context)
     orbbec_enable_ir = LaunchConfiguration("orbbec_enable_ir").perform(context)
+    orbbec_depth_registration = LaunchConfiguration("orbbec_depth_registration").perform(context)
     orbbec_color_width = LaunchConfiguration("orbbec_color_width").perform(context)
     orbbec_color_height = LaunchConfiguration("orbbec_color_height").perform(context)
     orbbec_color_fps = LaunchConfiguration("orbbec_color_fps").perform(context)
@@ -214,6 +215,7 @@ def _runtime_actions(context, *args, **kwargs):
         "orbbec_enable_color": orbbec_enable_color,
         "orbbec_enable_depth": orbbec_enable_depth,
         "orbbec_enable_ir": orbbec_enable_ir,
+        "orbbec_depth_registration": orbbec_depth_registration,
         "orbbec_color_width": orbbec_color_width,
         "orbbec_color_height": orbbec_color_height,
         "orbbec_color_fps": orbbec_color_fps,
@@ -479,6 +481,11 @@ def generate_launch_description():
                 "orbbec_enable_ir",
                 "false",
                 "Enable infrared streaming (hardware mode only).",
+            ),
+            _declare_arg(
+                "orbbec_depth_registration",
+                "false",
+                "Align depth to color for matched registered image displays.",
             ),
             _declare_arg(
                 "orbbec_color_width",

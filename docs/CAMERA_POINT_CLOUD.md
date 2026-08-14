@@ -40,9 +40,10 @@ depth image -> raw optical-frame cloud -> base_link filter -> obstacle cloud
 | `/camera/depth/points` | `sensor_msgs/msg/PointCloud2` | Raw sampled XYZ points in the optical frame |
 | `/camera/depth/points_filtered` | `sensor_msgs/msg/PointCloud2` | Filtered obstacle points in `base_link` |
 
-RViz keeps `Raw PointCloud` available but disabled for debugging. `Filtered
-Obstacles` is enabled in green and shows the topic intended for application
-code. `DepthCloud` remains an independent image-based visualization.
+RViz enables `Raw PointCloud` and disables `Filtered Obstacles` and
+`DepthCloud` by default. This keeps the standard camera view on
+`/camera/depth/points` only; the other displays remain available as explicit
+opt-ins.
 
 ## Verify the data
 
@@ -50,8 +51,8 @@ In a second terminal with the same environment and workspace sourced:
 
 ```bash
 ros2 topic info /camera/depth/points --verbose
-ros2 topic hz /camera/depth/points_filtered
-ros2 topic echo /camera/depth/points_filtered --once --field width
+ros2 topic hz /camera/depth/points
+ros2 topic echo /camera/depth/points --once --field width
 ```
 
 The cloud uses the camera optical frame: positive `x` points right in the
@@ -59,9 +60,27 @@ image, positive `y` points down, and positive `z` points forward from the
 camera. The filtered cloud uses `base_link`, where positive `x` is forward,
 positive `y` is left, and positive `z` is upward from the ground plane.
 
+## Colored RViz DepthCloud on hardware
+
+RViz `DepthCloud` combines color and depth images on the PC; it is separate from
+the raw and filtered `PointCloud2` topics. Start the physical camera with matched
+registered streams:
+
+```bash
+ros2 launch studica_vmxpi_ros2 robot.launch.py \
+  use_colored_depth_cloud:=true use_point_cloud:=false \
+  use_foxglove:=false use_joystick:=false
+```
+
+This selects 320x240 at 15 Hz for both streams and enables Orbbec depth
+registration. In RViz, configure `DepthCloud` with
+`/camera/depth/image_raw`, `/camera/depth/camera_info`, and
+`/camera/color/image_raw`. Do not enable this visualization merely to obtain
+ground-filtered obstacles; use `/camera/depth/points_filtered` for that purpose.
+
 The default filter keeps heights from 0.04 m to 1.50 m, forward distances from
 0.15 m to 3.00 m, and lateral distances within 2.00 m. It also removes a box
-around the class_4wd body. These ROS parameters are intentionally configurable
+around the `stack_4wd` body. These ROS parameters are intentionally configurable
 on `point_cloud_filter`:
 
 | Parameter | Default | Purpose |
@@ -136,9 +155,8 @@ ros2 launch studica_robot_apps point_cloud_observer.launch.py \
 The Orbbec driver can publish its own point cloud, so the simulation converter
 must not run on the VMXPi. Run the following launch through the preserved-env
 root wrapper in [Supervised hardware](HARDWARE.md#4-start-the-vmx-hal-correctly).
-The physical launch provides one low-load switch: it
-uses depth-only 320×240 at 5 Hz, enables the driver cloud, starts the
-ground-referenced filter, and samples every second raw point:
+The physical launch uses depth-only 320×240 at 5 Hz and enables the driver
+cloud. Raw `/camera/depth/points` is the default point-cloud output:
 
 ```bash
 ros2 launch studica_vmxpi_ros2 robot.launch.py \
@@ -147,13 +165,30 @@ ros2 launch studica_vmxpi_ros2 robot.launch.py \
 ros2 topic list -t | grep -E 'points|PointCloud2'
 ```
 
+Enable the optional ground/body filter explicitly when
+`/camera/depth/points_filtered` is also needed. It samples every second raw
+point:
+
+```bash
+ros2 launch studica_vmxpi_ros2 robot.launch.py \
+  use_point_cloud:=true use_point_cloud_filter:=true \
+  use_camera_color:=false use_foxglove:=false use_joystick:=false
+```
+
 The normal Gemini E topic is `/camera/depth/points`; the filtered result is
 `/camera/depth/points_filtered`. Start only the read-only observer separately:
 
 ```bash
 ros2 launch studica_robot_apps point_cloud_observer.launch.py \
-  use_sim_time:=false
+  use_sim_time:=false point_cloud_topic:=/camera/depth/points
 ```
+
+During physical navigation, keep the PC launch at `use_point_cloud:=false` so
+LiDAR alone marks and clears the Nav2 costmaps. The RViz `Raw PointCloud`
+display can still subscribe to `/camera/depth/points`; this launch argument and
+the RViz display are independent. Disable the display while driving if the
+VMXPi EKF starts missing update-rate deadlines. For the lowest navigation load,
+restart hardware with `use_camera:=false use_point_cloud:=false`.
 
 The measured hardware camera TF and robot dimensions must be verified before
 using these bounds. Point-cloud processing increases CPU, USB, memory, and

@@ -362,6 +362,57 @@ The X2 should supply approximately 10--12 Hz and hardware odometry approximately
 25 Hz. Multiple owners or a missing rate must be corrected before another map
 is recorded.
 
+## YDLidar reports an incompatible `/scan` QoS subscriber
+
+The YDLidar driver intentionally publishes `/scan` with ROS sensor-data QoS:
+best-effort reliability and volatile durability. A newly discovered subscriber
+that requests reliable delivery is incompatible with that publisher, so only
+that endpoint receives no scans. Other best-effort subscribers continue to
+work; successful AMCL localization and a moving red scan in RViz prove the
+navigation path is receiving data.
+
+Identify the incompatible endpoint:
+
+```bash
+ros2 topic info /scan --verbose
+```
+
+The project RViz scan display uses `Best Effort`. For a manual sample, request
+the sensor-data profile explicitly:
+
+```bash
+ros2 topic echo /scan --once --qos-profile sensor_data \
+  --field header.frame_id
+```
+
+Stop or reconfigure an optional subscriber shown as `Reliability: RELIABLE`.
+Do not change the YDLidar publisher to reliable or lower its confirmed 10 Hz
+scan frequency merely to silence the warning.
+
+## The hardware EKF misses its update rate
+
+`hardware_odometry_filter` normally follows `hardware_control_rate_hz`, which
+is 25 Hz in the supported physical launch. A warning such as `Failed to meet
+update rate` means one cycle took longer than its 40 ms budget. An isolated
+warning does not stop navigation, but repeated delays of hundreds of
+milliseconds indicate CPU, USB, DDS, or network contention.
+
+Check the actual data rate and computer load:
+
+```bash
+ros2 param get /hardware_odometry_filter frequency
+timeout 10 ros2 topic hz /odom
+ps -eo pid,%cpu,%mem,args --sort=-%cpu | head -n 10
+sudo vcgencmd measure_temp
+sudo vcgencmd get_throttled
+```
+
+When raw `/camera/depth/points` is displayed remotely, first disable the RViz
+`Raw PointCloud` display and repeat the test. If warnings continue, restart the
+VMXPi hardware launch with `use_camera:=false use_point_cloud:=false`. Keep
+LiDAR enabled for navigation. Do not hide sustained overload by increasing
+diagnostic thresholds or raising the control rate.
+
 ## The navigation map is grayscale
 
 That is normal for the raw occupancy grid: black is occupied, white is free,

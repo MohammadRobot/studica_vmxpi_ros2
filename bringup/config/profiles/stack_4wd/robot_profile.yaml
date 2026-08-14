@@ -1,0 +1,85 @@
+xacro:
+  # Confirmed stack_4wd physical geometry. Sensor poses are relative to
+  # chassis_link: x forward, y left, z up. base_link is on the ground plane.
+  robot_mass: 8.0
+  base_mass: 6.79
+  base_width: 0.29
+  base_length: 0.34
+  base_height: 0.10
+  ground_clearance: 0.035
+  wheelbase: 0.19
+  wheel_track: 0.34
+  overall_length: 0.35
+  overall_width: 0.385
+  # Reuse the class_4wd chassis, wheel, and sensor meshes. Collision, inertia,
+  # TF, and navigation still use the measured stack_4wd geometry above.
+  use_chassis_mesh: true
+  chassis_mesh_scale: 1.0
+  wheel_mass: 0.3
+  wheel_len: 0.045
+  caster_wheel_mass: 0.1
+  caster_wheel_radius: 0.05
+  # laser_pos_z is the measured scan-plane height relative to chassis_link.
+  laser_pos_x: 0.12
+  laser_pos_y: 0.0
+  laser_pos_z: 0.07
+  laser_roll: 0.0
+  laser_pitch: 0.0
+  laser_yaw: 0.0
+  laser_frame_z: 0.0
+  cam_pos_x: 0.13
+  cam_pos_y: 0.0
+  # Chassis-relative camera optical-centre height from the current field profile.
+  cam_pos_z: 0.05
+  cam_roll: 0.0
+  cam_pitch: 0.0
+  cam_yaw: 0.0
+  imu_pos_x: 0.08
+  imu_pos_y: 0.0
+  imu_pos_z: 0.03
+  imu_roll: 0.0
+  imu_pitch: 0.0
+  # Positive 90 degrees: counterclockwise when viewed from above.
+  imu_yaw: 1.5707963267948966
+
+drive:
+  wheel_layout: diff_4wd
+  controller_name: robot_base_controller
+  controller_type: diff_drive_controller/DiffDriveController
+  # Measured 120 mm loaded wheel diameter. This is the single source for URDF
+  # geometry, encoder conversion, and controller validation.
+  wheel_radius_m: 0.060
+
+hardware:
+  can_id: 42
+  motor_freq: 15600
+  ticks_per_rotation: 1464
+  lidar_type: x2
+  speed_scale: 0.5
+  max_wheel_angular_velocity_rad_s: 20.0
+  control_mode: velocity_pid
+  wheel_radius_calibrated: true
+  pid:
+    type: mcv2
+    sensitivity: 5
+    require_supported: true
+  feedback_warn_timeout_ms: 100
+  feedback_error_timeout_ms: 250
+  controller_temp_error_c: 80.0
+  # Titan controller temperature is broadcast at approximately 1 Hz.
+  controller_temp_error_timeout_ms: 3000
+
+  left_front_motor: 2
+  left_rear_motor: 3
+  right_front_motor: 0
+  right_rear_motor: 1
+
+  invert_left_front_motor: false
+  invert_left_rear_motor: false
+  invert_right_front_motor: true
+  invert_right_rear_motor: true
+
+  invert_left_front_encoder: false
+  invert_left_rear_encoder: false
+  invert_right_front_encoder: false
+  invert_right_rear_encoder: false

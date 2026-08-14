@@ -35,7 +35,7 @@ path.
 - `examples/python/starters/`: files containing guided TODOs
 - `examples/python/solutions/`: separate reference implementations
 - `bringup/launch/`: four beginner launches and the advanced bringup interface
-- `bringup/config/profiles/`: the core `class_4wd` profile and advanced variants
+- `bringup/config/profiles/`: `class_4wd` simulation, `stack_4wd` hardware, and variants
 
 ## Command conventions
 

@@ -303,6 +303,11 @@ def generate_launch_description():
             "false",
             "Enable infrared streaming.",
         ),
+        _declare_arg(
+            "orbbec_depth_registration",
+            "false",
+            "Align depth to color for matched registered image displays.",
+        ),
         _declare_arg("orbbec_color_width", "640", "Color width when enabled."),
         _declare_arg(
             "orbbec_color_height",

@@ -34,6 +34,7 @@
   <xacro:property name="wheelbase" value="${geometry_cfg.get('wheelbase', geometry_cfg['base_length'])}"/>
   <xacro:property name="wheel_track" value="${geometry_cfg.get('wheel_track', geometry_cfg['base_width'])}"/>
   <xacro:property name="use_chassis_mesh" value="${geometry_cfg.get('use_chassis_mesh', True)}"/>
+  <xacro:property name="chassis_mesh_scale" value="${float(geometry_cfg.get('chassis_mesh_scale', 1.0))}"/>
   <xacro:property name="laser_pos_x" value="${geometry_cfg.get('laser_pos_x', 0.192)}"/>
   <xacro:property name="laser_pos_y" value="${geometry_cfg.get('laser_pos_y', 0.0)}"/>
   <xacro:property name="laser_pos_z" value="${geometry_cfg.get('laser_pos_z', 0.0)}"/>
@@ -64,6 +65,7 @@
     wheelbase="${wheelbase}"
     wheel_track="${wheel_track}"
     use_chassis_mesh="${use_chassis_mesh}"
+    chassis_mesh_scale="${chassis_mesh_scale}"
     wheel_mass="${geometry_cfg['wheel_mass']}"
     wheel_len="${geometry_cfg['wheel_len']}"
     wheel_radius="${wheel_radius}"

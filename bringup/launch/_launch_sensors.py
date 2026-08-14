@@ -104,6 +104,7 @@ def _maybe_include_camera(context, *args, **kwargs):
         "orbbec_enable_color": LaunchConfiguration("orbbec_enable_color").perform(context),
         "orbbec_enable_depth": LaunchConfiguration("orbbec_enable_depth").perform(context),
         "orbbec_enable_ir": LaunchConfiguration("orbbec_enable_ir").perform(context),
+        "orbbec_depth_registration": LaunchConfiguration("orbbec_depth_registration").perform(context),
         "orbbec_color_width": LaunchConfiguration("orbbec_color_width").perform(context),
         "orbbec_color_height": LaunchConfiguration("orbbec_color_height").perform(context),
         "orbbec_color_fps": LaunchConfiguration("orbbec_color_fps").perform(context),

@@ -1,7 +1,7 @@
 # Studica ROS 2 Classroom Robot
-Learn ROS 2 by driving and programming one robot in simulation before touching
-real hardware. No robotics experience is required; Lab 1 introduces terminal
-skills. The `class_4wd` beginner API is identical in simulation and hardware.
+Learn ROS 2 by driving and programming one robot in simulation before touching real
+hardware. Lab 1 introduces terminal skills, and the ROS interfaces are identical
+for simulated `class_4wd` and physical `stack_4wd`.
 
 ## What you will learn
 
@@ -20,12 +20,12 @@ You will learn how to:
 - Ubuntu 22.04 LTS
 - ROS 2 Humble
 - Gazebo Harmonic
-- `class_4wd` robot profile
+- `class_4wd` simulation profile and `stack_4wd` physical profile
 - Python 3 for application development
 
 The Humble `gz_ros2_control` overlay is pinned for Harmonic; do not replace it.
-The default simulation and hardware launches share the measured `class_4wd`
-body, wheel placement, sensor transforms, and navigation footprint.
+Both profiles share one parameterized description and mesh set. Physical
+`stack_4wd` geometry and calibration remain separate from simulated `class_4wd`.
 
 ## Safety boundary
 
@@ -160,7 +160,7 @@ required component returns `1`; a usage or setup error returns `2`. Add
 | `sim.launch.py` | Maze simulation and RViz | Joystick, L1 deadman required |
 | `mapping.launch.py` | Office simulation or PC-side real-robot SLAM | Joystick, L1 deadman required |
 | `navigation.launch.py` | Office simulation or PC-side physical Nav2 | Nav2 only; joystick off |
-| `robot.launch.py` | Supervised `class_4wd` hardware | No; joystick opt-in |
+| `robot.launch.py` | Supervised `stack_4wd` hardware | No; joystick opt-in |
 
 `bringup.launch.py` remains available for instructors and advanced robot
 profiles. Beginners should use the four small launch files above.

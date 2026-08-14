@@ -36,6 +36,7 @@ def generate_launch_description():
     mode = LaunchConfiguration("mode")
     map_file = LaunchConfiguration("map")
     nav2_params_file = LaunchConfiguration("nav2_params_file")
+    robot_profile = LaunchConfiguration("robot_profile")
     rviz_config_file = LaunchConfiguration("rviz_config_file")
     use_point_cloud = LaunchConfiguration("use_point_cloud")
     use_joystick = LaunchConfiguration("use_joystick")
@@ -67,6 +68,9 @@ def generate_launch_description():
             "'",
         ]
     )
+    default_robot_profile = PythonExpression(
+        ["'stack_4wd' if '", mode, "' == 'hardware' else 'class_4wd'"]
+    )
     simulation_point_cloud = IfCondition(
         PythonExpression(
             ["'", mode, "' == 'gz_sim' and '", use_point_cloud, "' == 'true'"]
@@ -77,7 +81,7 @@ def generate_launch_description():
             FindPackageShare("studica_vmxpi_ros2"),
             "config",
             "profiles",
-            "class_4wd",
+            robot_profile,
             "robot_profile.yaml",
         ]
     )
@@ -104,6 +108,14 @@ def generate_launch_description():
             description=(
                 "Map YAML used by AMCL; hardware defaults to "
                 "~/studica_ws/project_maps/real_robot_map.yaml."
+            ),
+        ),
+        DeclareLaunchArgument(
+            "robot_profile",
+            default_value=default_robot_profile,
+            description=(
+                "Robot geometry profile; defaults to class_4wd in simulation "
+                "and stack_4wd with physical hardware."
             ),
         ),
         DeclareLaunchArgument(
@@ -172,7 +184,7 @@ def generate_launch_description():
         "bringup.launch.py",
         {
             "mode": "gz_sim",
-            "robot_profile": "class_4wd",
+            "robot_profile": robot_profile,
             "world": "office_map",
             "gui": gui,
             "rviz_config_file": PathJoinSubstitution(

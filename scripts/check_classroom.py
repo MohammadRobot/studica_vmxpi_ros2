@@ -112,6 +112,7 @@ def check_public_contract(root: Path, failures: list[str]) -> None:
 
     profiles = root / "bringup" / "config" / "profiles"
     fail_if(not profiles.joinpath("class_4wd").is_dir(), "class_4wd profile is missing", failures)
+    fail_if(not profiles.joinpath("stack_4wd").is_dir(), "stack_4wd profile is missing", failures)
     fail_if(profiles.joinpath("training_2wd").exists(), "training_2wd was not removed", failures)
     fail_if(profiles.joinpath("training_4wd").exists(), "training_4wd was not removed", failures)
 

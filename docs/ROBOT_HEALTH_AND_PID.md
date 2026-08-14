@@ -1,6 +1,6 @@
 # Robot Health and Titan Velocity PID
 
-This is the implementation reference for the supervised `class_4wd` robot. The
+This is the implementation reference for the supervised `stack_4wd` robot. The
 user-facing procedure is [Supervised hardware](HARDWARE.md).
 
 ## Safety guarantees
@@ -9,7 +9,7 @@ The hardware stack guarantees:
 
 - wheel radius has one source: `drive.wheel_radius_m`;
 - motion is refused until `hardware.wheel_radius_calibrated` is true;
-- `class_4wd` requires Titan2 MCV2 encoder-velocity control;
+- `stack_4wd` requires Titan2 MCV2 encoder-velocity control;
 - unsupported firmware never falls back to open-loop duty control;
 - target and measured signs use the same robot-frame convention;
 - unsafe input or feedback zeros every motor and latches a fault;
@@ -78,7 +78,7 @@ feedback age, freshness, saturation, and health level/message.
 
 ## Freshness policy
 
-The `class_4wd` profile defaults to:
+The `stack_4wd` profile defaults to:
 
 ```yaml
 hardware:

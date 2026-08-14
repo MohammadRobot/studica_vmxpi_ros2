@@ -201,9 +201,10 @@ In RViz, green **Filtered Obstacles** are sensor points. Colored **Local
 Costmap** cells are the collision costs Nav2 actually uses. They should overlap
 near an observed object, with extra colored inflation around its footprint.
 
-The launch overlay reads `xacro.overall_length` and `xacro.overall_width` from
-the `class_4wd` profile and writes the same rectangular footprint to the local
-and global costmaps. The current measured footprint is 0.350 x 0.385 m. Keep
+The hardware launch overlay reads `xacro.overall_length` and
+`xacro.overall_width` from the `stack_4wd` profile and writes the same
+rectangular footprint to the local and global costmaps. The current measured
+footprint is 0.350 x 0.385 m. Keep
 clearance policy in Nav2's inflation layer; do not enlarge the physical profile
 to imitate a safety margin.
 
@@ -273,6 +274,29 @@ test -s "$STUDICA_WS/project_maps/real_robot_map.pgm"
 ros2 launch studica_vmxpi_ros2 navigation.launch.py mode:=hardware
 ```
 
+The confirmed `office_nav` setup uses the reviewed YAML/PNG pair and keeps the
+raw camera cloud visualization-only:
+
+```bash
+test -s "$STUDICA_WS/project_maps/office_nav.yaml"
+test -s "$STUDICA_WS/project_maps/office_nav.png"
+
+ros2 launch studica_vmxpi_ros2 navigation.launch.py \
+  mode:=hardware \
+  map:="$STUDICA_WS/project_maps/office_nav.yaml" \
+  robot_profile:=stack_4wd \
+  use_point_cloud:=false \
+  hardware_max_linear_speed:=0.20 \
+  hardware_max_angular_speed:=0.35
+```
+
+If raw depth visualization is required, the VMXPi hardware launch may use
+`use_camera:=true use_point_cloud:=true use_point_cloud_filter:=false`. The PC
+navigation launch must still use `use_point_cloud:=false`; this prevents raw
+optical-frame points, including floor and self returns, from entering the Nav2
+costmap. The saved RViz configuration can display `/camera/depth/points`
+independently.
+
 The hardware map default is
 `$HOME/studica_ws/project_maps/real_robot_map.yaml`. Override it only when a
 different reviewed YAML/PGM pair is intended:
@@ -305,10 +329,18 @@ The launch accepts at most 0.30 m/s and 0.60 rad/s. Increase one step at a time
 and repeat a nearby-goal test after each change; higher limits are intentionally
 rejected by this supported physical profile.
 
-Camera point clouds are disabled by default in hardware navigation. First prove
-LiDAR-only navigation. Enable `use_point_cloud:=true` only after the VMXPi is
-deliberately launched with the low-load camera point-cloud pipeline and its
-temperature/throttling state remains acceptable.
+Camera costmap integration is disabled by default in hardware navigation.
+First prove LiDAR-only navigation. Enable `use_point_cloud:=true` on the PC
+only when the VMXPi deliberately publishes the filtered obstacle cloud with
+`use_point_cloud_filter:=true` and its temperature/throttling state remains
+acceptable. Keep it false for the confirmed raw-visualization-only setup.
+
+Raw point-cloud transport can increase VMXPi and Wi-Fi load even though Nav2
+does not consume it. If `hardware_odometry_filter` reports missed update-rate
+deadlines, disable the RViz `Raw PointCloud` display first. If warnings persist,
+restart VMXPi bringup with `use_camera:=false use_point_cloud:=false` and keep
+the proven LiDAR-only navigation path. Do not reduce the 10 Hz LiDAR rate to
+compensate for camera load.
 
 Before setting a goal, keep the physical emergency stop reachable and run these
 checks on the PC:
