@@ -14,6 +14,7 @@ path.
 | [Camera and point cloud](CAMERA_POINT_CLOUD.md) | Testing RGB, depth, PointCloud2, and the read-only observer |
 | [Application development](DEVELOPMENT.md) | Editing on a PC and deploying source to VMXPi |
 | [Course and labs](COURSE.md) | Learning ROS 2 from Lab 1 through Lab 9 |
+| [3-day Studica ROS 2 workshop](WORKSHOP_3_DAY_STUDICA_ROS2.md) | Delivering a focused hands-on robotics workshop with simulation, sensors, Python, SLAM, Nav2, and supervised hardware readiness |
 | [Joystick teleoperation](JOYSTICK.md) | Driving simulation with a DualShock 4 or compatible controller |
 | [Troubleshooting](TROUBLESHOOTING.md) | A build, launch, topic, TF, or simulator check fails |
 | [Mapping and navigation](MAPPING_NAVIGATION.md) | Starting the SLAM and Nav2 lessons |
