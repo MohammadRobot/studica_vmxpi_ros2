@@ -18,8 +18,9 @@ VMX/Titan write boundary. It disables Titan and forces zero unless two valid
 active-low DIO samples, drive health, the boot-release sequence, and a new local
 enable edge all agree. The operator confirmed E-stop status on FlexDIO channel
 8 and separate local enable on channel 9; `stack_4wd` now records that pair.
-Deployment remains blocked pending motor-power-disconnected input testing and
-lifted acceptance. See [Physical hardware safety gate](HARDWARE_SAFETY_GATE.md).
+Motor-power-disconnected input acceptance passed on 2026-08-28. Deployment
+remains blocked pending lifted-wheel fault and recovery acceptance. See
+[Physical hardware safety gate](HARDWARE_SAFETY_GATE.md).
 
 The hardware-only monitor publishes a fail-closed
 `Robot/Control/HardwareSafety` diagnostic from the exported state. The

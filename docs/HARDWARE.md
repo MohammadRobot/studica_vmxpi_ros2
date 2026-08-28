@@ -11,9 +11,9 @@ startup, navigation startup, or ordinary package tests.
 > requests, and the VMX/Titan plugin now enforces the local enable and E-stop
 > status gate. The operator confirmed FlexDIO channel 8 for E-stop status and
 > channel 9 for a separate local-enable switch. The mapping is checked in but
-> is not deployed; motor-power-disconnected input testing and the lifted-wheel
-> fixture remain mandatory. Continue only with read-only and
-> motor-power-disabled checks.
+> is not deployed; motor-power-disconnected input acceptance passed on
+> 2026-08-28, while the lifted-wheel fault and recovery fixture remains
+> mandatory. Do not install boot services or perform floor motion.
 
 ## Roles and stop conditions
 
@@ -41,8 +41,9 @@ With motor power disabled:
 Then complete and record the circuit inspection in
 [Physical hardware safety gate](HARDWARE_SAFETY_GATE.md). The `stack_4wd`
 profile records E-stop channel 8 and local-enable channel 9. Do not deploy or
-start hardware bringup until the input-only test confirms both active-low states
-with Titan motor power disconnected.
+start hardware bringup until the recorded input-only test confirms both
+active-low states with Titan motor power disconnected. That test passed for the
+reviewed 2026-08-28 acceptance checkout; lifted-wheel testing is the next gate.
 
 The VMXPi remains powered for software checks only when the instructor considers
 that safe. Motor power stays disabled until the health report is understood.

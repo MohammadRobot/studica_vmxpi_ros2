@@ -3,9 +3,9 @@
 This document records the Phase 2 hardware gate for the physical `stack_4wd`
 robot. The deterministic logic and VMX/Titan enforcement are implemented, and
 the operator has confirmed the E-stop status input on FlexDIO channel 8 and a
-separate local-enable input on channel 9. Software input and lifted-wheel
-acceptance are not complete. This is not permission to move the robot or deploy
-boot services.
+separate local-enable input on channel 9. Motor-power-disconnected input
+acceptance was completed on 2026-08-28; lifted-wheel acceptance is not complete.
+This is not permission to move the robot or deploy boot services.
 
 ## Evidence from the robot
 
@@ -23,8 +23,9 @@ A read-only inventory of `vmx@192.168.1.173` on 2026-08-28 confirmed:
   temperature/age, fault latch, commanded velocity, encoder freshness, and
   feedback age through `ros2_control` state interfaces.
 
-The inspected robot still runs an older source revision. Phase 1 and this
-design are not installed on it.
+The robot's original workspace still contains an older, modified source tree.
+The reviewed commits were built in an isolated `studica_acceptance_ws`; no
+systemd unit or production launch was installed or started.
 
 Studica documents 30 VMX digital channels and says all FlexDIO pins are
 direction-selectable in software. The high-current DIO bank depends on a
@@ -55,15 +56,34 @@ it is not the stopping mechanism.
 | Robot profile | `stack_4wd` | Confirmed physical profile |
 | `ESTOP_OK` input | VMX FlexDIO channel `8` | Operator-confirmed connection on 2026-08-28 |
 | VMX input bias | Pull-up | Confirmed in `studica_driver::DIO` input initialization |
-| E-stop status contact | Normally closed from channel 8 signal to VMX ground when healthy | Operator-confirmed; software state sequence pending |
+| E-stop status contact | Normally closed from channel 8 signal to VMX ground when healthy | Input sequence passed on 2026-08-28 |
 | E-stop primary contacts | Remove Titan motor power or hardware enable | Operator-confirmed; lifted fixture verification pending |
 | Channel collision | Old optional duty-cycle and ultrasonic examples mention channels 8/9 but are disabled | Inspected inactive; accessory container remains forbidden |
-| `LOCAL_ENABLE` input | VMX FlexDIO channel `9` | Operator-confirmed separate maintained switch on 2026-08-28 |
+| `LOCAL_ENABLE` input | VMX FlexDIO channel `9` | Input sequence passed on 2026-08-28 |
 
 The checked-in `stack_4wd` profile records channels 8 and 9 as a pair. Other
 physical profiles retain fail-closed `-1` placeholders. This mapping is not a
-deployment authorization: the revision remains off the robot until both inputs
-pass the motor-power-disconnected state sequence below.
+deployment authorization: lifted-wheel fault and recovery testing remains a
+required gate.
+
+### Input acceptance evidence
+
+The motor-power-disconnected fixture used `studica_drivers` commit
+`5a866ff2eb3164795d32d71764702bd50e4b2dfe` and `studica_vmxpi_ros2` commit
+`d6a2a350369cbd1641dfdd1d5b79ef89985f2748` on the ARM64 VMXPi.
+
+- the first run failed closed because released channel 8 remained HIGH/open;
+- after the NC-to-ground connection was corrected, the rerun passed healthy
+  baseline, E-stop press/release, enable ON/OFF, open-wire, and reconnection;
+- every required state remained stable for at least 500 ms;
+- brief enable transitions while the shared wiring was handled never coincided
+  with a healthy E-stop input and must be rechecked for connector strain during
+  lifted acceptance;
+- the VMX HAL reported zero read, retry, CRC, and write failures, then closed all
+  DIO and pigpio resources;
+- the successful log is
+  `/home/vmx/studica_acceptance_ws/safety-input-check-20260828-rerun1.log`, with
+  SHA-256 `bac299e1b9ca7be578ab92c6a567ac01581a047c3ed60aafb70d9c469a807460`.
 
 ## Local-enable sequence
 
