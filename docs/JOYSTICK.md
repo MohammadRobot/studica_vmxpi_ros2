@@ -2,10 +2,10 @@
 
 Use this guide to drive simulation or a remote physical robot with a DualShock
 4 or a compatible Linux joystick. `sim.launch.py` and `mapping.launch.py` start
-the configured joystick nodes by default and publish only the stable public
-`/cmd_vel` interface. In `mapping.launch.py mode:=hardware`, the joystick is
-attached to the PC while `robot.launch.py` runs separately on the VMXPi. Motion
-still requires the L1 deadman button.
+the configured joystick nodes by default and select the dedicated
+`/cmd_vel/joy` input. In `mapping.launch.py mode:=hardware`, the joystick is
+attached to the PC while `robot.launch.py control_source:=joystick` runs
+separately on the VMXPi. Motion still requires the L1 deadman button.
 
 The safety supervisor adds a separate robot-state gate. In simulation, call
 `ros2 service call /robot/arm std_srvs/srv/Trigger '{}'` once after launch;
@@ -22,12 +22,14 @@ Use only one teleop source at a time. Stop keyboard teleop, navigation, and any
 older manual gamepad process before continuing. Inspect publishers when unsure:
 
 ```bash
-ros2 topic info /cmd_vel --verbose
+ros2 topic info /cmd_vel/joy --verbose
+ros2 topic info /joy --verbose
 ```
 
 The bringup adapter may appear as an internal subscriber or publisher on
-controller-facing topics. The concern is multiple external programs publishing
-`/cmd_vel`.
+controller-facing topics. Joystick mode requires exactly one external publisher
+on each of `/joy` and `/cmd_vel/joy`; `/cmd_vel` remains the separate application
+input and is not a fallback.
 
 ## 2. Confirm Linux sees the controller
 
@@ -110,7 +112,7 @@ Do not continue until the axes change. A steady stream of neutral samples only
 proves that the node is alive, not that the current controller connection is
 delivering events.
 
-### Convert the DualShock input to `/cmd_vel`
+### Convert the DualShock input to `/cmd_vel/joy`
 
 Keep the `joy_node` terminal running. In a third sourced terminal:
 
@@ -126,7 +128,7 @@ ros2 run teleop_twist_joy teleop_node --ros-args \
   -p scale_angular.yaw:=0.80 \
   -p scale_angular_turbo.yaw:=1.20 \
   -p publish_stamped_twist:=false \
-  -r cmd_vel:=/cmd_vel
+  -r cmd_vel:=/cmd_vel/joy
 ```
 
 This mapping uses:
@@ -134,15 +136,18 @@ This mapping uses:
 - left stick vertical: forward and reverse;
 - right stick horizontal: turn;
 - L1, button index `4`: required deadman button;
-- R1, button index `5`: turbo while L1 remains held.
+- R1, button index `5`: turbo only while L1 also remains held.
 
 Normal speed is limited to `0.30 m/s` and `0.80 rad/s`. Turbo is limited to
-`0.60 m/s` and `1.20 rad/s`. Release L1 or both sticks to command zero.
+`0.60 m/s` and `1.20 rad/s`. The upstream converter treats R1 as a separate
+enable, but the safety supervisor independently verifies L1 and rejects R1-only
+commands. Release L1 or both sticks to command zero.
 
 Linux controller mappings vary. If the wrong control moves, inspect `/joy` while
 moving one stick or pressing one button at a time, then change the corresponding
-`axis_*` or `*_button` parameter. Never disable the enable button merely to hide
-an incorrect mapping.
+`axis_*` or `*_button` parameter. If L1 is not index `4`, pass the same index as
+`joystick_deadman_button:=N` to robot bringup so the converter and supervisor
+agree. Never disable the enable button merely to hide an incorrect mapping.
 
 ## 5. Verify the complete chain
 
@@ -150,7 +155,7 @@ With simulation running, check each boundary in order:
 
 ```bash
 ros2 topic echo /joy --field axes
-ros2 topic echo /cmd_vel
+ros2 topic echo /cmd_vel/joy
 ros2 control list_controllers
 ros2 topic echo /odom --once
 ```
@@ -158,7 +163,7 @@ ros2 topic echo /odom --once
 Hold L1 and move one stick during the first two commands. Expected results:
 
 1. `/joy` axes change;
-2. `/cmd_vel` changes from zero;
+2. `/cmd_vel/joy` changes from zero;
 3. the base controller is `active`;
 4. the robot moves and `/odom` updates.
 
@@ -181,7 +186,8 @@ ls -l /dev/input/js*
 
 Wait for `Opened joystick` again and repeat the raw `/joy` test. Do not start a
 second `joy_node` alongside the stale one: duplicate neutral messages can
-overwrite valid stick input.
+overwrite valid stick input. After any loss or stale deadline, release L1 once
+before pressing it again; reconnecting while it is held cannot resume motion.
 
 ## DDS and workspace checks
 
@@ -201,7 +207,7 @@ both joystick terminals. Generate these files with the helper in
 Use one workspace overlay per terminal. An automatically sourced older workspace
 can expose a legacy gamepad executable with a different topic contract. The
 supported path in this guide always publishes `geometry_msgs/msg/Twist` on
-`/cmd_vel`.
+`/cmd_vel/joy` while the supervisor separately validates `/joy`.
 
 See [Networking](NETWORKING.md) when nodes exist but cannot discover one another.
 

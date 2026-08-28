@@ -16,15 +16,19 @@ cannot be used until wiring inspection and lifted acceptance.
 
 | Interface | Type | Contract |
 |---|---|---|
-| `/cmd_vel` | `geometry_msgs/msg/Twist` | Single external planar command input |
+| `/cmd_vel` | `geometry_msgs/msg/Twist` | Application input when `control_source:=application` |
+| `/cmd_vel/joy` | `geometry_msgs/msg/Twist` | Joystick converter input when `control_source:=joystick` |
+| `/joy` | `sensor_msgs/msg/Joy` | Independent joystick deadman and freshness evidence |
 | `/robot/state` | `std_msgs/msg/String` | Current state, latched and repeated at 1 Hz |
 | `/robot/safety_reason` | `std_msgs/msg/String` | Most recent command or transition decision |
 | `/robot/arm` | `std_srvs/srv/Trigger` | Explicitly arm mock/simulation only; always rejected on hardware |
 | `/robot/disarm` | `std_srvs/srv/Trigger` | Immediately zero supervisor output; hardware re-arm then requires local OFF followed by ON |
 
-The controller-facing `TwistStamped` topic is private. Its name depends on the
-selected robot profile. Applications, joystick nodes, Nav2, and remote clients
-must never publish to it.
+`control_source` is immutable and accepts `application` or `joystick`. There is
+no automatic fallback: the supervisor subscribes to only the selected command
+topic. The controller-facing `TwistStamped` topic is private. Its name depends
+on the selected robot profile. Applications, joystick nodes, Nav2, and remote
+clients must never publish to it.
 
 ## Simulation operator sequence
 
@@ -49,7 +53,7 @@ after the transition to `ARMED`.
 A command reaches the controller only when all of these are true:
 
 - robot state is `ARMED`;
-- exactly one DDS publisher exists on `/cmd_vel`;
+- exactly one DDS publisher exists on the selected command topic;
 - a command arrived within the 250 ms monotonic receive deadline;
 - all six `Twist` values are finite;
 - `linear.z`, `angular.x`, and `angular.y` are zero.
@@ -66,6 +70,21 @@ process.
 Disarmed, missing, expired, malformed, non-planar, and conflicting inputs
 produce an immediate zero command. Publisher loss also produces zero without
 waiting for a wall-clock or synchronized timestamp.
+
+## Joystick source contract
+
+Built-in joystick launches select `control_source:=joystick` and remap
+`teleop_twist_joy` to `/cmd_vel/joy`. The supervisor independently accepts that
+command only while exactly one fresh `/joy` publisher reports button index `4`
+(L1) held. R1 turbo therefore cannot bypass L1 even though the upstream teleop
+node treats its turbo button as a separate enable.
+
+Every transition into `ARMED` requires a valid L1 release followed by a new
+press. Missing, stale, malformed, or competing `/joy` state and missing, stale,
+malformed, or competing `/cmd_vel/joy` commands immediately produce zero and
+latch the same release requirement. Reconnection while L1 is held cannot resume
+motion. Application `/cmd_vel` traffic is ignored in joystick mode rather than
+being used as an automatic fallback.
 
 Common `/robot/safety_reason` values include:
 
@@ -88,6 +107,13 @@ Common `/robot/safety_reason` values include:
 | `HARDWARE_SAFETY_SOURCE_CONFLICT` | More than one hardware-state publisher was discovered |
 | `HARDWARE_SAFETY_MALFORMED` | A missing, non-finite, duplicate, or inconsistent gate interface was rejected |
 | `HARDWARE_SAFETY_FAULT` | The VMX gate reported a latched physical/drive fault |
+| `WAITING_FOR_JOYSTICK_STATE` | The selected joystick source has not reported raw state |
+| `JOYSTICK_DEADMAN_RELEASED` | L1 is released and joystick output is zero |
+| `JOYSTICK_DEADMAN_RELEASE_REQUIRED` | L1 must be released before another press can authorize commands |
+| `JOYSTICK_STATE_STALE` | Raw joystick evidence exceeded its steady-clock deadline |
+| `JOYSTICK_STATE_SOURCE_LOST` | The selected `/joy` publisher disappeared |
+| `JOYSTICK_STATE_SOURCE_CONFLICT` | More than one `/joy` publisher was discovered |
+| `JOYSTICK_STATE_MALFORMED` | The required L1 button field was absent or not binary |
 
 ## Hardware state mirror
 
@@ -142,6 +168,10 @@ process and covers boot wait, restart-while-enabled inhibition, local
 READY/ENABLED arming, pre-arm clearing, software-disarm inhibit, required local
 release, stale fault, local fault acknowledgement, malformed state, and
 competing hardware-state publishers.
+The joystick-only black-box test uses no physical controller and proves strict
+source selection, post-arm release, R1-only rejection, L1+R1 acceptance,
+immediate release stop, stale/lost source latching, reconnect inhibition,
+publisher conflict rejection, and malformed button rejection.
 
 Do not enable boot services on the physical VMX-pi until the next hardware gate
 also proves repeated cold boots with no wheel motion.

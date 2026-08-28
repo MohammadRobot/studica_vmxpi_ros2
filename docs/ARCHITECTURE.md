@@ -29,6 +29,7 @@ it commands motion only while L1 is held. Navigation and hardware keep it off.
 ```mermaid
 flowchart TD
     S[Application or Nav2 publishes /cmd_vel Twist] --> X[Safety supervisor]
+    J[Joystick publishes /cmd_vel/joy plus raw /joy] --> X
     R[/robot arm/disarm and state/] --> X
     X -->|private validated TwistStamped| C[Profile-selected ros2_control drive controller]
     C --> H{Runtime mode}
@@ -56,9 +57,12 @@ flowchart TD
 ```
 
 The safety supervisor is the only publisher on the controller's private command
-topic. It boots disarmed, converts accepted public `geometry_msgs/msg/Twist`
-commands to the stamped controller type, and rejects missing, stale, malformed,
-or conflicting inputs. The adapter no longer handles motion; in simulation and
+topic. It boots disarmed, converts accepted `geometry_msgs/msg/Twist` commands
+to the stamped controller type, and rejects missing, stale, malformed, or
+conflicting inputs. Application and joystick modes are explicitly selected and
+never fall back. Joystick mode additionally verifies a fresh raw L1 deadman and
+requires release after arm or source loss. The adapter no longer handles motion;
+in simulation and
 mock mode it republishes controller odometry directly as `/odom`. Hardware
 defaults to a VMXPi-local EKF:
 the adapter exposes raw encoder odometry as `/wheel/odom`, and the EKF combines
@@ -72,6 +76,8 @@ internal topic rules.
 | Interface | Direction from application code | Owner |
 |---|---|---|
 | `/cmd_vel` (`Twist`) | publish | safety supervisor subscription |
+| `/cmd_vel/joy` (`Twist`) | joystick converter publishes | selected joystick input |
+| `/joy` (`Joy`) | joystick driver publishes | supervisor-verified L1 and freshness evidence |
 | `/robot/state` (`String`) | subscribe | safety supervisor state heartbeat |
 | `/robot/safety_reason` (`String`) | subscribe | safety supervisor decision status |
 | `/robot/arm` (`Trigger`) | call in simulation/mock | explicit software arm; rejected on hardware |
@@ -128,7 +134,7 @@ outer envelope supplies the Nav2 footprint, while controller multipliers and
 effective wheel separation remain empirical drivetrain calibration.
 
 The retained 2WD, mecanum, and omni profiles are explicit advanced variants.
-They still use the public `/cmd_vel` and `/odom` adapter.
+They still use the application `/cmd_vel` and `/odom` adapter.
 
 ## Control and timeout
 
@@ -137,7 +143,9 @@ The drive controller owns four wheel velocity command interfaces for
 uses a steady-clock 250 ms receive deadline, publisher-loss/conflict detection,
 finite planar validation, and speed/acceleration ceilings. Rejected commands
 produce zero immediately. A separate finite 500 ms timeout remains configured
-in the controller YAML. See [Safety supervisor API](SAFETY_SUPERVISOR.md).
+in the controller YAML. Joystick mode uses a separate 250 ms raw-state deadline
+and supervisor-side L1 release latch. See
+[Safety supervisor API](SAFETY_SUPERVISOR.md).
 
 Hardware adds stricter behavior inside `VMXSystemHardware`: MCV2 firmware/PID
 probing, RPM conversion, command clamping, feedback freshness, controller
@@ -180,7 +188,8 @@ map server, AMCL, Nav2, and RViz run locally while the VMXPi retains hardware,
 sensor, fused-odometry, and TF ownership. Hardware mode disables the point cloud
 by default and overlays conservative controller, velocity-smoother, recovery,
 and AMCL settings. In either mode Nav2 publishes `/cmd_vel` only after a goal;
-joystick remains disabled to prevent competing publishers.
+joystick remains disabled because the runtime explicitly selects the application
+source for the complete launch.
 
 When enabled, the filtered `base_link` cloud marks the local Nav2 costmap and
 the raw optical cloud only ray-clears it. The global costmap remains

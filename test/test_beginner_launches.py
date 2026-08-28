@@ -102,6 +102,7 @@ class BeginnerLaunchContractTest(unittest.TestCase):
                 'arguments=["-d", rviz_config_file, "-f", "map"]',
                 'package="joy"',
                 'package="teleop_twist_joy"',
+                '("cmd_vel", "/cmd_vel/joy")',
                 '"scale_linear.x": 0.08',
                 '"scale_angular.yaw": 0.25',
                 'default_value="true"',
@@ -176,7 +177,12 @@ class BeginnerLaunchContractTest(unittest.TestCase):
         self.assertIn('package="joy"', bringup)
         self.assertIn('package="teleop_twist_joy"', bringup)
         self.assertIn('"use_joystick",', bringup)
+        self.assertIn('"control_source",', bringup)
+        self.assertIn('remappings=[("cmd_vel", "/cmd_vel/joy")]', bringup)
         self.assertIn('"input_cmd_vel_topic": "/cmd_vel"', runtime)
+        self.assertIn('"joystick_cmd_vel_topic": "/cmd_vel/joy"', runtime)
+        self.assertIn('"joystick_state_topic": "/joy"', runtime)
+        self.assertIn('LaunchConfiguration("joystick_deadman_button")', runtime)
         self.assertIn('executable="safety_supervisor_node"', runtime)
         self.assertIn('"enable_cmd_vel_bridge": False', runtime)
         self.assertIn('"state_topic": "/robot/state"', runtime)

@@ -76,7 +76,8 @@ sudo --preserve-env=ROS_DOMAIN_ID,RMW_IMPLEMENTATION,ROS_LOCALHOST_ONLY,CYCLONED
     source install/setup.bash
     exec ros2 launch studica_vmxpi_ros2 robot.launch.py \
       use_lidar:=true use_camera:=false use_point_cloud:=false \
-      use_camera_color:=false use_foxglove:=false use_joystick:=false
+      use_camera_color:=false use_foxglove:=false use_joystick:=false \
+      control_source:=joystick
   '
 ```
 
@@ -114,11 +115,12 @@ publisher of `/odom` and `odom -> base_footprint`. This is important for the
 high-grip 4WD chassis: the map no longer inherits encoder yaw caused by tire
 scrub during a turn. Straight distance still comes from the calibrated wheels.
 
-Before driving, confirm `/cmd_vel` has one external publisher and the remote
-sensor/TF graph is available:
+Before driving, confirm the selected joystick topics each have one external
+publisher and the remote sensor/TF graph is available:
 
 ```bash
-ros2 topic info /cmd_vel --verbose
+ros2 topic info /cmd_vel/joy --verbose
+ros2 topic info /joy --verbose
 ros2 topic echo /scan --once --field header
 ros2 topic echo /odom --once --field header
 ros2 topic echo /wheel/odom --once --field header
@@ -197,8 +199,9 @@ ros2 launch studica_vmxpi_ros2 navigation.launch.py
 
 This uses the bundled office map unless `map:=<MAP_YAML>` is supplied. It starts
 Nav2, the depth-camera obstacle pipeline, and RViz. Joystick teleoperation stays
-off by default. Do not enable it while Nav2 is controlling `/cmd_vel` unless a
-command mux is added.
+off because the runtime explicitly selects the application `/cmd_vel` source.
+The current source selection is immutable; stop navigation and relaunch in
+joystick mode instead of attempting to switch while armed.
 
 Perception ownership is deliberate:
 

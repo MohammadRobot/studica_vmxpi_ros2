@@ -163,7 +163,7 @@ def generate_launch_description():
                 "scale_angular_turbo.yaw": 0.40,
             },
         ],
-        remappings=[("cmd_vel", "/cmd_vel")],
+        remappings=[("cmd_vel", "/cmd_vel/joy")],
         condition=IfCondition(use_joystick),
     )
     hardware_client = GroupAction(

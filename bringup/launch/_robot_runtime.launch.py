@@ -124,6 +124,16 @@ def generate_launch_description():
             "Robot profile under config/profiles (class_4wd is the teaching default).",
         ),
         _declare_arg(
+            "control_source",
+            "application",
+            "Selected safety-supervisor source: application or joystick.",
+        ),
+        _declare_arg(
+            "joystick_deadman_button",
+            "4",
+            "Raw /joy button index required by the safety supervisor.",
+        ),
+        _declare_arg(
             "world",
             PathJoinSubstitution(
                 [FindPackageShare("studica_vmxpi_ros2"), "description/gz/worlds", "diff_drive_world.sdf"]
@@ -421,7 +431,13 @@ def generate_launch_description():
                 "allow_software_arm": ParameterValue(
                     PythonExpression(_expr_is_false(use_hardware)), value_type=bool
                 ),
+                "control_source": LaunchConfiguration("control_source"),
                 "input_cmd_vel_topic": "/cmd_vel",
+                "joystick_cmd_vel_topic": "/cmd_vel/joy",
+                "joystick_state_topic": "/joy",
+                "joystick_deadman_button": ParameterValue(
+                    LaunchConfiguration("joystick_deadman_button"), value_type=int
+                ),
                 "output_cmd_vel_topic": drive_cmd_topic,
                 "state_topic": "/robot/state",
                 "safety_reason_topic": "/robot/safety_reason",

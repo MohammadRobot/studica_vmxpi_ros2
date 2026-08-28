@@ -235,12 +235,22 @@ def main():
         )
         spin_until(
             node,
+            lambda: node.count_publishers("/dynamic_joint_states") == 2,
+            3.0,
+        )
+        spin_until(
+            node,
             lambda: node.state == "FAULT"
             and node.reason == "HARDWARE_SAFETY_SOURCE_CONFLICT",
             2.0,
             lambda: competing_publisher.publish(ready),
         )
         node.destroy_publisher(competing_publisher)
+        spin_until(
+            node,
+            lambda: node.count_publishers("/dynamic_joint_states") == 1,
+            5.0,
+        )
         spin_until(
             node,
             lambda: node.state == "READY_DISARMED",

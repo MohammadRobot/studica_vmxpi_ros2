@@ -36,7 +36,8 @@ source "$STUDICA_WS/install/setup.bash"
 ros2 node list
 ros2 topic list -t
 ros2 topic info /odom --verbose
-ros2 topic info /cmd_vel --verbose
+ros2 topic info /cmd_vel/joy --verbose
+ros2 topic info /joy --verbose
 ```
 
 ### Terminal 3 — visualize and sample
@@ -58,17 +59,20 @@ ros2 topic echo /odom --once
 ## Expected output
 
 - Gazebo shows the `class_4wd` robot in the maze and RViz displays the model.
-- `/cmd_vel`, `/odom`, `/imu`, `/scan`, and `/joint_states` are listed.
+- `/cmd_vel/joy`, `/joy`, `/odom`, `/imu`, `/scan`, and `/joint_states` are listed.
 - `/odom` has type `nav_msgs/msg/Odometry` and a publisher.
-- `/cmd_vel` has type `geometry_msgs/msg/Twist`; the deadman teleop node is its
-  publisher and the robot adapter is its subscriber.
+- `/cmd_vel/joy` has type `geometry_msgs/msg/Twist`; the deadman teleop node is
+  its publisher and the safety supervisor is its subscriber.
+- `/joy` connects the joystick driver to both the converter and the supervisor's
+  independent L1 check.
 - One odometry message contains `pose` and `twist` sections.
 
 ## Checkpoint
 
 Draw three boxes representing a command source, the robot controller, and
-odometry output. Add `/cmd_vel` and `/odom` arrows with message types. Mark which
-node publishes and which subscribes using the verbose topic output—not guesses.
+odometry output. Add `/joy`, `/cmd_vel/joy`, and `/odom` arrows with message
+types. Mark which node publishes and which subscribes using the verbose topic
+output—not guesses.
 
 ## Cleanup
 

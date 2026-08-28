@@ -115,7 +115,8 @@ Before hardware motion:
 - clear the work area and keep the physical emergency stop reachable;
 - confirm the VMXPi and PC use matching Cyclone DDS domain and peer profiles;
 - stop previous simulation, mapping, navigation, and teleoperation processes;
-- keep only one external `/cmd_vel` publisher.
+- keep only one publisher on the selected command topic and, for joystick mode,
+  exactly one `/joy` publisher.
 
 Generate the Wi-Fi or Ethernet profiles once by following
 [Networking and Cyclone DDS](NETWORKING.md). The commands below assume the

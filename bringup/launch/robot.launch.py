@@ -30,6 +30,8 @@ def generate_launch_description():
     use_point_cloud_filter = LaunchConfiguration("use_point_cloud_filter")
     use_foxglove = LaunchConfiguration("use_foxglove")
     use_joystick = LaunchConfiguration("use_joystick")
+    control_source = LaunchConfiguration("control_source")
+    joystick_deadman_button = LaunchConfiguration("joystick_deadman_button")
     use_imu_odometry = LaunchConfiguration("use_imu_odometry")
     hardware_control_rate_hz = LaunchConfiguration("hardware_control_rate_hz")
 
@@ -86,6 +88,19 @@ def generate_launch_description():
             description="Start joystick teleop only when the controller is attached to the VMXPi.",
         ),
         DeclareLaunchArgument(
+            "control_source",
+            default_value="",
+            description=(
+                "Select application or joystick commands; empty selects joystick only "
+                "when use_joystick is true."
+            ),
+        ),
+        DeclareLaunchArgument(
+            "joystick_deadman_button",
+            default_value="4",
+            description="Raw /joy deadman index; must match the joystick teleop mapping.",
+        ),
+        DeclareLaunchArgument(
             "hardware_control_rate_hz",
             default_value="25",
             description="ros2_control update and odometry publication rate in hardware mode.",
@@ -129,6 +144,8 @@ def generate_launch_description():
             "use_monitoring": "true",
             "use_foxglove": use_foxglove,
             "use_joystick": use_joystick,
+            "control_source": control_source,
+            "joystick_deadman_button": joystick_deadman_button,
             "hardware_control_rate_hz": hardware_control_rate_hz,
             "use_imu_odometry": use_imu_odometry,
             "foxglove_address": foxglove_address,

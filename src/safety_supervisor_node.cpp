@@ -3,6 +3,7 @@
 
 #include <chrono>
 #include <cmath>
+#include <cstdint>
 #include <functional>
 #include <memory>
 #include <mutex>
@@ -15,6 +16,7 @@
 #include "geometry_msgs/msg/twist_stamped.hpp"
 #include "rcl_interfaces/msg/set_parameters_result.hpp"
 #include "rclcpp/rclcpp.hpp"
+#include "sensor_msgs/msg/joy.hpp"
 #include "std_msgs/msg/string.hpp"
 #include "std_srvs/srv/trigger.hpp"
 #include "studica_vmxpi_ros2/safety_supervisor.hpp"
@@ -28,6 +30,15 @@ public:
   : Node("safety_supervisor"), last_publish_time_(SteadyClock::now())
   {
     input_topic_ = this->declare_parameter<std::string>("input_cmd_vel_topic", "/cmd_vel");
+    control_source_ = this->declare_parameter<std::string>("control_source", "application");
+    joystick_input_topic_ = this->declare_parameter<std::string>(
+      "joystick_cmd_vel_topic", "/cmd_vel/joy");
+    joystick_state_topic_ = this->declare_parameter<std::string>(
+      "joystick_state_topic", "/joy");
+    joystick_deadman_button_ = this->declare_parameter<int64_t>(
+      "joystick_deadman_button", 4);
+    joystick_state_timeout_ = this->declare_parameter<double>(
+      "joystick_state_timeout_sec", 0.25);
     output_topic_ = this->declare_parameter<std::string>(
       "output_cmd_vel_topic", "/robot_base_controller/cmd_vel");
     state_topic_ = this->declare_parameter<std::string>("state_topic", "/robot/state");
@@ -48,6 +59,8 @@ public:
     max_angular_acceleration_ = this->declare_parameter<double>(
       "max_angular_acceleration", 3.0);
     validateParameters();
+    joystick_source_ = control_source_ == "joystick";
+    active_input_topic_ = joystick_source_ ? joystick_input_topic_ : input_topic_;
     hardware_disarm_inhibit_ = hardware_mode_;
     parameter_callback_ = this->add_on_set_parameters_callback(
       [](const std::vector<rclcpp::Parameter> & /* parameters */) {
@@ -63,8 +76,14 @@ public:
     command_publisher_ = this->create_publisher<geometry_msgs::msg::TwistStamped>(
       output_topic_, rclcpp::QoS(rclcpp::KeepLast(1)).reliable());
     command_subscription_ = this->create_subscription<geometry_msgs::msg::Twist>(
-      input_topic_, rclcpp::QoS(rclcpp::KeepLast(1)).reliable(),
+      active_input_topic_, rclcpp::QoS(rclcpp::KeepLast(1)).reliable(),
       std::bind(&SafetySupervisorNode::commandCallback, this, std::placeholders::_1));
+    if (joystick_source_) {
+      joystick_state_subscription_ = this->create_subscription<sensor_msgs::msg::Joy>(
+        joystick_state_topic_, rclcpp::QoS(rclcpp::KeepLast(1)).reliable(),
+        std::bind(
+          &SafetySupervisorNode::joystickStateCallback, this, std::placeholders::_1));
+    }
     if (hardware_mode_) {
       hardware_state_subscription_ =
         this->create_subscription<control_msgs::msg::DynamicJointState>(
@@ -103,8 +122,9 @@ public:
 
     RCLCPP_INFO(
       this->get_logger(),
-      "%s. Input %s; sole controller output %s; software arm %s%s",
-      boot_reason.c_str(), input_topic_.c_str(), output_topic_.c_str(),
+      "%s. %s input %s; sole controller output %s; software arm %s%s",
+      boot_reason.c_str(), control_source_.c_str(), active_input_topic_.c_str(),
+      output_topic_.c_str(),
       allow_software_arm_ ? "enabled" : "disabled",
       hardware_mode_ ? " (hardware mode)" : "");
   }
@@ -120,22 +140,30 @@ private:
   void validateParameters() const
   {
     const bool topics_valid = !input_topic_.empty() && !output_topic_.empty() &&
+      !joystick_input_topic_.empty() && !joystick_state_topic_.empty() &&
       !state_topic_.empty() && !reason_topic_.empty() && !frame_id_.empty();
     const bool rates_valid = std::isfinite(command_timeout_) && command_timeout_ > 0.0 &&
       command_timeout_ <= 0.5 && std::isfinite(publish_rate_) && publish_rate_ >= 10.0 &&
       publish_rate_ <= 200.0 && std::isfinite(hardware_state_timeout_) &&
-      hardware_state_timeout_ >= 0.1 && hardware_state_timeout_ <= 2.0;
+      hardware_state_timeout_ >= 0.1 && hardware_state_timeout_ <= 2.0 &&
+      std::isfinite(joystick_state_timeout_) && joystick_state_timeout_ >= 0.1 &&
+      joystick_state_timeout_ <= 0.5;
     const bool limits_valid = std::isfinite(limits_.max_linear_x) &&
       limits_.max_linear_x > 0.0 && std::isfinite(limits_.max_linear_y) &&
       limits_.max_linear_y > 0.0 && std::isfinite(limits_.max_angular_z) &&
       limits_.max_angular_z > 0.0 && std::isfinite(max_linear_acceleration_) &&
       max_linear_acceleration_ > 0.0 && std::isfinite(max_angular_acceleration_) &&
       max_angular_acceleration_ > 0.0;
-    if (!topics_valid || !rates_valid || !limits_valid) {
+    const bool source_valid = control_source_ == "application" || control_source_ == "joystick";
+    const bool deadman_valid = joystick_deadman_button_ >= 0 && joystick_deadman_button_ <= 31;
+    if (!topics_valid || !rates_valid || !limits_valid || !source_valid || !deadman_valid) {
       throw std::invalid_argument(
-              "Safety supervisor topics must be non-empty; command_timeout_sec must be in "
+              "Safety supervisor topics must be non-empty; control_source must be application "
+              "or joystick; joystick_deadman_button must be in [0, 31]; command_timeout_sec "
+              "must be in "
               "(0, 0.5], publish_rate_hz in [10, 200], hardware_state_timeout_sec must be "
-              "in [0.1, 2.0], and limits must be positive");
+              "in [0.1, 2.0], joystick_state_timeout_sec must be in [0.1, 0.5], and limits "
+              "must be positive");
     }
     if (hardware_mode_ && allow_software_arm_) {
       throw std::invalid_argument("Software arming is forbidden in hardware mode");
@@ -192,19 +220,118 @@ private:
     publishZero();
   }
 
+  void publishCommandReason(const std::string & reason)
+  {
+    if (!hardware_mode_ || state_machine_.state() == safety::RobotState::ARMED) {
+      publishReason(reason);
+    }
+  }
+
+  void resetJoystickForArm()
+  {
+    if (joystick_source_) {
+      joystick_deadman_gate_.require_release();
+      has_command_ = false;
+      last_command_ = {};
+    }
+  }
+
+  void stopJoystick(const std::string & reason)
+  {
+    joystick_deadman_gate_.invalidate();
+    clearCommandAndStop();
+    publishCommandReason(reason);
+  }
+
+  bool joystickEligible(SteadyClock::time_point now)
+  {
+    const std::size_t publisher_count = this->count_publishers(joystick_state_topic_);
+    if (publisher_count != 1U) {
+      stopJoystick(
+        publisher_count == 0U ?
+        "JOYSTICK_STATE_SOURCE_LOST" : "JOYSTICK_STATE_SOURCE_CONFLICT");
+      return false;
+    }
+    if (!joystick_status_received_) {
+      const double startup_age = std::chrono::duration<double>(now - node_started_at_).count();
+      if (startup_age > joystick_state_timeout_) {
+        stopJoystick("JOYSTICK_STATE_STARTUP_TIMEOUT");
+      } else {
+        clearCommandAndStop();
+        publishCommandReason("WAITING_FOR_JOYSTICK_STATE");
+      }
+      return false;
+    }
+    const double state_age =
+      std::chrono::duration<double>(now - last_joystick_status_time_).count();
+    if (state_age > joystick_state_timeout_) {
+      stopJoystick("JOYSTICK_STATE_STALE");
+      return false;
+    }
+    if (!joystick_deadman_gate_.active()) {
+      clearCommandAndStop();
+      return false;
+    }
+    return true;
+  }
+
   void commandCallback(const geometry_msgs::msg::Twist::ConstSharedPtr message)
   {
     std::lock_guard<std::mutex> lock(mutex_);
+    const auto now = SteadyClock::now();
+    if (joystick_source_ && !joystickEligible(now)) {
+      return;
+    }
     last_command_ = fromMessage(*message);
-    received_at_ = SteadyClock::now();
+    received_at_ = now;
     has_command_ = true;
     evaluateAndPublish(received_at_);
+  }
+
+  void joystickStateCallback(const sensor_msgs::msg::Joy::ConstSharedPtr message)
+  {
+    std::lock_guard<std::mutex> lock(mutex_);
+    const auto received = SteadyClock::now();
+    joystick_status_received_ = true;
+    last_joystick_status_time_ = received;
+
+    const std::size_t publisher_count = this->count_publishers(joystick_state_topic_);
+    if (publisher_count != 1U) {
+      stopJoystick(
+        publisher_count == 0U ?
+        "JOYSTICK_STATE_SOURCE_LOST" : "JOYSTICK_STATE_SOURCE_CONFLICT");
+      return;
+    }
+
+    const std::size_t button_index = static_cast<std::size_t>(joystick_deadman_button_);
+    const bool button_present = button_index < message->buttons.size();
+    const bool button_valid = button_present &&
+      (message->buttons[button_index] == 0 || message->buttons[button_index] == 1);
+    const bool was_active = joystick_deadman_gate_.active();
+    const auto result = joystick_deadman_gate_.update(
+      button_valid, button_valid && message->buttons[button_index] == 1);
+    if (!result.active) {
+      clearCommandAndStop();
+      if (result.decision == safety::JoystickDeadmanDecision::INVALID) {
+        publishCommandReason("JOYSTICK_STATE_MALFORMED");
+      } else if (result.decision == safety::JoystickDeadmanDecision::RELEASE_REQUIRED) {
+        publishCommandReason("JOYSTICK_DEADMAN_RELEASE_REQUIRED");
+      } else {
+        publishCommandReason("JOYSTICK_DEADMAN_RELEASED");
+      }
+      return;
+    }
+    if (!was_active) {
+      clearCommandAndStop();
+      publishCommandReason("JOYSTICK_DEADMAN_ACTIVE_WAITING_FOR_COMMAND");
+    }
   }
 
   void latchHardwareFault(const std::string & reason)
   {
     const bool state_changed = state_machine_.state() != safety::RobotState::FAULT;
     state_machine_.latch_fault();
+    resetJoystickForArm();
     if (state_changed) {
       clearCommandAndStop();
       publishState();
@@ -235,6 +362,7 @@ private:
       hardware_disarm_inhibit_ = false;
       if (current_state == safety::RobotState::ARMED) {
         state_machine_.disarm();
+        resetJoystickForArm();
         clearCommandAndStop();
         publishState();
       } else if (
@@ -267,6 +395,9 @@ private:
       const safety::ArmConditions conditions{
         status.motion_enabled, status.drive_healthy, status.estop_ok, true};
       const auto armed = state_machine_.arm(conditions);
+      if (armed.accepted) {
+        resetJoystickForArm();
+      }
       clearCommandAndStop();
       publishState();
       publishReason(
@@ -332,7 +463,9 @@ private:
           "HARDWARE_SAFETY_STALE" : "HARDWARE_SAFETY_STARTUP_TIMEOUT");
       }
     }
-    evaluateAndPublish(now);
+    if (!joystick_source_ || joystickEligible(now)) {
+      evaluateAndPublish(now);
+    }
     if (std::chrono::duration<double>(now - last_state_publish_time_).count() >= 1.0) {
       publishState();
       last_state_publish_time_ = now;
@@ -341,9 +474,26 @@ private:
 
   void evaluateAndPublish(SteadyClock::time_point now)
   {
+    const std::size_t publisher_count = this->count_publishers(active_input_topic_);
+    if (joystick_source_ && joystick_deadman_gate_.active() && publisher_count != 1U) {
+      stopJoystick(
+        publisher_count == 0U ?
+        "COMMAND_SOURCE_LOST" : "COMMAND_SOURCE_CONFLICT");
+      return;
+    }
     const auto evaluation = safety::evaluate(
       state_machine_.state(), last_command_, has_command_, steadySeconds(received_at_),
-      steadySeconds(now), this->count_publishers(input_topic_), command_timeout_, limits_);
+      steadySeconds(now), publisher_count, command_timeout_, limits_);
+    if (
+      joystick_source_ &&
+      (evaluation.decision == safety::CommandDecision::STALE ||
+      evaluation.decision == safety::CommandDecision::INVALID_TIME ||
+      evaluation.decision == safety::CommandDecision::NONFINITE ||
+      evaluation.decision == safety::CommandDecision::UNSUPPORTED_3D))
+    {
+      stopJoystick(safety::decision_name(evaluation.decision));
+      return;
+    }
     safety::Command output;
     if (evaluation.decision == safety::CommandDecision::ACCEPTED) {
       const double elapsed = std::chrono::duration<double>(now - last_publish_time_).count();
@@ -354,9 +504,7 @@ private:
     last_output_ = output;
     last_publish_time_ = now;
     command_publisher_->publish(toMessage(output));
-    if (!hardware_mode_ || state_machine_.state() == safety::RobotState::ARMED) {
-      publishReason(safety::decision_name(evaluation.decision));
-    }
+    publishCommandReason(safety::decision_name(evaluation.decision));
   }
 
   void armCallback(
@@ -374,6 +522,9 @@ private:
     }
     const safety::ArmConditions conditions{true, true, true, true};
     const auto result = state_machine_.arm(conditions);
+    if (result.accepted) {
+      resetJoystickForArm();
+    }
     clearCommandAndStop();
     publishState();
     publishReason(result.accepted ? "ARMED_WAITING_FOR_COMMAND" : "ARM_REJECTED");
@@ -390,6 +541,7 @@ private:
       hardware_disarm_inhibit_ = true;
     }
     const auto result = state_machine_.disarm();
+    resetJoystickForArm();
     clearCommandAndStop();
     publishState();
     publishReason(
@@ -401,13 +553,20 @@ private:
   }
 
   std::string input_topic_;
+  std::string control_source_;
+  std::string active_input_topic_;
+  std::string joystick_input_topic_;
+  std::string joystick_state_topic_;
   std::string output_topic_;
   std::string state_topic_;
   std::string reason_topic_;
   std::string frame_id_;
   bool hardware_mode_{false};
   bool allow_software_arm_{false};
+  bool joystick_source_{false};
+  int64_t joystick_deadman_button_{4};
   double command_timeout_{0.25};
+  double joystick_state_timeout_{0.25};
   double hardware_state_timeout_{0.5};
   double publish_rate_{50.0};
   safety::Limits limits_{};
@@ -416,19 +575,23 @@ private:
 
   std::mutex mutex_;
   safety::RobotStateMachine state_machine_;
+  safety::JoystickDeadmanGate joystick_deadman_gate_;
   safety::Command last_command_{};
   safety::Command last_output_{};
   bool has_command_{false};
   bool hardware_status_received_{false};
+  bool joystick_status_received_{false};
   bool hardware_disarm_inhibit_{false};
   SteadyClock::time_point received_at_{};
   SteadyClock::time_point node_started_at_{SteadyClock::now()};
   SteadyClock::time_point last_hardware_status_time_{};
+  SteadyClock::time_point last_joystick_status_time_{};
   SteadyClock::time_point last_publish_time_;
   SteadyClock::time_point last_state_publish_time_{SteadyClock::now()};
   std::string last_reason_;
 
   rclcpp::Subscription<geometry_msgs::msg::Twist>::SharedPtr command_subscription_;
+  rclcpp::Subscription<sensor_msgs::msg::Joy>::SharedPtr joystick_state_subscription_;
   rclcpp::Subscription<control_msgs::msg::DynamicJointState>::SharedPtr
     hardware_state_subscription_;
   rclcpp::Publisher<geometry_msgs::msg::TwistStamped>::SharedPtr command_publisher_;

@@ -73,10 +73,12 @@ relaunch without the override to use the default joystick. Follow
 1. verify that Linux created `/dev/input/js0`;
 2. prove the stick values change on `/joy`;
 3. confirm the launch started `teleop_twist_joy` with the L1 deadman;
-4. publish the same `geometry_msgs/msg/Twist` contract on `/cmd_vel`.
+4. publish the same `geometry_msgs/msg/Twist` contract on `/cmd_vel/joy`.
 
-Keep Terminal 2 open. It should show the same message type whether commands come
-from the keyboard or joystick. Do not run both teleop programs at once.
+Restart Terminal 2 with `ros2 topic echo /cmd_vel/joy`. The message fields and
+units match the application `/cmd_vel` contract, but the separate topic lets the
+supervisor verify raw `/joy` state and prevents source fallback. Do not run both
+teleop programs at once.
 
 ## Expected output
 

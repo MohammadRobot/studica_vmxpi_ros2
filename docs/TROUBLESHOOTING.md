@@ -262,19 +262,20 @@ configured local VoxelLayer or ObstacleLayer for the overlay to target. Use
 
 ## The simulated robot does not move
 
-Verify the controller and public command topic:
+Verify the controller and selected command topic:
 
 ```bash
 ros2 control list_controllers
-ros2 topic info /cmd_vel --verbose
-ros2 topic echo /cmd_vel
+ros2 topic info /cmd_vel/joy --verbose
+ros2 topic echo /cmd_vel/joy
 ```
 
-The base controller should be `active`; `/cmd_vel` should receive
+The base controller should be `active`; `/cmd_vel/joy` should receive
 `geometry_msgs/msg/Twist`. `sim.launch.py` and `mapping.launch.py` start the
 deadman-protected joystick nodes by default; hold L1 while moving a stick. For
 keyboard control, relaunch with `use_joystick:=false` so only one teleop source
-owns `/cmd_vel`. Do not publish to controller-internal stamped topics.
+owns the application `/cmd_vel`. Do not publish to controller-internal stamped
+topics.
 
 One command is intentionally temporary because the controller timeout stops the
 robot. A continuous teleop or navigation node must publish repeatedly.
@@ -284,16 +285,16 @@ For joystick control, check the signal in order:
 ```bash
 ls -l /dev/input/js*
 ros2 topic echo /joy --field axes
-ros2 topic echo /cmd_vel
-ros2 topic info /cmd_vel --verbose
+ros2 topic echo /cmd_vel/joy
+ros2 topic info /cmd_vel/joy --verbose
 ```
 
 If `/joy` repeats neutral values while the sticks move, stop and restart
 `joy_node`; a Bluetooth reconnect can leave it attached to the previous device
-handle. If `/joy` changes but `/cmd_vel` stays zero, hold the configured deadman
-button and verify the axis/button indexes. Stop keyboard teleop and other
-external motion publishers during the joystick test. Follow the complete
-[Joystick teleoperation](JOYSTICK.md) guide.
+handle. If `/joy` changes but `/cmd_vel/joy` stays zero, release L1 once, press
+it again, and verify the axis/button indexes. Stop other joystick publishers
+during the test. Follow the complete [Joystick teleoperation](JOYSTICK.md)
+guide.
 
 ## RViz shows a TF error
 

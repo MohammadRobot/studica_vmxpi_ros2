@@ -364,11 +364,13 @@ If the VMXPi firewall is active, allow TCP `8765` only from `<PC_IP>`.
 
 ## Supervised remote driving
 
-Native DDS is required when the PC publishes `/cmd_vel`. Before starting any
-teleop node, confirm:
+Native DDS is required for the current developer-mode command paths. An
+application publishes `/cmd_vel`; PC-side joystick mode publishes both
+`/cmd_vel/joy` and `/joy` and requires `robot.launch.py
+control_source:=joystick`. Before starting either path, confirm:
 
 ```bash
-ros2 topic type /cmd_vel
+ros2 topic list -t | grep -E '/cmd_vel|/joy'
 ros2 topic hz /odom
 ros2 run studica_robot_monitor robot_check --mode hardware
 ```

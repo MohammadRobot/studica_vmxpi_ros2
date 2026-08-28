@@ -65,10 +65,14 @@ def _runtime_actions(context, *args, **kwargs):
     use_monitoring = LaunchConfiguration("use_monitoring").perform(context).strip()
     use_foxglove = LaunchConfiguration("use_foxglove").perform(context).strip()
     use_joystick = LaunchConfiguration("use_joystick").perform(context).strip()
+    control_source = LaunchConfiguration("control_source").perform(context).strip().lower()
     hardware_control_rate_hz = LaunchConfiguration("hardware_control_rate_hz").perform(
         context
     ).strip()
     joystick_config_file = LaunchConfiguration("joystick_config_file").perform(
+        context
+    ).strip()
+    joystick_deadman_button = LaunchConfiguration("joystick_deadman_button").perform(
         context
     ).strip()
     foxglove_address = LaunchConfiguration("foxglove_address").perform(context).strip()
@@ -171,6 +175,16 @@ def _runtime_actions(context, *args, **kwargs):
     if not use_imu_odometry:
         use_imu_odometry = "true" if mode == "hardware" else "false"
 
+    joystick_enabled = use_joystick.lower() == "true"
+    if not control_source:
+        control_source = "joystick" if joystick_enabled else "application"
+    if control_source not in ("application", "joystick"):
+        raise RuntimeError("Invalid control_source. Use application or joystick.")
+    if joystick_enabled and control_source != "joystick":
+        raise RuntimeError(
+            "use_joystick:=true requires control_source:=joystick so teleop cannot be ignored."
+        )
+
     if mode not in ("gz_sim", "hardware", "mock"):
         raise RuntimeError("Invalid mode. Use one of: gz_sim, hardware, mock.")
 
@@ -238,6 +252,8 @@ def _runtime_actions(context, *args, **kwargs):
         "drive_odom_topic": drive_odom_topic,
         "rviz_config_file": rviz_config_file,
         "robot_profile": robot_profile,
+        "control_source": control_source,
+        "joystick_deadman_button": joystick_deadman_button,
     }
 
     robot_runtime = IncludeLaunchDescription(
@@ -260,7 +276,7 @@ def _runtime_actions(context, *args, **kwargs):
         name="teleop_twist_joy_node",
         output="screen",
         parameters=[joystick_config_file],
-        remappings=[("cmd_vel", "/cmd_vel")],
+        remappings=[("cmd_vel", "/cmd_vel/joy")],
         condition=IfCondition(use_joystick),
     )
 
@@ -431,11 +447,21 @@ def generate_launch_description():
                 "Start joy_node and deadman-protected DualShock teleoperation.",
             ),
             _declare_arg(
+                "control_source",
+                "",
+                "Selected command source: application or joystick; empty follows use_joystick.",
+            ),
+            _declare_arg(
                 "joystick_config_file",
                 PathJoinSubstitution(
                     [FindPackageShare("studica_vmxpi_ros2"), "config", "dualshock4_teleop.yaml"]
                 ),
                 "Joystick and teleop_twist_joy parameter file.",
+            ),
+            _declare_arg(
+                "joystick_deadman_button",
+                "4",
+                "Raw /joy button index independently required by the safety supervisor.",
             ),
             _declare_arg(
                 "foxglove_address",

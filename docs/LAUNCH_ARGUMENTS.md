@@ -163,6 +163,8 @@ ros2 launch studica_vmxpi_ros2 robot.launch.py [arguments]
 | `use_point_cloud_filter` | `false` | Also publish the floor/body-filtered cloud when raw points are enabled |
 | `use_foxglove` | `true` | Start the read-only Foxglove bridge |
 | `use_joystick` | `false` | Start joystick teleop on the VMXPi |
+| `control_source` | follows `use_joystick` | Select `application` (`/cmd_vel`) or `joystick` (`/cmd_vel/joy` plus `/joy`) |
+| `joystick_deadman_button` | `4` | Raw `/joy` button index independently required by the supervisor |
 | `hardware_control_rate_hz` | `25` | Set the hardware control and odometry rate |
 | `use_imu_odometry` | `true` | Fuse encoder forward velocity with IMU yaw and own odometry TF |
 | `foxglove_address` | `127.0.0.1` | Bind address for Foxglove Bridge |
@@ -171,6 +173,11 @@ ros2 launch studica_vmxpi_ros2 robot.launch.py [arguments]
 Hardware launch requires the supervised procedure, root HAL permissions, a
 clear work area, and an emergency stop. Follow [Supervised hardware](HARDWARE.md)
 instead of running this table as an unsupervised checklist.
+
+For PC-side Bluetooth mapping, start the VMXPi runtime with
+`control_source:=joystick` before starting `mapping.launch.py mode:=hardware`.
+The source is immutable for that launch and never falls back to application
+commands.
 
 The physical point-cloud profile is deliberately depth-only and low-rate. Run
 this launch through the preserved-env root wrapper in
@@ -344,5 +351,6 @@ Publishing a duplicate transform is an error.
 - Boolean values should be `true` or `false`.
 - Quote paths containing spaces and use absolute paths for external YAML/SDF.
 - Source the workspace again after rebuilding a copied install.
-- Do not enable joystick and Nav2 or another `/cmd_vel` publisher together
+- Do not start joystick mode and Nav2 or another application command publisher
+  together; source selection is immutable for the launch
   without an explicit command multiplexer.

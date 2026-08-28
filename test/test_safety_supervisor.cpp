@@ -121,6 +121,30 @@ TEST(SafetyCommand, ClampsSpeedAndLimitsAcceleration)
   EXPECT_NEAR(limited.angular_z, 0.2, 1e-9);
 }
 
+TEST(JoystickDeadmanGate, RequiresReleaseAfterArmAndInvalidState)
+{
+  safety::JoystickDeadmanGate deadman;
+  EXPECT_EQ(
+    deadman.update(true, true).decision,
+    safety::JoystickDeadmanDecision::RELEASE_REQUIRED);
+  EXPECT_FALSE(deadman.active());
+
+  EXPECT_EQ(
+    deadman.update(true, false).decision,
+    safety::JoystickDeadmanDecision::RELEASED);
+  EXPECT_TRUE(deadman.update(true, true).active);
+  EXPECT_TRUE(deadman.active());
+
+  deadman.require_release();
+  EXPECT_FALSE(deadman.update(true, true).active);
+  EXPECT_FALSE(deadman.update(false, false).active);
+  EXPECT_EQ(
+    deadman.update(true, true).decision,
+    safety::JoystickDeadmanDecision::RELEASE_REQUIRED);
+  EXPECT_FALSE(deadman.update(true, false).active);
+  EXPECT_TRUE(deadman.update(true, true).active);
+}
+
 TEST(HardwareSafetyDecode, AcceptsConsistentReadyEnabledAndFaultStates)
 {
   auto ready = safety::decode_hardware_safety(

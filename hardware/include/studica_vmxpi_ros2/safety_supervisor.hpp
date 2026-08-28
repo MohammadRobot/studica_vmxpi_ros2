@@ -84,6 +84,56 @@ struct HardwareSafetyStatus
   HardwareFaultReason fault_reason{HardwareFaultReason::INPUT_INVALID};
 };
 
+enum class JoystickDeadmanDecision
+{
+  ACTIVE,
+  RELEASED,
+  RELEASE_REQUIRED,
+  INVALID,
+};
+
+struct JoystickDeadmanResult
+{
+  bool active{false};
+  JoystickDeadmanDecision decision{JoystickDeadmanDecision::RELEASE_REQUIRED};
+};
+
+class JoystickDeadmanGate
+{
+public:
+  JoystickDeadmanResult update(bool sample_valid, bool pressed) noexcept
+  {
+    if (!sample_valid) {
+      invalidate();
+      return {false, JoystickDeadmanDecision::INVALID};
+    }
+    if (!pressed) {
+      release_required_ = false;
+      active_ = false;
+      return {false, JoystickDeadmanDecision::RELEASED};
+    }
+    if (release_required_) {
+      active_ = false;
+      return {false, JoystickDeadmanDecision::RELEASE_REQUIRED};
+    }
+    active_ = true;
+    return {true, JoystickDeadmanDecision::ACTIVE};
+  }
+
+  void require_release() noexcept
+  {
+    release_required_ = true;
+    active_ = false;
+  }
+
+  void invalidate() noexcept {require_release();}
+  bool active() const noexcept {return active_;}
+
+private:
+  bool release_required_{true};
+  bool active_{false};
+};
+
 inline HardwareSafetyStatus decode_hardware_safety(
   const std::vector<std::string> & names,
   const std::vector<double> & values)

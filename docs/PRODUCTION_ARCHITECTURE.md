@@ -22,11 +22,13 @@ acceptance. See [Physical hardware safety gate](HARDWARE_SAFETY_GATE.md).
 
 The hardware-only monitor publishes a fail-closed
 `Robot/Control/HardwareSafety` diagnostic from the exported state. The
-supervisor now mirrors fresh, single-source hardware state into boot, arm,
+supervisor mirrors fresh, single-source hardware state into boot, arm,
 disarm-inhibit, fault, and local-acknowledgement transitions while the VMX write
-gate remains the authority. Source-specific joystick/Nav2/remote arbitration,
-authenticated leases, systemd activation, and atomic updates remain gated
-future work. This revision is not deployed to the physical VMX-pi.
+gate remains the authority. Phase 3A separates joystick commands, verifies its
+raw L1 deadman in the supervisor, and prevents fallback or reconnect-while-held
+motion. Nav2 selection, authenticated remote leases, systemd activation, and
+atomic updates remain gated future work. This revision is not deployed to the
+physical VMX-pi.
 
 ## Safety invariants
 
@@ -63,16 +65,18 @@ local application input. Other producers use distinct inputs:
 
 | Source | Proposed input | Required guard |
 |---|---|---|
-| Local application | `/cmd_vel` | One application publisher and receive timeout |
-| Bluetooth joystick | `/cmd_vel/joy` | Held deadman button and hot-plug detection |
+| Local application | `/cmd_vel` | Explicit `application` selection, one publisher, and receive timeout |
+| Bluetooth joystick | `/cmd_vel/joy` plus `/joy` | Explicit `joystick` selection, verified L1, freshness, and release latch |
 | Nav2 | `/cmd_vel/nav` | Active autonomous mode and cancellable goal |
 | Remote PC | `/cmd_vel/remote` | Authenticated operator lease and stamped command |
 
-The supervisor publishes a private, stamped controller command. It applies
-source priority, a monotonic receive deadline, speed and acceleration limits,
-robot state, fault locks, and an operator lease. Local deadman teleoperation
-normally pre-empts navigation and remote control. Only the supervisor may be a
-publisher on the controller command topic.
+The supervisor publishes a private, stamped controller command. The implemented
+application and joystick modes use explicit immutable selection and never fall
+back automatically. It applies a monotonic receive deadline, speed and
+acceleration limits, robot state, and fault locks. Later multi-source operation
+must add disarmed mode changes and an authenticated operator lease rather than
+silent priority switching. Only the supervisor may publish on the controller
+command topic.
 
 Remote commands must carry a source timestamp, sequence number, and lease ID.
 The gateway rejects replay, clock-invalid, out-of-order, and expired commands
