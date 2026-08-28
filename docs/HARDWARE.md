@@ -9,9 +9,11 @@ startup, navigation startup, or ordinary package tests.
 
 > **Current production phase:** the supervisor rejects network/software arm
 > requests, and the VMX/Titan plugin now enforces the local enable and E-stop
-> status gate. The checked-in DIO channels are deliberately `-1`, so hardware
-> startup is blocked until the physical wiring inspection selects two FlexDIO
-> channels. Continue only with read-only and motor-power-disabled checks.
+> status gate. FlexDIO channel 8 is operator-reported for E-stop status, but its
+> electrical acceptance and the separate local-enable channel remain pending.
+> The checked-in DIO channels therefore remain deliberately `-1`, so hardware
+> startup is blocked. Continue only with read-only and motor-power-disabled
+> checks.
 
 ## Roles and stop conditions
 
@@ -38,8 +40,9 @@ With motor power disabled:
 
 Then complete and record the circuit inspection in
 [Physical hardware safety gate](HARDWARE_SAFETY_GATE.md). Do not replace the
-two `-1` safety channel placeholders until the connector labels, existing
-wiring, pull-up behavior, and physical E-stop power contacts are verified.
+two `-1` safety channel placeholders until channel 8's normally-closed
+signal-to-ground behavior, the separate physical power contacts, and a
+different unused local-enable FlexDIO channel are verified.
 
 The VMXPi remains powered for software checks only when the instructor considers
 that safe. Motor power stays disabled until the health report is understood.

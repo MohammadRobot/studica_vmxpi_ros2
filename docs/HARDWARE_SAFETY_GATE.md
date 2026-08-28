@@ -1,9 +1,10 @@
 # Physical Hardware Safety Gate
 
 This document records the Phase 2 hardware gate for the physical `stack_4wd`
-robot. The deterministic logic and VMX/Titan enforcement are implemented, but
-the required wiring is not. It is not permission to move the robot or deploy
-boot services.
+robot. The deterministic logic and VMX/Titan enforcement are implemented, and
+the operator has connected the E-stop status input to FlexDIO channel 8. The
+electrical acceptance checks and separate local-enable input are not complete.
+This is not permission to move the robot or deploy boot services.
 
 ## Evidence from the robot
 
@@ -14,6 +15,9 @@ A read-only inventory of `vmx@192.168.1.173` on 2026-08-28 confirmed:
 - no Bluetooth joystick input device attached;
 - VMX DIO support exists in `studica_drivers`, while the optional DIO accessory
   is disabled;
+- the old optional accessory example mentions channel 8 for disabled duty-cycle
+  and ultrasonic devices; neither is active, but production must not launch
+  that separate VMX HAL owner;
 - the drivetrain hardware already exports Titan PID support, controller
   temperature/age, fault latch, commanded velocity, encoder freshness, and
   feedback age through `ros2_control` state interfaces.
@@ -43,9 +47,23 @@ primary contacts must remove Titan motor power or hardware enable without Linux,
 ROS, the VMX firmware, or the network. Its DIO auxiliary contact reports status;
 it is not the stopping mechanism.
 
-Exact DIO channel numbers remain unset until an operator opens the VMX enclosure,
-identifies the connector labels and jumper state, checks all existing wiring,
-and records two unused FlexDIO channels. Guessing channel numbers is forbidden.
+## Commissioning record
+
+| Field | Recorded value | Acceptance status |
+|---|---|---|
+| Robot profile | `stack_4wd` | Confirmed physical profile |
+| `ESTOP_OK` input | VMX FlexDIO channel `8` | Operator-reported connection on 2026-08-28 |
+| VMX input bias | Pull-up | Confirmed in `studica_driver::DIO` input initialization |
+| E-stop status contact | Must be normally closed from signal to VMX ground when healthy | Continuity and open-wire tests pending |
+| E-stop primary contacts | Must remove Titan motor power or hardware enable | Independent power-cut test pending |
+| Channel collision | Old optional duty-cycle and ultrasonic examples mention channel 8 but are disabled | Recheck before deployment; accessory container remains forbidden |
+| `LOCAL_ENABLE` input | Unassigned | A different unused FlexDIO channel is required |
+
+The checked-in `stack_4wd` profile remains fail-closed with both channel values
+at `-1`. Profile validation intentionally rejects a partly configured pair, so
+channel 8 will not become a runtime parameter until the local-enable channel is
+selected and both circuits pass motor-power-disconnected input tests. Guessing
+the second channel or the E-stop contact polarity is forbidden.
 
 ## Local-enable sequence
 

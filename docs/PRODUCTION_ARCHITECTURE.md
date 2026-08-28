@@ -16,9 +16,11 @@ See [Safety supervisor API](SAFETY_SUPERVISOR.md).
 Phase 2 integrates the fail-closed local enable and E-stop status gate into the
 VMX/Titan write boundary. It disables Titan and forces zero unless two valid
 active-low DIO samples, drive health, the boot-release sequence, and a new local
-enable edge all agree. Exact FlexDIO channels remain intentionally set to `-1`,
-so physical hardware startup is blocked pending wiring inspection and lifted
-acceptance. See [Physical hardware safety gate](HARDWARE_SAFETY_GATE.md).
+enable edge all agree. E-stop status is operator-reported on FlexDIO channel 8,
+while electrical acceptance and the separate local-enable channel remain
+pending. Both runtime parameters stay intentionally set to `-1`, so physical
+hardware startup is blocked pending wiring inspection and lifted acceptance.
+See [Physical hardware safety gate](HARDWARE_SAFETY_GATE.md).
 
 The hardware-only monitor publishes a fail-closed
 `Robot/Control/HardwareSafety` diagnostic from the exported state. The

@@ -60,7 +60,9 @@ hardware:
   control_mode: velocity_pid
   wheel_radius_calibrated: true
   safety_gate:
-    # Fail-closed placeholder pending physical FlexDIO wiring inspection.
+    # E-stop status is operator-reported on FlexDIO 8. Keep both fail-closed
+    # until its NC-to-ground behavior and a different local-enable channel pass
+    # the motor-power-disconnected acceptance fixture.
     estop_ok_dio_channel: -1
     local_enable_dio_channel: -1
     enable_debounce_ms: 100
