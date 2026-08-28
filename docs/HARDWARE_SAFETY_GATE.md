@@ -87,10 +87,12 @@ Every checked-in profile currently uses `-1` for both channel parameters.
 This is the deliberate compile-ready/runtime-blocked state until the wiring
 inspection records two real FlexDIO channels.
 
-The ROS safety supervisor will mirror the hardware state so applications see
-`READY_DISARMED`, `ARMED`, and `FAULT`. That DDS message is not the authority.
-Even a forged ROS topic or service request must still encounter the local gate
-inside the Titan write path.
+The ROS safety supervisor mirrors the hardware state so applications see
+`BOOTING`, `READY_DISARMED`, `ARMED`, and `FAULT`. It rejects malformed,
+conflicting, or older-than-500-ms state and requires local OFF after a software
+disarm or supervisor restart before it accepts a later hardware enable. That
+DDS message is not the authority. Even a forged ROS topic or service request
+must still encounter the local gate inside the Titan write path.
 
 Do not launch the separate `studica_ros2_control` accessory container to read
 these safety inputs. It creates another VMX HAL owner and places the safety

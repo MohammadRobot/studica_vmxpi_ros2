@@ -10,6 +10,7 @@
 #include <string>
 #include <vector>
 
+#include "control_msgs/msg/dynamic_joint_state.hpp"
 #include "geometry_msgs/msg/twist.hpp"
 #include "geometry_msgs/msg/twist_stamped.hpp"
 #include "rcl_interfaces/msg/set_parameters_result.hpp"
@@ -36,6 +37,8 @@ public:
     hardware_mode_ = this->declare_parameter<bool>("hardware_mode", false);
     allow_software_arm_ = this->declare_parameter<bool>("allow_software_arm", false);
     command_timeout_ = this->declare_parameter<double>("command_timeout_sec", 0.25);
+    hardware_state_timeout_ = this->declare_parameter<double>(
+      "hardware_state_timeout_sec", 0.5);
     publish_rate_ = this->declare_parameter<double>("publish_rate_hz", 50.0);
     limits_.max_linear_x = this->declare_parameter<double>("max_linear_x", 0.5);
     limits_.max_linear_y = this->declare_parameter<double>("max_linear_y", 0.5);
@@ -45,6 +48,7 @@ public:
     max_angular_acceleration_ = this->declare_parameter<double>(
       "max_angular_acceleration", 3.0);
     validateParameters();
+    hardware_disarm_inhibit_ = hardware_mode_;
     parameter_callback_ = this->add_on_set_parameters_callback(
       [](const std::vector<rclcpp::Parameter> & /* parameters */) {
         rcl_interfaces::msg::SetParametersResult result;
@@ -61,6 +65,13 @@ public:
     command_subscription_ = this->create_subscription<geometry_msgs::msg::Twist>(
       input_topic_, rclcpp::QoS(rclcpp::KeepLast(1)).reliable(),
       std::bind(&SafetySupervisorNode::commandCallback, this, std::placeholders::_1));
+    if (hardware_mode_) {
+      hardware_state_subscription_ =
+        this->create_subscription<control_msgs::msg::DynamicJointState>(
+        "/dynamic_joint_states", rclcpp::QoS(rclcpp::KeepLast(1)).reliable(),
+        std::bind(
+          &SafetySupervisorNode::hardwareStateCallback, this, std::placeholders::_1));
+    }
     arm_service_ = this->create_service<std_srvs::srv::Trigger>(
       "/robot/arm",
       std::bind(
@@ -73,9 +84,16 @@ public:
         std::placeholders::_2));
 
     publishState();
-    const auto boot_result = state_machine_.complete_boot(true);
-    publishState();
-    publishReason("READY_DISARMED");
+    std::string boot_reason;
+    if (hardware_mode_) {
+      boot_reason = "waiting for local hardware safety state";
+      publishReason("WAITING_FOR_HARDWARE_SAFETY");
+    } else {
+      const auto boot_result = state_machine_.complete_boot(true);
+      boot_reason = boot_result.reason;
+      publishState();
+      publishReason("READY_DISARMED");
+    }
     publishZero();
 
     const auto period = std::chrono::duration_cast<std::chrono::nanoseconds>(
@@ -86,7 +104,7 @@ public:
     RCLCPP_INFO(
       this->get_logger(),
       "%s. Input %s; sole controller output %s; software arm %s%s",
-      boot_result.reason, input_topic_.c_str(), output_topic_.c_str(),
+      boot_reason.c_str(), input_topic_.c_str(), output_topic_.c_str(),
       allow_software_arm_ ? "enabled" : "disabled",
       hardware_mode_ ? " (hardware mode)" : "");
   }
@@ -105,7 +123,8 @@ private:
       !state_topic_.empty() && !reason_topic_.empty() && !frame_id_.empty();
     const bool rates_valid = std::isfinite(command_timeout_) && command_timeout_ > 0.0 &&
       command_timeout_ <= 0.5 && std::isfinite(publish_rate_) && publish_rate_ >= 10.0 &&
-      publish_rate_ <= 200.0;
+      publish_rate_ <= 200.0 && std::isfinite(hardware_state_timeout_) &&
+      hardware_state_timeout_ >= 0.1 && hardware_state_timeout_ <= 2.0;
     const bool limits_valid = std::isfinite(limits_.max_linear_x) &&
       limits_.max_linear_x > 0.0 && std::isfinite(limits_.max_linear_y) &&
       limits_.max_linear_y > 0.0 && std::isfinite(limits_.max_angular_z) &&
@@ -115,7 +134,8 @@ private:
     if (!topics_valid || !rates_valid || !limits_valid) {
       throw std::invalid_argument(
               "Safety supervisor topics must be non-empty; command_timeout_sec must be in "
-              "(0, 0.5], publish_rate_hz in [10, 200], and limits must be positive");
+              "(0, 0.5], publish_rate_hz in [10, 200], hardware_state_timeout_sec must be "
+              "in [0.1, 2.0], and limits must be positive");
     }
     if (hardware_mode_ && allow_software_arm_) {
       throw std::invalid_argument("Software arming is forbidden in hardware mode");
@@ -181,10 +201,137 @@ private:
     evaluateAndPublish(received_at_);
   }
 
+  void latchHardwareFault(const std::string & reason)
+  {
+    const bool state_changed = state_machine_.state() != safety::RobotState::FAULT;
+    state_machine_.latch_fault();
+    if (state_changed) {
+      clearCommandAndStop();
+      publishState();
+    }
+    publishReason(reason);
+  }
+
+  void applyHardwareSafety(const safety::HardwareSafetyStatus & status)
+  {
+    if (!status.encoding_valid) {
+      latchHardwareFault("HARDWARE_SAFETY_MALFORMED");
+      return;
+    }
+    if (status.gate_state == safety::HardwareGateState::FAULT_LATCHED) {
+      latchHardwareFault("HARDWARE_SAFETY_FAULT");
+      return;
+    }
+
+    auto current_state = state_machine_.state();
+    if (current_state == safety::RobotState::BOOTING) {
+      state_machine_.complete_boot(true);
+      clearCommandAndStop();
+      publishState();
+      current_state = state_machine_.state();
+    }
+
+    if (status.gate_state != safety::HardwareGateState::ENABLED) {
+      hardware_disarm_inhibit_ = false;
+      if (current_state == safety::RobotState::ARMED) {
+        state_machine_.disarm();
+        clearCommandAndStop();
+        publishState();
+      } else if (
+        current_state == safety::RobotState::FAULT &&
+        status.gate_state == safety::HardwareGateState::READY)
+      {
+        const auto acknowledged = state_machine_.acknowledge_fault(true, true);
+        if (acknowledged.accepted) {
+          clearCommandAndStop();
+          publishState();
+        }
+      }
+      publishReason(
+        status.gate_state == safety::HardwareGateState::READY ?
+        "HARDWARE_READY_LOCAL_ENABLE_OFF" :
+        "WAITING_FOR_LOCAL_SAFE_RELEASE");
+      return;
+    }
+
+    if (hardware_disarm_inhibit_) {
+      if (state_machine_.state() == safety::RobotState::ARMED) {
+        state_machine_.disarm();
+        clearCommandAndStop();
+        publishState();
+      }
+      publishReason("HARDWARE_DISARMED_WAITING_FOR_LOCAL_RELEASE");
+      return;
+    }
+    if (state_machine_.state() == safety::RobotState::READY_DISARMED) {
+      const safety::ArmConditions conditions{
+        status.motion_enabled, status.drive_healthy, status.estop_ok, true};
+      const auto armed = state_machine_.arm(conditions);
+      clearCommandAndStop();
+      publishState();
+      publishReason(
+        armed.accepted ? "HARDWARE_ARMED_WAITING_FOR_COMMAND" : "HARDWARE_ARM_REJECTED");
+    } else if (state_machine_.state() == safety::RobotState::FAULT) {
+      publishReason("HARDWARE_FAULT_REQUIRES_LOCAL_RELEASE");
+    }
+  }
+
+  void hardwareStateCallback(
+    const control_msgs::msg::DynamicJointState::ConstSharedPtr message)
+  {
+    std::lock_guard<std::mutex> lock(mutex_);
+    const auto received = SteadyClock::now();
+    hardware_status_received_ = true;
+    last_hardware_status_time_ = received;
+
+    const std::size_t publisher_count = this->count_publishers("/dynamic_joint_states");
+    if (publisher_count != 1U) {
+      latchHardwareFault(
+        publisher_count == 0U ?
+        "HARDWARE_SAFETY_SOURCE_LOST" : "HARDWARE_SAFETY_SOURCE_CONFLICT");
+      return;
+    }
+
+    const control_msgs::msg::InterfaceValue * safety_interfaces = nullptr;
+    std::size_t matches = 0U;
+    for (std::size_t index = 0; index < message->joint_names.size(); ++index) {
+      if (message->joint_names[index] == "hardware_safety") {
+        ++matches;
+        if (index < message->interface_values.size()) {
+          safety_interfaces = &message->interface_values[index];
+        }
+      }
+    }
+    if (matches != 1U || safety_interfaces == nullptr) {
+      latchHardwareFault("HARDWARE_SAFETY_STATE_MISSING");
+      return;
+    }
+    applyHardwareSafety(safety::decode_hardware_safety(
+        safety_interfaces->interface_names, safety_interfaces->values));
+  }
+
   void timerCallback()
   {
     std::lock_guard<std::mutex> lock(mutex_);
     const auto now = SteadyClock::now();
+    if (hardware_mode_) {
+      const double startup_age = std::chrono::duration<double>(now - node_started_at_).count();
+      const double state_age = hardware_status_received_ ?
+        std::chrono::duration<double>(now - last_hardware_status_time_).count() :
+        startup_age;
+      const std::size_t publisher_count = this->count_publishers("/dynamic_joint_states");
+      if (
+        hardware_status_received_ && publisher_count != 1U)
+      {
+        latchHardwareFault(
+          publisher_count == 0U ?
+          "HARDWARE_SAFETY_SOURCE_LOST" : "HARDWARE_SAFETY_SOURCE_CONFLICT");
+      } else if (state_age > hardware_state_timeout_) {
+        latchHardwareFault(
+          hardware_status_received_ ?
+          "HARDWARE_SAFETY_STALE" : "HARDWARE_SAFETY_STARTUP_TIMEOUT");
+      }
+    }
     evaluateAndPublish(now);
     if (std::chrono::duration<double>(now - last_state_publish_time_).count() >= 1.0) {
       publishState();
@@ -207,7 +354,9 @@ private:
     last_output_ = output;
     last_publish_time_ = now;
     command_publisher_->publish(toMessage(output));
-    publishReason(safety::decision_name(evaluation.decision));
+    if (!hardware_mode_ || state_machine_.state() == safety::RobotState::ARMED) {
+      publishReason(safety::decision_name(evaluation.decision));
+    }
   }
 
   void armCallback(
@@ -237,10 +386,16 @@ private:
     std::shared_ptr<std_srvs::srv::Trigger::Response> response)
   {
     std::lock_guard<std::mutex> lock(mutex_);
+    if (hardware_mode_) {
+      hardware_disarm_inhibit_ = true;
+    }
     const auto result = state_machine_.disarm();
     clearCommandAndStop();
     publishState();
-    publishReason(result.accepted ? "READY_DISARMED" : "DISARM_REJECTED");
+    publishReason(
+      result.accepted && hardware_mode_ ?
+      "HARDWARE_DISARMED_WAITING_FOR_LOCAL_RELEASE" :
+      (result.accepted ? "READY_DISARMED" : "DISARM_REJECTED"));
     response->success = result.accepted;
     response->message = result.reason;
   }
@@ -253,6 +408,7 @@ private:
   bool hardware_mode_{false};
   bool allow_software_arm_{false};
   double command_timeout_{0.25};
+  double hardware_state_timeout_{0.5};
   double publish_rate_{50.0};
   safety::Limits limits_{};
   double max_linear_acceleration_{1.0};
@@ -263,12 +419,18 @@ private:
   safety::Command last_command_{};
   safety::Command last_output_{};
   bool has_command_{false};
+  bool hardware_status_received_{false};
+  bool hardware_disarm_inhibit_{false};
   SteadyClock::time_point received_at_{};
+  SteadyClock::time_point node_started_at_{SteadyClock::now()};
+  SteadyClock::time_point last_hardware_status_time_{};
   SteadyClock::time_point last_publish_time_;
   SteadyClock::time_point last_state_publish_time_{SteadyClock::now()};
   std::string last_reason_;
 
   rclcpp::Subscription<geometry_msgs::msg::Twist>::SharedPtr command_subscription_;
+  rclcpp::Subscription<control_msgs::msg::DynamicJointState>::SharedPtr
+    hardware_state_subscription_;
   rclcpp::Publisher<geometry_msgs::msg::TwistStamped>::SharedPtr command_publisher_;
   rclcpp::Publisher<std_msgs::msg::String>::SharedPtr state_publisher_;
   rclcpp::Publisher<std_msgs::msg::String>::SharedPtr reason_publisher_;

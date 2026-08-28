@@ -20,9 +20,11 @@ enable edge all agree. Exact FlexDIO channels remain intentionally set to `-1`,
 so physical hardware startup is blocked pending wiring inspection and lifted
 acceptance. See [Physical hardware safety gate](HARDWARE_SAFETY_GATE.md).
 
-The hardware-only monitor now publishes a fail-closed
-`Robot/Control/HardwareSafety` diagnostic from the exported state. Supervisor
-hardware-state mirroring, source-specific joystick/Nav2/remote arbitration,
+The hardware-only monitor publishes a fail-closed
+`Robot/Control/HardwareSafety` diagnostic from the exported state. The
+supervisor now mirrors fresh, single-source hardware state into boot, arm,
+disarm-inhibit, fault, and local-acknowledgement transitions while the VMX write
+gate remains the authority. Source-specific joystick/Nav2/remote arbitration,
 authenticated leases, systemd activation, and atomic updates remain gated
 future work. This revision is not deployed to the physical VMX-pi.
 

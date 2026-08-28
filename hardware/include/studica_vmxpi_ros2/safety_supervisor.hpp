@@ -6,6 +6,8 @@
 #include <algorithm>
 #include <cmath>
 #include <cstddef>
+#include <string>
+#include <vector>
 
 namespace studica_vmxpi_ros2::safety_supervisor
 {
@@ -52,6 +54,116 @@ struct ArmConditions
   bool emergency_stop_ok{false};
   bool update_inactive{false};
 };
+
+enum class HardwareGateState
+{
+  WAITING_FOR_SAFE_RELEASE = 0,
+  READY = 1,
+  ENABLED = 2,
+  FAULT_LATCHED = 3,
+};
+
+enum class HardwareFaultReason
+{
+  NONE = 0,
+  INPUT_INVALID = 1,
+  ESTOP_NOT_OK = 2,
+  DRIVE_UNHEALTHY = 3,
+  TIME_INVALID = 4,
+};
+
+struct HardwareSafetyStatus
+{
+  bool encoding_valid{false};
+  bool input_valid{false};
+  bool estop_ok{false};
+  bool enable_active{false};
+  bool drive_healthy{false};
+  bool motion_enabled{false};
+  HardwareGateState gate_state{HardwareGateState::FAULT_LATCHED};
+  HardwareFaultReason fault_reason{HardwareFaultReason::INPUT_INVALID};
+};
+
+inline HardwareSafetyStatus decode_hardware_safety(
+  const std::vector<std::string> & names,
+  const std::vector<double> & values)
+{
+  HardwareSafetyStatus status;
+  constexpr std::size_t expected_interface_count = 7U;
+  if (
+    names.size() != expected_interface_count ||
+    values.size() != expected_interface_count)
+  {
+    return status;
+  }
+
+  auto get_unique = [&](const std::string & expected, double & output) -> bool {
+    std::size_t matches = 0U;
+    for (std::size_t index = 0; index < names.size(); ++index) {
+      if (names[index] == expected) {
+        output = values[index];
+        ++matches;
+      }
+    }
+    return matches == 1U && std::isfinite(output);
+  };
+  const auto binary = [](double value) {return value == 0.0 || value == 1.0;};
+
+  double input_valid = 0.0;
+  double estop_ok = 0.0;
+  double enable_active = 0.0;
+  double drive_healthy = 0.0;
+  double motion_enabled = 0.0;
+  double gate_state = 0.0;
+  double fault_reason = 0.0;
+  if (
+    !get_unique("input_valid", input_valid) ||
+    !get_unique("estop_ok", estop_ok) ||
+    !get_unique("enable_active", enable_active) ||
+    !get_unique("drive_healthy", drive_healthy) ||
+    !get_unique("motion_enabled", motion_enabled) ||
+    !get_unique("gate_state", gate_state) ||
+    !get_unique("fault_reason", fault_reason) ||
+    !binary(input_valid) || !binary(estop_ok) || !binary(enable_active) ||
+    !binary(drive_healthy) || !binary(motion_enabled))
+  {
+    return status;
+  }
+
+  if (
+    std::trunc(gate_state) != gate_state || std::trunc(fault_reason) != fault_reason ||
+    gate_state < static_cast<double>(HardwareGateState::WAITING_FOR_SAFE_RELEASE) ||
+    gate_state > static_cast<double>(HardwareGateState::FAULT_LATCHED) ||
+    fault_reason < static_cast<double>(HardwareFaultReason::NONE) ||
+    fault_reason > static_cast<double>(HardwareFaultReason::TIME_INVALID))
+  {
+    return status;
+  }
+  const int gate_state_value = static_cast<int>(gate_state);
+  const int fault_reason_value = static_cast<int>(fault_reason);
+
+  status.input_valid = input_valid == 1.0;
+  status.estop_ok = estop_ok == 1.0;
+  status.enable_active = enable_active == 1.0;
+  status.drive_healthy = drive_healthy == 1.0;
+  status.motion_enabled = motion_enabled == 1.0;
+  status.gate_state = static_cast<HardwareGateState>(gate_state_value);
+  status.fault_reason = static_cast<HardwareFaultReason>(fault_reason_value);
+
+  const bool is_fault = status.gate_state == HardwareGateState::FAULT_LATCHED;
+  const bool fault_consistent = is_fault ?
+    status.fault_reason != HardwareFaultReason::NONE :
+    status.fault_reason == HardwareFaultReason::NONE;
+  const bool motion_consistent = status.motion_enabled ==
+    (status.gate_state == HardwareGateState::ENABLED);
+  const bool enabled_consistent = status.gate_state != HardwareGateState::ENABLED ||
+    (status.input_valid && status.estop_ok && status.enable_active && status.drive_healthy);
+  const bool healthy_nonfault = is_fault ||
+    (status.input_valid && status.estop_ok && status.drive_healthy);
+  status.encoding_valid =
+    fault_consistent && motion_consistent && enabled_consistent && healthy_nonfault;
+  return status;
+}
 
 class RobotStateMachine
 {

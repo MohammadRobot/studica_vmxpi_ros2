@@ -120,6 +120,7 @@ if(EXISTS "/usr/bin/python3")
 endif()
 find_package(Python3 REQUIRED COMPONENTS Interpreter Development)
 find_package(builtin_interfaces REQUIRED)
+find_package(control_msgs REQUIRED)
 find_package(rclcpp REQUIRED)
 find_package(geometry_msgs REQUIRED)
 find_package(nav_msgs REQUIRED)
@@ -224,7 +225,7 @@ target_compile_features(topic_adapter_node PUBLIC cxx_std_17)
 
 add_executable(safety_supervisor_node src/safety_supervisor_node.cpp)
 ament_target_dependencies(
-  safety_supervisor_node rcl_interfaces rclcpp geometry_msgs std_msgs std_srvs)
+  safety_supervisor_node control_msgs rcl_interfaces rclcpp geometry_msgs std_msgs std_srvs)
 target_include_directories(safety_supervisor_node PRIVATE hardware/include)
 target_compile_features(safety_supervisor_node PUBLIC cxx_std_17)
 
@@ -337,6 +338,13 @@ if(BUILD_TESTING)
     COMMAND ${Python3_EXECUTABLE}
       ${CMAKE_CURRENT_SOURCE_DIR}/test/test_runtime_contract.py
       --mode mock
+  )
+  ament_add_test(
+    validate_hardware_supervisor_runtime
+    GENERATE_RESULT_FOR_RETURN_CODE_ZERO
+    TIMEOUT 30
+    COMMAND ${Python3_EXECUTABLE}
+      ${CMAKE_CURRENT_SOURCE_DIR}/test/test_hardware_supervisor_runtime.py
   )
   ament_add_test(
     validate_headless_gz_runtime

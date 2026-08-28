@@ -2,13 +2,15 @@
 
 The safety supervisor is the only node allowed to publish a command to the
 profile-selected drive controller. It is enabled in simulation, mock, and
-hardware launches. Every start ends in `READY_DISARMED`; publishing `/cmd_vel`
-alone cannot move the robot.
+hardware launches. Simulation and mock starts end in `READY_DISARMED`;
+publishing `/cmd_vel` alone cannot move the robot. In hardware mode the node
+remains `BOOTING` until it receives a valid, fresh `hardware_safety` state from
+exactly one `/dynamic_joint_states` publisher.
 
-This is the Phase 1 production safety boundary. It is validated on the PC and
-in simulation. Hardware arming is deliberately unavailable until a local
-physical enable, emergency-stop input, and drive-health gate are integrated and
-tested on a lifted robot.
+Simulation and mock arm through `/robot/arm`. Hardware can reach `ARMED` only
+when the local VMX gate reports its physically authorized `ENABLED` state. The
+checked-in physical profiles still set both DIO channels to `-1`, so this path
+cannot be used until wiring inspection and lifted acceptance.
 
 ## Public interfaces
 
@@ -17,8 +19,8 @@ tested on a lifted robot.
 | `/cmd_vel` | `geometry_msgs/msg/Twist` | Single external planar command input |
 | `/robot/state` | `std_msgs/msg/String` | Current state, latched and repeated at 1 Hz |
 | `/robot/safety_reason` | `std_msgs/msg/String` | Most recent command or transition decision |
-| `/robot/arm` | `std_srvs/srv/Trigger` | Explicitly arm mock/simulation only |
-| `/robot/disarm` | `std_srvs/srv/Trigger` | Immediately disable motion and clear the stored command |
+| `/robot/arm` | `std_srvs/srv/Trigger` | Explicitly arm mock/simulation only; always rejected on hardware |
+| `/robot/disarm` | `std_srvs/srv/Trigger` | Immediately zero supervisor output; hardware re-arm then requires local OFF followed by ON |
 
 The controller-facing `TwistStamped` topic is private. Its name depends on the
 selected robot profile. Applications, joystick nodes, Nav2, and remote clients
@@ -77,19 +79,56 @@ Common `/robot/safety_reason` values include:
 | `COMMAND_SOURCE_CONFLICT` | More than one publisher was discovered |
 | `COMMAND_NONFINITE` | A NaN or infinity was rejected |
 | `COMMAND_UNSUPPORTED_3D` | A non-planar component was rejected |
+| `WAITING_FOR_HARDWARE_SAFETY` | Hardware state has not arrived yet |
+| `HARDWARE_READY_LOCAL_ENABLE_OFF` | Inputs and drive are healthy; local enable is OFF |
+| `HARDWARE_ARMED_WAITING_FOR_COMMAND` | The local hardware gate authorized motion; pre-arm commands were cleared |
+| `HARDWARE_DISARMED_WAITING_FOR_LOCAL_RELEASE` | Software disarm is latched until the local switch returns OFF |
+| `HARDWARE_SAFETY_STALE` | No hardware gate update arrived within 500 ms |
+| `HARDWARE_SAFETY_SOURCE_LOST` | The hardware-state publisher disappeared |
+| `HARDWARE_SAFETY_SOURCE_CONFLICT` | More than one hardware-state publisher was discovered |
+| `HARDWARE_SAFETY_MALFORMED` | A missing, non-finite, duplicate, or inconsistent gate interface was rejected |
+| `HARDWARE_SAFETY_FAULT` | The VMX gate reported a latched physical/drive fault |
+
+## Hardware state mirror
+
+The supervisor consumes the seven read-only interfaces under
+`hardware_safety` in `/dynamic_joint_states`. It validates exact binary values,
+finite enum values, fault/state consistency, motion/state consistency, and the
+expected input/drive health invariants. The receive deadline uses the robot's
+steady clock, not ROS or wall time.
+
+The mirror applies these transitions:
+
+| VMX gate | Supervisor result |
+|---|---|
+| `WAITING_FOR_SAFE_RELEASE` | `READY_DISARMED`; zero output; wait for local OFF interval |
+| `READY` | `READY_DISARMED`; acknowledge a prior fault because the VMX gate already proved healthy local OFF |
+| `ENABLED` | `ARMED` only if no software-disarm inhibit is active; clear all pre-arm commands |
+| `FAULT_LATCHED` | `FAULT`; clear command and output zero |
+| missing, malformed, stale, or conflicting source | `FAULT`; clear command and output zero |
+
+After `/robot/disarm` in hardware mode, repeated `ENABLED` samples cannot re-arm
+the supervisor. The physical switch must first produce `READY` or
+`WAITING_FOR_SAFE_RELEASE`; only a later new `ENABLED` state can arm it.
+The same inhibit is active at supervisor startup, so restarting the supervisor
+while the VMX gate is already `ENABLED` also requires local OFF followed by ON.
+
+This DDS mirror is not the final authority. Forging it cannot bypass the gate
+inside `VmxSystemHardware`, which independently reads physical DIO and zeros or
+disables Titan.
 
 ## State model and current scope
 
 The tested core implements `BOOTING`, `READY_DISARMED`, `ARMED`, `FAULT`,
 `UPDATING`, and `SHUTTING_DOWN`, including latched fault acknowledgement and
 the rule that updates begin only while disarmed. Phase 1 connects boot, arm, and
-disarm to the ROS runtime. Fault, update, and shutdown transitions will be
-connected to hardware diagnostics and the service manager in later phases.
+disarm to the ROS runtime. Phase 2 connects hardware boot, arm, disarm, fault,
+freshness, source ownership, and local acknowledgement. Update and shutdown
+transitions will be connected to the service manager in later phases.
 
 `/robot/arm` is not an authentication boundary. The node rejects it in hardware
-mode, even if someone attempts to change the software-arm parameter. The next
-hardware phase must provide a robot-local physical authorization path; native
-DDS discovery or a network service alone will not satisfy that requirement.
+mode, even if someone attempts to change the software-arm parameter. Native DDS
+discovery or a network service alone cannot satisfy hardware authorization.
 
 ## Acceptance evidence
 
@@ -98,6 +137,11 @@ commands, conflicts, deadlines, speed clamps, and acceleration limiting. The
 black-box runtime test covers boot-disarmed behavior, explicit simulation arm,
 single controller-topic ownership, pre-arm command clearing, publisher loss,
 competing publishers, monotonic expiry, and disarm during an active command.
+The hardware-only black-box test injects read-only state with no VMX or motor
+process and covers boot wait, restart-while-enabled inhibition, local
+READY/ENABLED arming, pre-arm clearing, software-disarm inhibit, required local
+release, stale fault, local fault acknowledgement, malformed state, and
+competing hardware-state publishers.
 
 Do not enable boot services on the physical VMX-pi until the next hardware gate
 also proves repeated cold boots with no wheel motion.
