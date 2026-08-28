@@ -35,6 +35,7 @@ path.
 | Guide | Scope |
 |---|---|
 | [Production architecture](PRODUCTION_ARCHITECTURE.md) | Target safety state model, command ownership, services, networking, and updates |
+| [Physical hardware safety gate](HARDWARE_SAFETY_GATE.md) | Phase 2 local enable, E-stop status, wiring gate, and acceptance fixture |
 | [Release process](RELEASE_PROCESS.md) | Immutable inputs, artifacts, rollout channels, and release gates |
 
 ## Course files

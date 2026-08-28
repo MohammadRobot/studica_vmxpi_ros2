@@ -18,6 +18,11 @@ joystick/Nav2/remote arbitration, authenticated leases, systemd activation, and
 atomic updates remain gated future work. This revision is not deployed to the
 physical VMX-pi.
 
+Phase 2A has selected the fail-closed local-enable architecture and added its
+deterministic reference logic and fault-injection tests. Exact FlexDIO channels
+are intentionally blocked on physical wiring inspection. See
+[Physical hardware safety gate](HARDWARE_SAFETY_GATE.md).
+
 ## Safety invariants
 
 1. Boot never authorizes motion. A healthy boot ends in `READY_DISARMED`.
