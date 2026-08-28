@@ -22,6 +22,7 @@ from _launch_helpers import _profile_assets  # noqa: E402
 
 
 class BeginnerLaunchContractTest(unittest.TestCase):
+
     def test_only_intended_public_launches_are_exposed(self):
         public_launches = {
             path.name for path in LAUNCH_DIR.glob("*.launch.py") if not path.name.startswith("_")

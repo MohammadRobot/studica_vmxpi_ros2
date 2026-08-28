@@ -45,7 +45,7 @@ jobs:
         uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
         with:
           repository: MohammadRobot/studica_robot_monitor
-          ref: 997fe660cddd1729e5b2c28cedced96f7e8846ec
+          ref: ea9c5c4e88d4fa25781904bb20d8002333cd595e
           path: ros2_ws/src/studica_robot_monitor
 
       - name: Configure pinned ROS APT source
@@ -106,6 +106,7 @@ jobs:
       - name: Test
         run: |
           source /opt/ros/humble/setup.bash
+          source ros2_ws/install/setup.bash
           cd ros2_ws
           set +e
           colcon test \

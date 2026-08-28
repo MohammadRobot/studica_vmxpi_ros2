@@ -19,6 +19,7 @@ COMMIT = re.compile(r"[0-9a-f]{40}")
 
 
 class SetupContractTest(unittest.TestCase):
+
     def test_shell_syntax_and_help(self):
         syntax = subprocess.run(["bash", "-n", str(SETUP)], check=False)
         self.assertEqual(syntax.returncode, 0)
@@ -73,6 +74,7 @@ class SetupContractTest(unittest.TestCase):
         for marker in forbidden:
             with self.subTest(marker=marker):
                 self.assertNotIn(marker, source)
+        self.assertIn("--return-code-on-test-failure", source)
 
     def test_cyclonedds_profiles_are_generated_without_editing_startup(self):
         with tempfile.TemporaryDirectory() as temporary_dir:

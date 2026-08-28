@@ -418,7 +418,8 @@ build_and_validate() {
     --build-base "${workspace}/build" \
     --install-base "${workspace}/install" \
     --packages-select "${test_packages[@]}" \
-    --event-handlers console_direct+
+    --event-handlers console_direct+ \
+    --return-code-on-test-failure
   colcon test-result --test-result-base "${workspace}/build" --verbose
 }
 

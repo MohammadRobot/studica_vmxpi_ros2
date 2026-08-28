@@ -1,3 +1,5 @@
 [flake8]
 max-line-length = 120
-extend-ignore = Q000,B902,D100,D103,I100,I201
+# Preserve ament_flake8's default exclusions when using a project config, then
+# add the repository's established quote and import-order exceptions.
+extend-ignore = B902,C816,D100,D101,D102,D103,D104,D105,D106,D107,D203,D212,D404,I100,I201,I202,Q000
