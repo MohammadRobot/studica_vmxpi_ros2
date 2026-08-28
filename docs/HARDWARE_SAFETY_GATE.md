@@ -121,6 +121,12 @@ interfaces for read-only diagnostics:
 
 These interfaces are observability only and do not accept commands.
 
+In hardware mode, `studica_robot_monitor` decodes them into the
+`Robot/Control/HardwareSafety` diagnostic. Missing, malformed, input-invalid,
+E-stop-not-OK, drive-unhealthy, fault-latched, or internally inconsistent state
+is an error and makes the read-only `robot_check --mode hardware` fail. The
+diagnostic is not emitted in simulation mode.
+
 ## Hardware acceptance fixture
 
 Before any boot service or floor motion:

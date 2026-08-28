@@ -137,6 +137,8 @@ wiring or CAN faults from silently resuming a previous command.
 - `/imu`, `/scan`, `/odom`, enabled camera-stream `CameraInfo`, joint states, and TF;
 - controller-manager state;
 - Titan PID capability, firmware, fault latch, and temperature;
+- physical input validity, E-stop status, local enable, drive health, and
+  hardware motion authorization;
 - Pi CPU, memory, disk, and temperature.
 
 It detects missing/stale or malformed data, invalid IMU quaternion, missing TF,

@@ -803,6 +803,7 @@ def generate_launch_description():
             "monitor_camera": LaunchConfiguration("use_camera"),
             "monitor_color_camera": LaunchConfiguration("orbbec_enable_color"),
             "monitor_depth_camera": LaunchConfiguration("orbbec_enable_depth"),
+            "monitor_hardware_safety": use_hardware,
         }.items(),
         condition=IfCondition(use_monitoring),
     )
