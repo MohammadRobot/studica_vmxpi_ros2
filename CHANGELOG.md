@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+- Locked first-party dependency manifests and CI checkouts to immutable commits,
+  pinned GitHub Actions, and added an offline release-contract check.
+- Replaced the installer's mutable ROS repository setup with a checksum-verified
+  `ros2-apt-source` package and retry-bounded APT operations.
+- Added the production safety architecture, release process, security,
+  contribution, and support policies for the pre-production phase.
 - Added a developer quick-start page covering installation, simulation, the
   edit/build loop, supervised VMXPi bringup, two-computer physical mapping,
   map saving, and simulation or two-computer physical navigation.

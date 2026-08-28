@@ -32,6 +32,7 @@ python3 -m py_compile \
   "${launch_py_files[@]}" \
   "${repo_root}/scripts/check_classroom.py" \
   "${repo_root}/scripts/check_docs.py" \
+  "${repo_root}/scripts/check_release.py" \
   "${repo_root}/scripts/validate_profiles.py"
 
 echo "[check] Profile schema validation"
@@ -41,5 +42,6 @@ python3 "${repo_root}/scripts/validate_profiles.py" \
 
 python3 "${repo_root}/scripts/check_classroom.py" --root "${repo_root}"
 python3 "${repo_root}/scripts/check_docs.py" --root "${repo_root}"
+python3 "${repo_root}/scripts/check_release.py" --root "${repo_root}"
 
 echo "[check] All checks passed."

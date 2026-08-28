@@ -29,6 +29,13 @@ path.
 | [Advanced profiles](PROFILE_AUTHORING.md) | 2WD, mecanum, omni, and custom robot configuration |
 | [Instructor guide](INSTRUCTOR_GUIDE.md) | Classroom preparation and physical acceptance tests |
 
+## Production engineering
+
+| Guide | Scope |
+|---|---|
+| [Production architecture](PRODUCTION_ARCHITECTURE.md) | Target safety state model, command ownership, services, networking, and updates |
+| [Release process](RELEASE_PROCESS.md) | Immutable inputs, artifacts, rollout channels, and release gates |
+
 ## Course files
 
 - `docs/labs/`: nine guided labs with checkpoints and cleanup steps

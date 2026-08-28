@@ -8,40 +8,58 @@ on:
       - master
   workflow_dispatch:
 
+permissions:
+  contents: read
+
+concurrency:
+  group: ros-ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   build-and-test:
     runs-on: ubuntu-22.04
+    timeout-minutes: 45
     env:
       FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v5
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
         with:
           path: ros2_ws/src/studica_vmxpi_ros2
 
       - name: Checkout studica_drivers dependency
-        uses: actions/checkout@v5
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
         with:
           repository: MohammadRobot/studica_drivers
-          ref: main
+          ref: 3781477bfe4bbe9b7517e52acf6b015b5ada2e90
           path: ros2_ws/src/studica_drivers
 
       - name: Checkout studica_ros2_control dependency
-        uses: actions/checkout@v5
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
         with:
           repository: MohammadRobot/studica_ros2_control
-          ref: main
+          ref: d5f198d93d89b3863cd9b6d02cadb516b78fb3c9
           path: ros2_ws/src/studica_ros2_control
 
       - name: Checkout studica_robot_monitor dependency
-        uses: actions/checkout@v5
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
         with:
           repository: MohammadRobot/studica_robot_monitor
-          ref: main
+          ref: 997fe660cddd1729e5b2c28cedced96f7e8846ec
           path: ros2_ws/src/studica_robot_monitor
 
+      - name: Configure pinned ROS APT source
+        run: |
+          curl --fail --location --retry 3 --retry-delay 2 \
+            --output /tmp/ros2-apt-source.deb \
+            https://github.com/ros-infrastructure/ros-apt-source/releases/download/1.2.0/ros2-apt-source_1.2.0.jammy_all.deb
+          echo "767884cf4ed03116b9d64438930a832ed854147ae435279a7924dfdf60f94433  /tmp/ros2-apt-source.deb" \
+            | sha256sum --check --strict
+          sudo dpkg -i /tmp/ros2-apt-source.deb
+          sudo apt-get -o Acquire::Retries=3 update
+
       - name: Setup ROS 2 Humble
-        uses: ros-tooling/setup-ros@v0.7
+        uses: ros-tooling/setup-ros@649ef6bcd696da05bc27ceb3fab69d810c0daeab # 0.7.19
         with:
           required-ros-distributions: humble
 
@@ -93,7 +111,7 @@ jobs:
       FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v5
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
         with:
           path: ros2_ws/src/studica_vmxpi_ros2
 

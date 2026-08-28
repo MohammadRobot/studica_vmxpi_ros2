@@ -2,6 +2,7 @@
 """Non-mutating contract tests for the Ubuntu classroom installer."""
 
 from pathlib import Path
+import re
 import subprocess
 import sys
 import tempfile
@@ -14,6 +15,7 @@ ROOT = Path(sys.argv[1]).resolve() if len(sys.argv) > 1 else Path(__file__).pare
 SETUP = ROOT / "scripts" / "setup_ubuntu.sh"
 CYCLONEDDS_SETUP = ROOT / "scripts" / "configure_cyclonedds.py"
 PIN = "a2d290e37be67ba082744e323339d82031f051c0"
+COMMIT = re.compile(r"[0-9a-f]{40}")
 
 
 class SetupContractTest(unittest.TestCase):
@@ -50,6 +52,14 @@ class SetupContractTest(unittest.TestCase):
         self.assertNotIn("OrbbecSDK_ROS2", simulation)
         self.assertIn("OrbbecSDK_ROS2", hardware)
         self.assertIn("ydlidar_ros2_driver", hardware)
+        for manifest in (simulation, hardware):
+            for repository, metadata in manifest.items():
+                with self.subTest(repository=repository):
+                    self.assertRegex(str(metadata["version"]), COMMIT)
+        for repository in simulation.keys() & hardware.keys():
+            self.assertEqual(
+                simulation[repository]["version"], hardware[repository]["version"]
+            )
 
     def test_installer_never_starts_ros_or_edits_shell_startup(self):
         source = SETUP.read_text(encoding="utf-8")

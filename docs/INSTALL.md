@@ -221,9 +221,11 @@ Generate and test the selected peer DDS profile, then continue with
 `dependencies/hardware.repos` adds the sensor drivers and optional accessory
 package. Vendor repositories are pinned and are not modified by this project.
 
-The first-party repositories track `main` so their coordinated classroom APIs
-stay together. The Harmonic control overlay and vendor snapshots use exact
-commits to prevent an upstream update from changing a lesson unexpectedly.
+Every repository is locked to a full commit. Simulation and hardware manifests
+must use the same commit for shared first-party packages. Update a pin only in a
+reviewed pull request that updates both manifests, CI checkout references, and
+the release notes together. This prevents a branch update from changing a
+classroom or robot installation without a new product release.
 
 ## Manual build after editing code
 

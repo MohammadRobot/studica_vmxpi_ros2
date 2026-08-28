@@ -2,15 +2,15 @@ repositories:
   studica_drivers:
     type: git
     url: https://github.com/MohammadRobot/studica_drivers.git
-    version: main
+    version: 3781477bfe4bbe9b7517e52acf6b015b5ada2e90
   studica_robot_monitor:
     type: git
     url: https://github.com/MohammadRobot/studica_robot_monitor.git
-    version: main
+    version: 997fe660cddd1729e5b2c28cedced96f7e8846ec
   studica_ros2_control:
     type: git
     url: https://github.com/MohammadRobot/studica_ros2_control.git
-    version: main
+    version: d5f198d93d89b3863cd9b6d02cadb516b78fb3c9
   OrbbecSDK_ROS2:
     type: git
     url: https://github.com/MohammadRobot/OrbbecSDK_ROS2.git

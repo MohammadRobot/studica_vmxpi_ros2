@@ -6,6 +6,8 @@ set -euo pipefail
 
 readonly ROS_DISTRO_NAME="humble"
 readonly GZ_ROS2_CONTROL_COMMIT="a2d290e37be67ba082744e323339d82031f051c0"
+readonly ROS_APT_SOURCE_VERSION="1.2.0"
+readonly ROS_APT_SOURCE_SHA256="767884cf4ed03116b9d64438930a832ed854147ae435279a7924dfdf60f94433"
 
 script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 repo_root="$(cd "${script_dir}/.." && pwd)"
@@ -133,7 +135,7 @@ check_host() {
   fi
 
   local network_check_url
-  network_check_url="https://raw.githubusercontent.com/ros/rosdistro/master/ros.key"
+  network_check_url="https://github.com/ros-infrastructure/ros-apt-source/releases/download/${ROS_APT_SOURCE_VERSION}/ros2-apt-source_${ROS_APT_SOURCE_VERSION}.jammy_all.deb"
   if command -v curl >/dev/null; then
     curl -fsS --max-time 10 -o /dev/null "${network_check_url}" || die \
       "internet access to GitHub is required"
@@ -166,6 +168,10 @@ as_root() {
   fi
 }
 
+apt_get() {
+  as_root apt-get -o Acquire::Retries=3 "$@"
+}
+
 source_setup_file() {
   local setup_file="$1"
   [[ -r "${setup_file}" ]] || die "setup file is missing: ${setup_file}"
@@ -187,26 +193,27 @@ install_ros_repository() {
   local noisy_backup_file="${legacy_source_file}.disabled-by-studica-setup"
   local legacy_backup_file="/etc/apt/ros2.list.disabled-by-studica-setup"
 
-  if [[ -r "${managed_source_file}" ]] && \
-      dpkg-query -W -f='${Status}\n' ros2-apt-source 2>/dev/null | \
-        grep -qx 'install ok installed'; then
-    managed_source=true
-  fi
-
   # APT warns about every unrecognized filename kept inside sources.list.d.
   # Move a backup made by an earlier setup version to /etc/apt without deleting
   # it or changing its contents.
-  if ${managed_source} && [[ -f "${noisy_backup_file}" ]]; then
+  if [[ -f "${noisy_backup_file}" ]]; then
     [[ ! -e "${legacy_backup_file}" ]] || die \
       "cannot relocate ${noisy_backup_file}; ${legacy_backup_file} already exists"
     info "relocating the preserved legacy ROS source outside sources.list.d"
     as_root mv -- "${noisy_backup_file}" "${legacy_backup_file}"
   fi
 
-  # ros2-apt-source owns a Deb822 source with an embedded signing key. A legacy
-  # ros2.list entry for the same repository makes APT reject both Signed-By
-  # values. Preserve the legacy file under an explicit, reversible name.
-  if ${managed_source} && [[ -f "${legacy_source_file}" ]] && \
+  if [[ -r "${managed_source_file}" ]] && \
+      dpkg-query -W -f='${Status}\n' ros2-apt-source 2>/dev/null | \
+        grep -qx 'install ok installed'; then
+    managed_source=true
+  fi
+
+  # ros2-apt-source owns a Deb822 source with its signing key. A legacy
+  # ros2.list entry for the same repository can conflict with the managed
+  # Signed-By value. Preserve the legacy file before installing or using the
+  # managed source package.
+  if [[ -f "${legacy_source_file}" ]] && \
       grep -qF 'packages.ros.org/ros2/ubuntu' "${legacy_source_file}"; then
     [[ ! -e "${legacy_backup_file}" ]] || die \
       "cannot archive ${legacy_source_file}; ${legacy_backup_file} already exists"
@@ -214,8 +221,8 @@ install_ros_repository() {
     as_root mv -- "${legacy_source_file}" "${legacy_backup_file}"
   fi
 
-  as_root apt-get update
-  as_root apt-get install -y curl gnupg lsb-release locales software-properties-common
+  apt_get update
+  apt_get install -y curl gnupg lsb-release locales software-properties-common
   as_root add-apt-repository -y universe
 
   if ${managed_source}; then
@@ -223,17 +230,17 @@ install_ros_repository() {
     return
   fi
 
-  curl -fsSL https://raw.githubusercontent.com/ros/rosdistro/master/ros.key \
-    -o "${temporary_dir}/ros-archive-keyring.gpg"
-  as_root install -m 0644 "${temporary_dir}/ros-archive-keyring.gpg" \
-    /usr/share/keyrings/ros-archive-keyring.gpg
-
-  local architecture codename source_line
-  architecture="$(dpkg --print-architecture)"
-  # shellcheck disable=SC1091
-  codename="$(. /etc/os-release && printf '%s' "${UBUNTU_CODENAME}")"
-  source_line="deb [arch=${architecture} signed-by=/usr/share/keyrings/ros-archive-keyring.gpg] http://packages.ros.org/ros2/ubuntu ${codename} main"
-  printf '%s\n' "${source_line}" | as_root tee /etc/apt/sources.list.d/ros2.list >/dev/null
+  local apt_source_package apt_source_url
+  apt_source_package="${temporary_dir}/ros2-apt-source.deb"
+  apt_source_url="https://github.com/ros-infrastructure/ros-apt-source/releases/download/${ROS_APT_SOURCE_VERSION}/ros2-apt-source_${ROS_APT_SOURCE_VERSION}.jammy_all.deb"
+  info "installing pinned ros2-apt-source ${ROS_APT_SOURCE_VERSION}"
+  curl --fail --location --retry 3 --retry-delay 2 \
+    --output "${apt_source_package}" "${apt_source_url}"
+  printf '%s  %s\n' "${ROS_APT_SOURCE_SHA256}" "${apt_source_package}" | \
+    sha256sum --check --strict
+  as_root dpkg -i "${apt_source_package}"
+  [[ -r "${managed_source_file}" ]] || die \
+    "ros2-apt-source did not install ${managed_source_file}"
 }
 
 install_gazebo_repository() {
@@ -257,7 +264,7 @@ install_packages() {
   if [[ "${mode}" == "simulation" ]]; then
     install_gazebo_repository
   fi
-  as_root apt-get update
+  apt_get update
 
   local packages=(
     build-essential
@@ -302,9 +309,10 @@ install_packages() {
 
   info "installing ROS 2 classroom packages"
   if ${non_interactive}; then
-    as_root env DEBIAN_FRONTEND=noninteractive apt-get install -y "${packages[@]}"
+    as_root env DEBIAN_FRONTEND=noninteractive apt-get \
+      -o Acquire::Retries=3 install -y "${packages[@]}"
   else
-    as_root apt-get install -y "${packages[@]}"
+    apt_get install -y "${packages[@]}"
   fi
 }
 
