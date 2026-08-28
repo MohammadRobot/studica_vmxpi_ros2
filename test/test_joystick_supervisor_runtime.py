@@ -32,6 +32,7 @@ def joy_message(*, deadman=False, turbo=False, button_count=6):
 
 
 class Probe(Node):
+
     def __init__(self):
         super().__init__("joystick_supervisor_contract_probe")
         status_qos = QoSProfile(

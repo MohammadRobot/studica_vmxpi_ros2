@@ -46,6 +46,7 @@ def safety_message(values=None):
 
 
 class Probe(Node):
+
     def __init__(self):
         super().__init__("hardware_supervisor_contract_probe")
         status_qos = QoSProfile(
