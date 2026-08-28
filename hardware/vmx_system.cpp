@@ -163,6 +163,8 @@ hardware_interface::CallbackReturn VmxSystemHardware::on_init(
   double feedback_warn_timeout_ms = 100.0;
   double feedback_error_timeout_ms = 250.0;
   double controller_temp_error_timeout_ms = 3000.0;
+  double enable_debounce_ms = 100.0;
+  double safe_release_ms = 500.0;
   if (!get_string_param("control_mode", control_mode_name_, false) ||
       !get_bool_param("pid_require_supported", pid_require_supported_, false) ||
       !get_bool_param("wheel_radius_calibrated", wheel_radius_calibrated_, false) ||
@@ -170,7 +172,11 @@ hardware_interface::CallbackReturn VmxSystemHardware::on_init(
       !get_double_param("feedback_error_timeout_ms", feedback_error_timeout_ms, false) ||
       !get_double_param("controller_temp_error_c", controller_temp_error_c_, false) ||
       !get_double_param(
-        "controller_temp_error_timeout_ms", controller_temp_error_timeout_ms, false))
+        "controller_temp_error_timeout_ms", controller_temp_error_timeout_ms, false) ||
+      !get_int_param("estop_ok_dio_channel", estop_ok_dio_channel_) ||
+      !get_int_param("local_enable_dio_channel", local_enable_dio_channel_) ||
+      !get_double_param("enable_debounce_ms", enable_debounce_ms, true) ||
+      !get_double_param("safe_release_ms", safe_release_ms, true))
   {
     return hardware_interface::CallbackReturn::ERROR;
   }
@@ -215,6 +221,8 @@ hardware_interface::CallbackReturn VmxSystemHardware::on_init(
   feedback_warn_timeout_sec_ = feedback_warn_timeout_ms / 1000.0;
   feedback_error_timeout_sec_ = feedback_error_timeout_ms / 1000.0;
   controller_temp_error_timeout_sec_ = controller_temp_error_timeout_ms / 1000.0;
+  local_enable_gate_config_.enable_debounce_sec = enable_debounce_ms / 1000.0;
+  local_enable_gate_config_.safe_release_sec = safe_release_ms / 1000.0;
   if (speed_scale_ < 0.0) {
     RCLCPP_ERROR(get_logger(), "speed_scale must be >= 0.0.");
     return hardware_interface::CallbackReturn::ERROR;
@@ -240,6 +248,36 @@ hardware_interface::CallbackReturn VmxSystemHardware::on_init(
       "Titan temperature limit and timeout must be finite and positive "
       "(received %.1f C, %.3f s).",
       controller_temp_error_c_, controller_temp_error_timeout_sec_);
+    return hardware_interface::CallbackReturn::ERROR;
+  }
+  constexpr int kMinimumDioChannel = 0;
+  constexpr int kMaximumDioChannel = 29;
+  if (
+    estop_ok_dio_channel_ < kMinimumDioChannel ||
+    estop_ok_dio_channel_ > kMaximumDioChannel ||
+    local_enable_dio_channel_ < kMinimumDioChannel ||
+    local_enable_dio_channel_ > kMaximumDioChannel)
+  {
+    RCLCPP_ERROR(
+      get_logger(),
+      "Physical hardware is blocked: estop_ok_dio_channel and local_enable_dio_channel "
+      "must be inspected FlexDIO channels in [0, 29] (received %d and %d).",
+      estop_ok_dio_channel_, local_enable_dio_channel_);
+    return hardware_interface::CallbackReturn::ERROR;
+  }
+  if (estop_ok_dio_channel_ == local_enable_dio_channel_) {
+    RCLCPP_ERROR(get_logger(), "E-stop status and local enable must use different DIO channels.");
+    return hardware_interface::CallbackReturn::ERROR;
+  }
+  if (
+    !std::isfinite(local_enable_gate_config_.enable_debounce_sec) ||
+    !std::isfinite(local_enable_gate_config_.safe_release_sec) ||
+    local_enable_gate_config_.enable_debounce_sec < 0.0 ||
+    local_enable_gate_config_.safe_release_sec <= 0.0)
+  {
+    RCLCPP_ERROR(
+      get_logger(),
+      "Local-enable timings must satisfy enable_debounce_ms >= 0 and safe_release_ms > 0.");
     return hardware_interface::CallbackReturn::ERROR;
   }
   if (control_mode_ == MotorControlMode::VELOCITY_PID && !wheel_radius_calibrated_) {
@@ -345,12 +383,55 @@ hardware_interface::CallbackReturn VmxSystemHardware::on_init(
     titan_sensor_name_ = titan_sensor_it->name;
   }
 
+  const auto safety_sensor_it = std::find_if(
+    info_.sensors.begin(), info_.sensors.end(),
+    [](const auto & sensor) { return sensor.name == "hardware_safety"; });
+  if (safety_sensor_it == info_.sensors.end()) {
+    RCLCPP_ERROR(
+      get_logger(), "Physical hardware requires the 'hardware_safety' state sensor.");
+    return hardware_interface::CallbackReturn::ERROR;
+  }
+  safety_sensor_name_ = safety_sensor_it->name;
+  for (const auto & required_interface : {
+      std::string("input_valid"), std::string("estop_ok"),
+      std::string("enable_active"), std::string("drive_healthy"),
+      std::string("motion_enabled"), std::string("gate_state"),
+      std::string("fault_reason")})
+  {
+    const bool found = std::any_of(
+      safety_sensor_it->state_interfaces.begin(),
+      safety_sensor_it->state_interfaces.end(),
+      [&](const auto & state_interface) {
+        return state_interface.name == required_interface;
+      });
+    if (!found) {
+      RCLCPP_ERROR(
+        get_logger(), "Sensor '%s' is missing required state interface '%s'.",
+        safety_sensor_name_.c_str(), required_interface.c_str());
+      return hardware_interface::CallbackReturn::ERROR;
+    }
+  }
+
   try {
     vmx_ = std::make_shared<VMXPi>(true, 50);
     if (!vmx_ || !vmx_->IsOpen()) {
       RCLCPP_ERROR(get_logger(), "Unable to open VMXPi device for VmxSystemHardware.");
       return hardware_interface::CallbackReturn::ERROR;
     }
+    estop_ok_input_ = std::make_unique<studica_driver::DIO>(
+      static_cast<VMXChannelIndex>(estop_ok_dio_channel_),
+      studica_driver::PinMode::INPUT, vmx_);
+    local_enable_input_ = std::make_unique<studica_driver::DIO>(
+      static_cast<VMXChannelIndex>(local_enable_dio_channel_),
+      studica_driver::PinMode::INPUT, vmx_);
+    if (!estop_ok_input_->IsInitialized() || !local_enable_input_->IsInitialized()) {
+      RCLCPP_ERROR(
+        get_logger(),
+        "Physical hardware is blocked: failed to initialize E-stop/local-enable FlexDIO.");
+      return hardware_interface::CallbackReturn::ERROR;
+    }
+    local_enable_gate_ =
+      std::make_unique<local_enable_gate::LocalEnableGate>(local_enable_gate_config_);
     titan_driver_ = std::make_unique<studica_driver::Titan>(
       can_id_, motor_freq_, static_cast<float>(dist_per_tick_), vmx_);
     uint8_t titan_info[8] = {0};
@@ -383,7 +464,10 @@ hardware_interface::CallbackReturn VmxSystemHardware::on_init(
     RCLCPP_ERROR(get_logger(), "Error initializing VmxSystemHardware drivers: %s", ex.what());
     return hardware_interface::CallbackReturn::ERROR;
   }
-  RCLCPP_INFO(get_logger(), "VmxSystemHardware drivers initialized in on_init");
+  RCLCPP_INFO(
+    get_logger(),
+    "VmxSystemHardware initialized with E-stop DIO %d and local-enable DIO %d.",
+    estop_ok_dio_channel_, local_enable_dio_channel_);
 
   // Initialize state and command vectors
   hw_positions_.resize(info_.joints.size(), std::numeric_limits<double>::quiet_NaN());
@@ -582,6 +666,20 @@ std::vector<hardware_interface::StateInterface> VmxSystemHardware::export_state_
     titan_sensor_name_, "firmware_minor", &titan_firmware_minor_);
   state_interfaces.emplace_back(
     titan_sensor_name_, "firmware_patch", &titan_firmware_patch_);
+  state_interfaces.emplace_back(
+    safety_sensor_name_, "input_valid", &safety_input_valid_);
+  state_interfaces.emplace_back(
+    safety_sensor_name_, "estop_ok", &safety_estop_ok_);
+  state_interfaces.emplace_back(
+    safety_sensor_name_, "enable_active", &safety_enable_active_);
+  state_interfaces.emplace_back(
+    safety_sensor_name_, "drive_healthy", &safety_drive_healthy_);
+  state_interfaces.emplace_back(
+    safety_sensor_name_, "motion_enabled", &safety_motion_enabled_);
+  state_interfaces.emplace_back(
+    safety_sensor_name_, "gate_state", &safety_gate_state_);
+  state_interfaces.emplace_back(
+    safety_sensor_name_, "fault_reason", &safety_fault_reason_);
 
   return state_interfaces;
 }
@@ -596,6 +694,84 @@ std::vector<hardware_interface::CommandInterface> VmxSystemHardware::export_comm
   }
 
   return command_interfaces;
+}
+
+bool VmxSystemHardware::drive_healthy() const noexcept
+{
+  if (fault_latched_ || !titan_driver_) {
+    return false;
+  }
+  if (
+    control_mode_ == MotorControlMode::VELOCITY_PID &&
+    titan_pid_supported_ < 0.5)
+  {
+    return false;
+  }
+  if (
+    !temperature_seen_ ||
+    !velocity_pid_safety::safe_temperature_sample(
+      titan_controller_temperature_c_, controller_temp_error_c_) ||
+    !std::isfinite(titan_temperature_age_sec_) ||
+    titan_temperature_age_sec_ > controller_temp_error_timeout_sec_)
+  {
+    return false;
+  }
+  return std::all_of(
+    hw_feedback_ages_.begin(), hw_feedback_ages_.end(),
+    [this](double age_sec) {
+      return std::isfinite(age_sec) && age_sec <= feedback_error_timeout_sec_;
+    });
+}
+
+void VmxSystemHardware::update_local_enable_state_interfaces(
+  const local_enable_gate::Inputs & inputs,
+  const local_enable_gate::Result & result) noexcept
+{
+  safety_input_valid_ = inputs.sample_valid ? 1.0 : 0.0;
+  safety_estop_ok_ = inputs.estop_ok ? 1.0 : 0.0;
+  safety_enable_active_ = inputs.enable_active ? 1.0 : 0.0;
+  safety_drive_healthy_ = inputs.drive_healthy ? 1.0 : 0.0;
+  safety_motion_enabled_ = result.motion_enabled ? 1.0 : 0.0;
+  safety_gate_state_ = static_cast<double>(static_cast<int>(result.state));
+  safety_fault_reason_ = static_cast<double>(static_cast<int>(result.fault));
+}
+
+local_enable_gate::Result VmxSystemHardware::update_local_enable_gate()
+{
+  bool estop_level_high = true;
+  bool enable_level_high = true;
+  const bool estop_sample_valid =
+    estop_ok_input_ && estop_ok_input_->TryGet(estop_level_high);
+  const bool enable_sample_valid =
+    local_enable_input_ && local_enable_input_->TryGet(enable_level_high);
+  const local_enable_gate::Inputs inputs{
+    estop_sample_valid && enable_sample_valid,
+    estop_sample_valid && !estop_level_high,
+    drive_healthy(),
+    enable_sample_valid && !enable_level_high};
+
+  if (!local_enable_gate_) {
+    const local_enable_gate::Result result{
+      local_enable_gate::GateState::FAULT_LATCHED,
+      local_enable_gate::FaultReason::INPUT_INVALID,
+      false};
+    update_local_enable_state_interfaces(inputs, result);
+    return result;
+  }
+
+  const auto previous_state = local_enable_gate_->state();
+  const auto now = std::chrono::duration<double>(
+    std::chrono::steady_clock::now().time_since_epoch()).count();
+  const auto result = local_enable_gate_->update(inputs, now);
+  update_local_enable_state_interfaces(inputs, result);
+  if (result.state != previous_state) {
+    RCLCPP_INFO(
+      get_logger(), "Local hardware safety gate: %s -> %s (fault=%s).",
+      local_enable_gate::state_name(previous_state),
+      local_enable_gate::state_name(result.state),
+      local_enable_gate::fault_name(result.fault));
+  }
+  return result;
 }
 
 void VmxSystemHardware::latch_fault(const std::string & reason)
@@ -645,10 +821,15 @@ void VmxSystemHardware::enforce_fault_stop()
   {
     return;
   }
-  if (!stop_all_motors()) {
+  const bool stopped = stop_all_motors();
+  const bool disabled = titan_driver_->TryEnable(false);
+  if (disabled) {
+    titan_output_enabled_ = false;
+  }
+  if (!stopped || !disabled) {
     RCLCPP_ERROR_THROTTLE(
       get_logger(), *get_clock(), 2000,
-      "Failed to refresh one or more zero-RPM commands while Titan fault is latched.");
+      "Failed to refresh zero commands or disable Titan while a fault is latched.");
   }
   last_fault_stop_time_ = now;
 }
@@ -714,6 +895,11 @@ hardware_interface::CallbackReturn VmxSystemHardware::on_activate(
   fault_reason_.clear();
   titan_fault_latched_ = 0.0;
   last_fault_stop_time_ = {};
+  titan_output_enabled_ = false;
+  local_enable_gate_ =
+    std::make_unique<local_enable_gate::LocalEnableGate>(local_enable_gate_config_);
+  update_local_enable_state_interfaces(
+    local_enable_gate::Inputs{}, local_enable_gate::Result{});
   temperature_seen_ = false;
   titan_controller_temperature_c_ = std::numeric_limits<double>::quiet_NaN();
   titan_temperature_age_sec_ = std::numeric_limits<double>::infinity();
@@ -737,6 +923,15 @@ hardware_interface::CallbackReturn VmxSystemHardware::on_activate(
 
   if (imu_enabled_) {
     imu_driver_->ZeroYaw();
+  }
+
+  // Never inherit an enabled Titan across a controller-manager restart. The
+  // local physical gate is the only path that may enable it again.
+  const bool startup_stopped = stop_all_motors();
+  const bool startup_disabled = titan_driver_->TryEnable(false);
+  if (!startup_stopped || !startup_disabled) {
+    RCLCPP_ERROR(get_logger(), "Failed to establish a disabled Titan startup state.");
+    return hardware_interface::CallbackReturn::ERROR;
   }
 
   if (control_mode_ == MotorControlMode::VELOCITY_PID) {
@@ -772,14 +967,10 @@ hardware_interface::CallbackReturn VmxSystemHardware::on_activate(
     return hardware_interface::CallbackReturn::ERROR;
   }
 
-  if (!stop_all_motors() || !titan_driver_->TryEnable(true)) {
-    RCLCPP_ERROR(get_logger(), "Failed to zero and enable Titan safely.");
-    titan_driver_->TryEnable(false);
-    return hardware_interface::CallbackReturn::ERROR;
-  }
-
   RCLCPP_INFO(
-    get_logger(), "Titan activated in %s mode (PID type=%u sensitivity=%u).",
+    get_logger(),
+    "Titan configured in %s mode but remains disabled pending the local safety gate "
+    "(PID type=%u sensitivity=%u).",
     control_mode_name_.c_str(), static_cast<unsigned>(pid_type_),
     static_cast<unsigned>(pid_sensitivity_));
 
@@ -791,7 +982,9 @@ hardware_interface::CallbackReturn VmxSystemHardware::on_deactivate(
 {
   if (titan_driver_) { // Check if titan_driver_ is valid before using
     stop_all_motors();
-    titan_driver_->TryEnable(false);
+    if (titan_driver_->TryEnable(false)) {
+      titan_output_enabled_ = false;
+    }
   } else {
     RCLCPP_WARN(get_logger(), "Titan driver is not initialized in on_deactivate, nothing to disable.");
   }
@@ -986,9 +1179,32 @@ hardware_interface::return_type VmxSystemHardware::write(
     }
   }
 
-  if (fault_latched_) {
+  const auto safety_gate_result = update_local_enable_gate();
+  if (!safety_gate_result.motion_enabled) {
     std::fill(hw_commanded_velocities_.begin(), hw_commanded_velocities_.end(), 0.0);
-    enforce_fault_stop();
+    if (!stop_all_motors()) {
+      latch_fault("failed to write zero targets while the local safety gate was closed");
+      return hardware_interface::return_type::OK;
+    }
+    if (titan_output_enabled_) {
+      if (!titan_driver_->TryEnable(false)) {
+        latch_fault("failed to disable Titan when the local safety gate closed");
+      } else {
+        titan_output_enabled_ = false;
+      }
+    }
+    return hardware_interface::return_type::OK;
+  }
+
+  if (!titan_output_enabled_) {
+    // Establish zero targets before enabling and wait until the next control
+    // cycle before accepting a nonzero target.
+    std::fill(hw_commanded_velocities_.begin(), hw_commanded_velocities_.end(), 0.0);
+    if (!stop_all_motors() || !titan_driver_->TryEnable(true)) {
+      latch_fault("failed to safely enable Titan after local authorization");
+      return hardware_interface::return_type::OK;
+    }
+    titan_output_enabled_ = true;
     return hardware_interface::return_type::OK;
   }
 

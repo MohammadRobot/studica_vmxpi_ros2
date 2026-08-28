@@ -7,6 +7,7 @@
     <xacro:property name="hardware_cfg" value="${profile['hardware']}"/>
     <xacro:property name="drive_cfg" value="${profile['drive']}"/>
     <xacro:property name="pid_cfg" value="${hardware_cfg.get('pid', dict())}"/>
+    <xacro:property name="safety_cfg" value="${hardware_cfg.get('safety_gate', dict())}"/>
     <xacro:property name="wheel_layout_resolved" value="${wheel_layout if wheel_layout in ['diff', 'diff_4wd', 'mecanum', 'omni'] else 'diff'}"/>
 
     <ros2_control name="${name}" type="system">
@@ -34,6 +35,10 @@
           <param name="controller_temp_error_c">${hardware_cfg.get('controller_temp_error_c', 80.0)}</param>
           <param name="controller_temp_error_timeout_ms">${hardware_cfg.get('controller_temp_error_timeout_ms', 3000)}</param>
           <param name="wheel_radius_calibrated">${hardware_cfg.get('wheel_radius_calibrated', True)}</param>
+          <param name="estop_ok_dio_channel">${safety_cfg.get('estop_ok_dio_channel', -1)}</param>
+          <param name="local_enable_dio_channel">${safety_cfg.get('local_enable_dio_channel', -1)}</param>
+          <param name="enable_debounce_ms">${safety_cfg.get('enable_debounce_ms', 100)}</param>
+          <param name="safe_release_ms">${safety_cfg.get('safe_release_ms', 500)}</param>
 
           <param name="left_front_motor">${hardware_cfg['left_front_motor']}</param>
           <param name="left_rear_motor">${hardware_cfg['left_rear_motor']}</param>
@@ -139,6 +144,15 @@
           <state_interface name="firmware_major"/>
           <state_interface name="firmware_minor"/>
           <state_interface name="firmware_patch"/>
+        </sensor>
+        <sensor name="hardware_safety">
+          <state_interface name="input_valid"/>
+          <state_interface name="estop_ok"/>
+          <state_interface name="enable_active"/>
+          <state_interface name="drive_healthy"/>
+          <state_interface name="motion_enabled"/>
+          <state_interface name="gate_state"/>
+          <state_interface name="fault_reason"/>
         </sensor>
         <sensor name="imu_sensor">
           <state_interface name="orientation.x"/>

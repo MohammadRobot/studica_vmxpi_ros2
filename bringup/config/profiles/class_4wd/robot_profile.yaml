@@ -55,6 +55,12 @@ hardware:
   max_wheel_angular_velocity_rad_s: 20.0
   control_mode: velocity_pid
   wheel_radius_calibrated: true
+  safety_gate:
+    # Fail-closed placeholder pending physical FlexDIO wiring inspection.
+    estop_ok_dio_channel: -1
+    local_enable_dio_channel: -1
+    enable_debounce_ms: 100
+    safe_release_ms: 500
   pid:
     type: mcv2
     sensitivity: 5

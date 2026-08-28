@@ -34,6 +34,9 @@
 #include "rclcpp_lifecycle/node_interfaces/lifecycle_node_interface.hpp"
 #include "rclcpp_lifecycle/state.hpp"
 
+#include "studica_vmxpi_ros2/local_enable_gate.hpp"
+
+#include "dio.h"
 #include "imu.h"
 #include "titan.h"
 
@@ -82,6 +85,11 @@ private:
   bool stop_all_motors();
   void enforce_fault_stop();
   bool wait_for_safe_controller_temperature();
+  bool drive_healthy() const noexcept;
+  local_enable_gate::Result update_local_enable_gate();
+  void update_local_enable_state_interfaces(
+    const local_enable_gate::Inputs & inputs,
+    const local_enable_gate::Result & result) noexcept;
  
   // Objects for logging
   std::shared_ptr<rclcpp::Logger> logger_;
@@ -90,6 +98,10 @@ private:
   std::shared_ptr<VMXPi> vmx_;
   std::unique_ptr<studica_driver::Titan> titan_driver_;
   std::unique_ptr<studica_driver::Imu> imu_driver_;
+  std::unique_ptr<studica_driver::DIO> estop_ok_input_;
+  std::unique_ptr<studica_driver::DIO> local_enable_input_;
+  std::unique_ptr<local_enable_gate::LocalEnableGate> local_enable_gate_;
+  local_enable_gate::Config local_enable_gate_config_;
   std::vector<double> hw_positions_; // Store current joint positions
   std::vector<double> hw_velocities_; // Store current joint velocities
   std::vector<double> hw_commands_; // Store commanded joint velocities
@@ -124,6 +136,10 @@ private:
   bool fault_latched_{false};
   std::string fault_reason_;
   std::chrono::steady_clock::time_point last_fault_stop_time_{};
+  bool titan_output_enabled_{false};
+
+  int estop_ok_dio_channel_{-1};
+  int local_enable_dio_channel_{-1};
 
   int left_front_motor_{-1};
   int left_rear_motor_{-1};
@@ -143,6 +159,7 @@ private:
   bool imu_enabled_{false};
   std::string imu_sensor_name_{"imu_sensor"};
   std::string titan_sensor_name_{"titan_controller"};
+  std::string safety_sensor_name_{"hardware_safety"};
   double titan_controller_temperature_c_{std::numeric_limits<double>::quiet_NaN()};
   double titan_temperature_age_sec_{std::numeric_limits<double>::infinity()};
   double titan_pid_supported_{0.0};
@@ -151,6 +168,13 @@ private:
   double titan_firmware_major_{0.0};
   double titan_firmware_minor_{0.0};
   double titan_firmware_patch_{0.0};
+  double safety_input_valid_{0.0};
+  double safety_estop_ok_{0.0};
+  double safety_enable_active_{0.0};
+  double safety_drive_healthy_{0.0};
+  double safety_motion_enabled_{0.0};
+  double safety_gate_state_{0.0};
+  double safety_fault_reason_{0.0};
   std::chrono::steady_clock::time_point last_temperature_time_{};
   bool temperature_seen_{false};
   double imu_orientation_x_{0.0};

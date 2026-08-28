@@ -13,15 +13,16 @@ explicit simulation arm/disarm, monotonic expiry, publisher loss, source
 conflict rejection, planar/finite validation, and speed/acceleration limits.
 See [Safety supervisor API](SAFETY_SUPERVISOR.md).
 
-Hardware arming, diagnostic and emergency-stop integration, source-specific
-joystick/Nav2/remote arbitration, authenticated leases, systemd activation, and
-atomic updates remain gated future work. This revision is not deployed to the
-physical VMX-pi.
+Phase 2 integrates the fail-closed local enable and E-stop status gate into the
+VMX/Titan write boundary. It disables Titan and forces zero unless two valid
+active-low DIO samples, drive health, the boot-release sequence, and a new local
+enable edge all agree. Exact FlexDIO channels remain intentionally set to `-1`,
+so physical hardware startup is blocked pending wiring inspection and lifted
+acceptance. See [Physical hardware safety gate](HARDWARE_SAFETY_GATE.md).
 
-Phase 2A has selected the fail-closed local-enable architecture and added its
-deterministic reference logic and fault-injection tests. Exact FlexDIO channels
-are intentionally blocked on physical wiring inspection. See
-[Physical hardware safety gate](HARDWARE_SAFETY_GATE.md).
+Supervisor hardware-state mirroring, source-specific joystick/Nav2/remote
+arbitration, authenticated leases, systemd activation, and atomic updates remain
+gated future work. This revision is not deployed to the physical VMX-pi.
 
 ## Safety invariants
 

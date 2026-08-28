@@ -13,6 +13,8 @@ The hardware stack guarantees:
 - unsupported firmware never falls back to open-loop duty control;
 - target and measured signs use the same robot-frame convention;
 - unsafe input or feedback zeros every motor and latches a fault;
+- active-low E-stop status and local enable are enforced inside the VMX/Titan
+  write path rather than trusted from DDS;
 - a fault latch requires deliberate hardware reactivation;
 - controller command timeout stops motion when `/cmd_vel` disappears;
 - monitoring and remote visualization never publish motor commands.
@@ -31,8 +33,9 @@ Hardware activation keeps output disabled while it:
 5. configures PID type `2` and sensitivity on the driver's `0–10` scale;
 6. reads a plausible, fresh controller temperature;
 7. obtains fresh RPM/encoder feedback for all active channels;
-8. sends zero target RPM to all motors;
-9. exposes command interfaces only after the safe state is confirmed.
+8. sends zero target RPM to all motors and explicitly disables Titan;
+9. waits for healthy DIO, feedback, temperature, and a new local enable edge;
+10. establishes one complete zero-target cycle before accepting motion.
 
 The tested Titan firmware is 2.0.5. A different firmware must pass probing and
 capability checks; generation is not inferred from a product label.
@@ -71,6 +74,12 @@ interfaces:
 
 Controller-level state also exposes Titan temperature, temperature age, PID
 capability/type, fault latch, and firmware major/minor/patch.
+
+The `hardware_safety` sensor additionally exposes `input_valid`, `estop_ok`,
+`enable_active`, `drive_healthy`, `motion_enabled`, `gate_state`, and
+`fault_reason`. Their numeric contract is defined in
+[Physical hardware safety gate](HARDWARE_SAFETY_GATE.md). They are read-only;
+the enforcement decision stays inside the hardware plugin.
 
 The monitor publishes the structured `/robot_status/motors` message. Each entry
 contains joint name, Titan channel, target/measured/error velocity, position,

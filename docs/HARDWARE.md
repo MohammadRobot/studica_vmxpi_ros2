@@ -7,11 +7,11 @@ emergency stop immediately.
 Hardware motion is never part of installation, CI, `robot_check`, mapping
 startup, navigation startup, or ordinary package tests.
 
-> **Current production phase:** hardware launch reaches `READY_DISARMED`, and
-> the supervisor rejects network/software arm requests. Physical motion is
-> paused until a local enable, emergency-stop health input, and repeated
-> no-motion cold-boot test are implemented. Continue only with read-only and
-> motor-power-disabled checks in this revision.
+> **Current production phase:** the supervisor rejects network/software arm
+> requests, and the VMX/Titan plugin now enforces the local enable and E-stop
+> status gate. The checked-in DIO channels are deliberately `-1`, so hardware
+> startup is blocked until the physical wiring inspection selects two FlexDIO
+> channels. Continue only with read-only and motor-power-disabled checks.
 
 ## Roles and stop conditions
 
@@ -35,6 +35,11 @@ With motor power disabled:
 4. test that the physical emergency stop removes motor power;
 5. rotate each wheel by hand and check for binding;
 6. keep camera and LiDAR cables away from wheels.
+
+Then complete and record the circuit inspection in
+[Physical hardware safety gate](HARDWARE_SAFETY_GATE.md). Do not replace the
+two `-1` safety channel placeholders until the connector labels, existing
+wiring, pull-up behavior, and physical E-stop power contacts are verified.
 
 The VMXPi remains powered for software checks only when the instructor considers
 that safe. Motor power stays disabled until the health report is understood.

@@ -31,7 +31,7 @@ jobs:
         uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
         with:
           repository: MohammadRobot/studica_drivers
-          ref: 3781477bfe4bbe9b7517e52acf6b015b5ada2e90
+          ref: 5a866ff2eb3164795d32d71764702bd50e4b2dfe
           path: ros2_ws/src/studica_drivers
 
       - name: Checkout studica_ros2_control dependency

@@ -51,6 +51,13 @@ hardware:
   max_wheel_angular_velocity_rad_s: 20.0
   control_mode: open_loop
   wheel_radius_calibrated: false
+  safety_gate:
+    # -1 is deliberately unconfigured and blocks physical hardware startup.
+    # Replace both values only after the documented wiring inspection.
+    estop_ok_dio_channel: -1
+    local_enable_dio_channel: -1
+    enable_debounce_ms: 100
+    safe_release_ms: 500
 
   # Valid indices: 0..3 for active motors, -1 for unused.
   left_front_motor: 2

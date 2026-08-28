@@ -31,6 +31,12 @@ hardware:
   speed_scale: 0.4
   max_wheel_angular_velocity_rad_s: 20.0
   control_mode: open_loop
+  safety_gate:
+    # Fail-closed placeholder pending physical FlexDIO wiring inspection.
+    estop_ok_dio_channel: -1
+    local_enable_dio_channel: -1
+    enable_debounce_ms: 100
+    safe_release_ms: 500
 
   left_front_motor: 2
   left_rear_motor: -1

@@ -111,6 +111,13 @@ NUMERIC_HW_KEYS = (
 
 BOOL_HW_KEYS = tuple(k for k in REQUIRED_HW_KEYS if k.startswith("invert_"))
 
+REQUIRED_SAFETY_GATE_KEYS = (
+    "estop_ok_dio_channel",
+    "local_enable_dio_channel",
+    "enable_debounce_ms",
+    "safe_release_ms",
+)
+
 SUPPORTED_WHEEL_LAYOUTS = ("diff", "diff_4wd", "mecanum", "omni")
 SUPPORTED_DRIVE_CONTROLLER_TYPES = (
     "diff_drive_controller/DiffDriveController",
@@ -269,6 +276,32 @@ def validate_profile_files(
         if key not in hw_cfg:
             errors.append(f"{profile_name}: {profile_path} missing hardware key '{key}'")
 
+    safety_cfg = hw_cfg.get("safety_gate")
+    if not isinstance(safety_cfg, dict):
+        errors.append(
+            f"{profile_name}: {profile_path} hardware.safety_gate must be a mapping"
+        )
+    else:
+        for key in REQUIRED_SAFETY_GATE_KEYS:
+            if key not in safety_cfg:
+                errors.append(
+                    f"{profile_name}: {profile_path} missing "
+                    f"hardware.safety_gate.{key}"
+                )
+        for channel_key in ("estop_ok_dio_channel", "local_enable_dio_channel"):
+            channel = safety_cfg.get(channel_key)
+            if not isinstance(channel, int) or isinstance(channel, bool):
+                errors.append(
+                    f"{profile_name}: {profile_path} "
+                    f"hardware.safety_gate.{channel_key} must be an integer"
+                )
+        for timing_key in ("enable_debounce_ms", "safe_release_ms"):
+            if not _is_number(safety_cfg.get(timing_key)):
+                errors.append(
+                    f"{profile_name}: {profile_path} "
+                    f"hardware.safety_gate.{timing_key} must be numeric"
+                )
+
     uses_physical_geometry = any(key in xacro_cfg for key in PHYSICAL_GEOMETRY_KEYS)
     if uses_physical_geometry:
         for key in PHYSICAL_GEOMETRY_KEYS:
@@ -346,6 +379,10 @@ def validate_profile_files(
     wheel_radius = float(wheel_radius_value)
     speed_scale = float(hw_cfg["speed_scale"])
     max_wheel_rad_s = float(hw_cfg["max_wheel_angular_velocity_rad_s"])
+    estop_channel = int(safety_cfg["estop_ok_dio_channel"])
+    enable_channel = int(safety_cfg["local_enable_dio_channel"])
+    enable_debounce_ms = float(safety_cfg["enable_debounce_ms"])
+    safe_release_ms = float(safety_cfg["safe_release_ms"])
 
     if uses_physical_geometry:
         robot_mass = float(xacro_cfg["robot_mass"])
@@ -416,6 +453,34 @@ def validate_profile_files(
     if max_wheel_rad_s <= 0.0:
         errors.append(
             f"{profile_name}: {profile_path} max_wheel_angular_velocity_rad_s must be > 0"
+        )
+    for channel_name, channel in (
+        ("estop_ok_dio_channel", estop_channel),
+        ("local_enable_dio_channel", enable_channel),
+    ):
+        if channel < -1 or channel > 29:
+            errors.append(
+                f"{profile_name}: {profile_path} "
+                f"hardware.safety_gate.{channel_name} must be -1 or in [0, 29]"
+            )
+    if (estop_channel == -1) != (enable_channel == -1):
+        errors.append(
+            f"{profile_name}: {profile_path} safety DIO channels must both be "
+            "configured or both be -1"
+        )
+    if estop_channel >= 0 and estop_channel == enable_channel:
+        errors.append(
+            f"{profile_name}: {profile_path} safety DIO channels must be different"
+        )
+    if enable_debounce_ms < 0.0:
+        errors.append(
+            f"{profile_name}: {profile_path} "
+            "hardware.safety_gate.enable_debounce_ms must be >= 0"
+        )
+    if safe_release_ms <= 0.0:
+        errors.append(
+            f"{profile_name}: {profile_path} "
+            "hardware.safety_gate.safe_release_ms must be > 0"
         )
 
     control_mode = hw_cfg.get("control_mode", "open_loop")

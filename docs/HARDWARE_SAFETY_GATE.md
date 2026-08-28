@@ -1,8 +1,9 @@
 # Physical Hardware Safety Gate
 
-This document records the Phase 2A hardware decision for the physical
-`stack_4wd` robot. It is a wiring and implementation contract, not permission
-to move the robot or deploy boot services.
+This document records the Phase 2 hardware gate for the physical `stack_4wd`
+robot. The deterministic logic and VMX/Titan enforcement are implemented, but
+the required wiring is not. It is not permission to move the robot or deploy
+boot services.
 
 ## Evidence from the robot
 
@@ -68,16 +69,23 @@ drive state as fail-closed faults.
 
 ## Enforcement boundary
 
-The final gate must be implemented inside `VmxSystemHardware` using the same
-`VMXPi` instance that owns Titan and the IMU:
+The gate is implemented inside `VmxSystemHardware` using the same `VMXPi`
+instance that owns Titan and the IMU. It:
 
-1. initialize both DIO resources during hardware configuration;
-2. read them during each hardware cycle with an API that distinguishes a valid
+1. initializes both DIO resources during hardware configuration;
+2. reads them during each hardware cycle with an API that distinguishes a valid
    LOW value from a read failure;
-3. combine them with PID, temperature, encoder freshness, and fault-latch health;
-4. force every wheel target to zero in `write()` unless the local gate is
+3. combines them with PID, temperature, encoder freshness, and fault-latch health;
+4. forces every wheel target to zero in `write()` unless the local gate is
    `ENABLED`;
-5. export read-only gate state for the supervisor and diagnostics.
+5. disables Titan while the gate is closed and establishes zero targets for a
+   complete control cycle before accepting motion after enable;
+6. exports read-only gate state for the supervisor and diagnostics.
+
+Every checked-in profile currently uses `-1` for both channel parameters.
+`VmxSystemHardware` rejects that configuration before it opens motor control.
+This is the deliberate compile-ready/runtime-blocked state until the wiring
+inspection records two real FlexDIO channels.
 
 The ROS safety supervisor will mirror the hardware state so applications see
 `READY_DISARMED`, `ARMED`, and `FAULT`. That DDS message is not the authority.
@@ -88,13 +96,30 @@ Do not launch the separate `studica_ros2_control` accessory container to read
 these safety inputs. It creates another VMX HAL owner and places the safety
 decision behind a network-visible topic.
 
-## Driver prerequisite
+## Driver support
 
-The current `studica_driver::DIO::Get()` returns `false` both for a legitimate
-LOW input and for some read failures. That ambiguity is unsafe for active-low
-`ESTOP_OK`. Before hardware integration, the driver must add a non-throwing
-`TryGet(bool & value)`-style API whose return value reports read success. A
-failed initialization or read must make `sample_valid=false` and latch the gate.
+`studica_drivers` commit `5a866ff` adds `DIO::TryGet(bool & value)`. Its return
+value reports read success while the output reports HIGH/LOW, so a legitimate
+LOW cannot be confused with failure. Failed initialization or reads make
+`sample_valid=false` and latch the local gate. The legacy ambiguous `Get()` is
+not used for either safety input.
+
+## Exported hardware state
+
+The `hardware_safety` sensor exports these numeric `ros2_control` state
+interfaces for read-only diagnostics:
+
+| Interface | Values |
+|---|---|
+| `input_valid` | `1` only when both DIO reads succeeded |
+| `estop_ok` | `1` only when the active-low E-stop status contact is closed |
+| `enable_active` | `1` while the active-low local switch requests enable |
+| `drive_healthy` | `1` when PID, temperature, feedback, and fault state permit motion |
+| `motion_enabled` | `1` only while the hardware gate authorizes Titan output |
+| `gate_state` | `0` waiting, `1` ready, `2` enabled, `3` fault-latched |
+| `fault_reason` | `0` none, `1` input, `2` E-stop, `3` drive, `4` time |
+
+These interfaces are observability only and do not accept commands.
 
 ## Hardware acceptance fixture
 

@@ -300,6 +300,12 @@ if(BUILD_TESTING)
       ${CMAKE_CURRENT_SOURCE_DIR}/bringup/config/profiles
   )
   ament_add_test(
+    validate_profile_safety_gate
+    GENERATE_RESULT_FOR_RETURN_CODE_ZERO
+    COMMAND ${Python3_EXECUTABLE} -m pytest -q
+      ${CMAKE_CURRENT_SOURCE_DIR}/test/test_profile_safety_gate.py
+  )
+  ament_add_test(
     validate_beginner_launches
     GENERATE_RESULT_FOR_RETURN_CODE_ZERO
     COMMAND ${Python3_EXECUTABLE}
