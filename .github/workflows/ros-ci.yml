@@ -63,6 +63,19 @@ jobs:
         with:
           required-ros-distributions: humble
 
+      # GitHub's Jammy image installs libc++-dev, which selects
+      # libunwind-14-dev. Nav2's Ceres/glog chain needs libunwind-dev, and the
+      # two development packages conflict. Keep this runner-only workaround
+      # after setup-ros in case that action restores the LLVM package.
+      - name: Resolve Ubuntu runner libunwind conflict
+        run: |
+          if dpkg-query -W -f='${Status}\n' libunwind-14-dev 2>/dev/null \
+              | grep -qx 'install ok installed'; then
+            sudo apt-get remove -y libunwind-14-dev
+          fi
+          sudo apt-get -o Acquire::Retries=3 update
+          sudo apt-get -o Acquire::Retries=3 install -y libunwind-dev
+
       - name: Install package dependencies
         run: |
           sudo apt-get update
@@ -114,6 +127,17 @@ jobs:
         uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
         with:
           path: ros2_ws/src/studica_vmxpi_ros2
+
+      # Match the dependency preparation in build-and-test. The product
+      # installer itself remains free of GitHub-runner-specific mutations.
+      - name: Resolve Ubuntu runner libunwind conflict
+        run: |
+          if dpkg-query -W -f='${Status}\n' libunwind-14-dev 2>/dev/null \
+              | grep -qx 'install ok installed'; then
+            sudo apt-get remove -y libunwind-14-dev
+          fi
+          sudo apt-get -o Acquire::Retries=3 update
+          sudo apt-get -o Acquire::Retries=3 install -y libunwind-dev
 
       - name: Install, build, and run headless Harmonic contracts
         working-directory: ros2_ws/src/studica_vmxpi_ros2
