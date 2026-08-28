@@ -23,6 +23,8 @@ TOPIC_TYPES = {
     "/imu": "sensor_msgs/msg/Imu",
     "/joint_states": "sensor_msgs/msg/JointState",
     "/odom": "nav_msgs/msg/Odometry",
+    "/robot/safety_reason": "std_msgs/msg/String",
+    "/robot/state": "std_msgs/msg/String",
     "/scan": "sensor_msgs/msg/LaserScan",
     "/tf": "tf2_msgs/msg/TFMessage",
     "/tf_static": "tf2_msgs/msg/TFMessage",
@@ -81,6 +83,39 @@ def echo_once(topic, env, timeout=12):
     )
 
 
+def echo_string(topic, env, timeout=12):
+    output = run_cli(
+        [
+            "ros2",
+            "topic",
+            "echo",
+            topic,
+            "--once",
+            "--qos-durability",
+            "transient_local",
+        ],
+        env,
+        timeout=timeout,
+    ).stdout
+    document = output.split("---", maxsplit=1)[0].strip()
+    message = yaml.safe_load(document)
+    if not isinstance(message, dict) or not isinstance(message.get("data"), str):
+        raise RuntimeError(f"Expected std_msgs/String on {topic}, received:\n{output}")
+    return message["data"]
+
+
+def call_trigger(service, env):
+    result = run_cli(
+        ["ros2", "service", "call", service, "std_srvs/srv/Trigger", "{}"],
+        env,
+        timeout=12,
+    )
+    normalized = re.sub(r"\s+", "", result.stdout.lower())
+    if "success=true" not in normalized and "success:true" not in normalized:
+        raise RuntimeError(f"Service {service} rejected the request:\n{result.stdout}")
+    return result.stdout
+
+
 def wait_until_ready(process, env, timeout=40):
     deadline = time.monotonic() + timeout
     last_output = ""
@@ -132,39 +167,125 @@ def verify_topic_contract(env, timeout=20):
     )
 
 
-def verify_twist_adapter(env):
-    subscriber = subprocess.Popen(
-        ["ros2", "topic", "echo", "/robot_base_controller/cmd_vel", "--once"],
+def verify_boot_disarmed(env):
+    state = echo_string("/robot/state", env)
+    if state != "READY_DISARMED":
+        raise RuntimeError(f"Robot did not boot disarmed: {state}")
+
+    publisher = subprocess.Popen(
+        [
+            "ros2",
+            "topic",
+            "pub",
+            "-r",
+            "20",
+            "/cmd_vel",
+            "geometry_msgs/msg/Twist",
+            "{linear: {x: 0.2}}",
+        ],
         env=env,
-        text=True,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.STDOUT,
         start_new_session=True,
     )
     try:
-        time.sleep(1.0)
-        run_cli(
-            [
-                "ros2",
-                "topic",
-                "pub",
-                "--once",
-                "/cmd_vel",
-                "geometry_msgs/msg/Twist",
-                "{linear: {x: 0.2}, angular: {z: -0.1}}",
-            ],
-            env,
-            timeout=12,
-        )
-        output, _ = subscriber.communicate(timeout=12)
+        time.sleep(0.5)
+        message = echo_once("/robot_base_controller/cmd_vel", env)
     finally:
-        stop_process(subscriber)
+        stop_process(publisher)
 
-    message = parse_first_yaml(output)
+    if abs(float(message["twist"]["linear"]["x"])) > 1e-9:
+        raise RuntimeError(f"Disarmed supervisor passed a motion command: {message}")
+
+
+def verify_arm_and_supervised_twist(env):
+    call_trigger("/robot/arm", env)
+    if echo_string("/robot/state", env) != "ARMED":
+        raise RuntimeError("Robot did not enter ARMED after the simulation arm request")
+
+    # A command received before arming must not become active after arming.
+    cleared = echo_once("/robot_base_controller/cmd_vel", env)
+    if abs(float(cleared["twist"]["linear"]["x"])) > 1e-9:
+        raise RuntimeError(f"Pre-arm command was not cleared: {cleared}")
+
+    publisher = subprocess.Popen(
+        [
+            "ros2",
+            "topic",
+            "pub",
+            "-r",
+            "20",
+            "/cmd_vel",
+            "geometry_msgs/msg/Twist",
+            "{linear: {x: 0.2}, angular: {z: -0.1}}",
+        ],
+        env=env,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.STDOUT,
+        start_new_session=True,
+    )
+    try:
+        time.sleep(0.7)
+        message = echo_once("/robot_base_controller/cmd_vel", env)
+    finally:
+        stop_process(publisher)
+
     if message["header"]["frame_id"] != "base_link":
         raise RuntimeError(f"Unexpected command frame: {message}")
-    if abs(float(message["twist"]["linear"]["x"]) - 0.2) > 1e-6:
-        raise RuntimeError(f"Twist adapter changed the command: {message}")
+    if abs(float(message["twist"]["linear"]["x"]) - 0.2) > 0.02:
+        raise RuntimeError(f"Safety supervisor did not pass the valid command: {message}")
+
+    time.sleep(0.35)
+    stopped = echo_once("/robot_base_controller/cmd_vel", env)
+    if abs(float(stopped["twist"]["linear"]["x"])) > 1e-9:
+        raise RuntimeError(f"Publisher loss did not force zero output: {stopped}")
+
+
+def verify_conflicting_sources_stop_motion(env):
+    publishers = []
+    for speed in (0.1, -0.1):
+        publishers.append(
+            subprocess.Popen(
+                [
+                    "ros2",
+                    "topic",
+                    "pub",
+                    "-r",
+                    "20",
+                    "/cmd_vel",
+                    "geometry_msgs/msg/Twist",
+                    f"{{linear: {{x: {speed}}}}}",
+                ],
+                env=env,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.STDOUT,
+                start_new_session=True,
+            )
+        )
+    try:
+        deadline = time.monotonic() + 8.0
+        publisher_count = 0
+        while time.monotonic() < deadline:
+            info = run_cli(
+                ["ros2", "topic", "info", "/cmd_vel", "--no-daemon"],
+                env,
+                check=False,
+            ).stdout
+            match = re.search(r"Publisher count:\s*(\d+)", info)
+            publisher_count = int(match.group(1)) if match else 0
+            if publisher_count >= 2:
+                break
+            time.sleep(0.2)
+        if publisher_count < 2:
+            raise RuntimeError("Competing /cmd_vel publishers were not discovered")
+        time.sleep(0.2)
+        message = echo_once("/robot_base_controller/cmd_vel", env)
+        if abs(float(message["twist"]["linear"]["x"])) > 1e-9:
+            raise RuntimeError(f"Conflicting sources did not force zero output: {message}")
+    finally:
+        for publisher in publishers:
+            stop_process(publisher)
+    time.sleep(0.5)
 
 
 def verify_sensor_and_odom_aliases(env):
@@ -196,18 +317,59 @@ def verify_command_timeout(env):
     try:
         time.sleep(1.5)
         moving = echo_once("/joint_states", env)
+        # Keep the DDS writer alive but stop its process so this exercises the
+        # supervisor's monotonic receive deadline, not publisher-discovery loss.
+        os.killpg(publisher.pid, signal.SIGSTOP)
+        time.sleep(1.5)
+        stopped_output = echo_once("/robot_base_controller/cmd_vel", env)
+        stopped = echo_once("/joint_states", env)
     finally:
+        if publisher.poll() is None:
+            os.killpg(publisher.pid, signal.SIGCONT)
         stop_process(publisher)
 
     moving_speeds = [abs(float(value)) for value in moving.get("velocity", [])]
     if not moving_speeds or max(moving_speeds) < 0.2:
         raise RuntimeError(f"Wheel feedback did not respond to /cmd_vel: {moving}")
 
-    time.sleep(1.5)
-    stopped = echo_once("/joint_states", env)
+    if abs(float(stopped_output["twist"]["linear"]["x"])) > 1e-9:
+        raise RuntimeError(f"Expired command did not force zero output: {stopped_output}")
     stopped_speeds = [abs(float(value)) for value in stopped.get("velocity", [])]
     if not stopped_speeds or max(stopped_speeds) > 0.1:
         raise RuntimeError(f"Command timeout did not stop wheel feedback: {stopped}")
+
+
+def verify_disarm_while_commanded(env):
+    publisher = subprocess.Popen(
+        [
+            "ros2",
+            "topic",
+            "pub",
+            "-r",
+            "20",
+            "/cmd_vel",
+            "geometry_msgs/msg/Twist",
+            "{linear: {x: 0.2}}",
+        ],
+        env=env,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.STDOUT,
+        start_new_session=True,
+    )
+    try:
+        time.sleep(0.7)
+        moving = echo_once("/robot_base_controller/cmd_vel", env)
+        if float(moving["twist"]["linear"]["x"]) < 0.15:
+            raise RuntimeError(f"Active command did not reach the supervisor: {moving}")
+
+        call_trigger("/robot/disarm", env)
+        stopped = echo_once("/robot_base_controller/cmd_vel", env)
+        if abs(float(stopped["twist"]["linear"]["x"])) > 1e-9:
+            raise RuntimeError(f"Disarm did not force immediate zero output: {stopped}")
+        if echo_string("/robot/state", env) != "READY_DISARMED":
+            raise RuntimeError("Robot did not return to READY_DISARMED")
+    finally:
+        stop_process(publisher)
 
 
 def verify_command_publisher_ownership(mode, env):
@@ -229,6 +391,29 @@ def verify_command_publisher_ownership(mode, env):
         )
         if not nav2_publishers:
             raise RuntimeError(f"Navigation command publisher is not owned by Nav2:\n{output}")
+
+    internal_output = run_cli(
+        [
+            "ros2",
+            "topic",
+            "info",
+            "/robot_base_controller/cmd_vel",
+            "--no-daemon",
+            "-v",
+        ],
+        env,
+    ).stdout
+    internal_match = re.search(r"Publisher count:\s*(\d+)", internal_output)
+    if internal_match is None or int(internal_match.group(1)) != 1:
+        raise RuntimeError(
+            "Controller command topic must have exactly one publisher:\n"
+            f"{internal_output}"
+        )
+    if "safety_supervisor" not in internal_output.lower():
+        raise RuntimeError(
+            "Safety supervisor does not own the controller command topic:\n"
+            f"{internal_output}"
+        )
 
 
 def dependencies_available(env):
@@ -324,12 +509,14 @@ def main():
             try:
                 wait_until_ready(process, env, timeout=35 if args.mode == "mock" else 75)
                 verify_topic_contract(env)
-                if args.mode in ("mapping", "navigation"):
-                    verify_command_publisher_ownership(args.mode, env)
-                else:
-                    verify_twist_adapter(env)
+                verify_boot_disarmed(env)
+                verify_command_publisher_ownership(args.mode, env)
+                if args.mode not in ("mapping", "navigation"):
+                    verify_arm_and_supervised_twist(env)
+                    verify_conflicting_sources_stop_motion(env)
                     verify_sensor_and_odom_aliases(env)
                     verify_command_timeout(env)
+                    verify_disarm_while_commanded(env)
             except Exception:  # pylint: disable=broad-except
                 launch_log.flush()
                 launch_log.seek(0)

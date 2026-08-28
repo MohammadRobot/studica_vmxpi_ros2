@@ -28,8 +28,9 @@ it commands motion only while L1 is held. Navigation and hardware keep it off.
 
 ```mermaid
 flowchart TD
-    S[Application or Nav2 publishes /cmd_vel Twist] --> A[Topic adapter]
-    A --> C[Profile-selected ros2_control drive controller]
+    S[Application or Nav2 publishes /cmd_vel Twist] --> X[Safety supervisor]
+    R[/robot arm/disarm and state/] --> X
+    X -->|private validated TwistStamped| C[Profile-selected ros2_control drive controller]
     C --> H{Runtime mode}
     H -->|gz_sim| G[gz_ros2_control + Gazebo Harmonic]
     H -->|mock| M[Safe in-process mock hardware]
@@ -37,7 +38,7 @@ flowchart TD
     G --> F[Controller odometry and joint feedback]
     M --> F
     V --> W[Encoder odometry]
-    F --> A
+    F --> A[Odometry topic adapter]
     A --> O[/odom and standard sensor aliases]
     W --> WO[/wheel/odom: forward velocity]
     V --> I[/imu: yaw and yaw rate]
@@ -54,9 +55,12 @@ flowchart TD
     V --> D[Motor state + diagnostics]
 ```
 
-The adapter converts public `geometry_msgs/msg/Twist` into the stamped command
-expected by the selected controller. In simulation and mock mode it republishes
-controller odometry directly as `/odom`. Hardware defaults to a VMXPi-local EKF:
+The safety supervisor is the only publisher on the controller's private command
+topic. It boots disarmed, converts accepted public `geometry_msgs/msg/Twist`
+commands to the stamped controller type, and rejects missing, stale, malformed,
+or conflicting inputs. The adapter no longer handles motion; in simulation and
+mock mode it republishes controller odometry directly as `/odom`. Hardware
+defaults to a VMXPi-local EKF:
 the adapter exposes raw encoder odometry as `/wheel/odom`, and the EKF combines
 only its calibrated forward velocity with IMU yaw and yaw rate to publish
 `/odom`. Encoder-derived yaw is intentionally excluded because skid-steer tire
@@ -67,7 +71,11 @@ internal topic rules.
 
 | Interface | Direction from application code | Owner |
 |---|---|---|
-| `/cmd_vel` (`Twist`) | publish | topic adapter subscription |
+| `/cmd_vel` (`Twist`) | publish | safety supervisor subscription |
+| `/robot/state` (`String`) | subscribe | safety supervisor state heartbeat |
+| `/robot/safety_reason` (`String`) | subscribe | safety supervisor decision status |
+| `/robot/arm` (`Trigger`) | call in simulation/mock | explicit software arm; rejected on hardware |
+| `/robot/disarm` (`Trigger`) | call | immediate motion disable |
 | `/odom` (`Odometry`) | subscribe | topic adapter alias |
 | `/imu` (`Imu`) | subscribe | simulated/VMX sensor or mock fallback |
 | `/scan` (`LaserScan`) | subscribe | Gazebo/YDLidar or clear mock scan |
@@ -125,9 +133,11 @@ They still use the public `/cmd_vel` and `/odom` adapter.
 ## Control and timeout
 
 The drive controller owns four wheel velocity command interfaces for
-`class_4wd` and `stack_4wd`. A finite command timeout is configured in the controller YAML. If a
-publisher stops, the controller writes zero; mock and hardware state then return
-to zero.
+`class_4wd` and `stack_4wd`. The supervisor owns its stamped command input and
+uses a steady-clock 250 ms receive deadline, publisher-loss/conflict detection,
+finite planar validation, and speed/acceleration ceilings. Rejected commands
+produce zero immediately. A separate finite 500 ms timeout remains configured
+in the controller YAML. See [Safety supervisor API](SAFETY_SUPERVISOR.md).
 
 Hardware adds stricter behavior inside `VMXSystemHardware`: MCV2 firmware/PID
 probing, RPM conversion, command clamping, feedback freshness, controller

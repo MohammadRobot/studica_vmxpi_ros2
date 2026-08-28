@@ -7,6 +7,12 @@ emergency stop immediately.
 Hardware motion is never part of installation, CI, `robot_check`, mapping
 startup, navigation startup, or ordinary package tests.
 
+> **Current production phase:** hardware launch reaches `READY_DISARMED`, and
+> the supervisor rejects network/software arm requests. Physical motion is
+> paused until a local enable, emergency-stop health input, and repeated
+> no-motion cold-boot test are implemented. Continue only with read-only and
+> motor-power-disabled checks in this revision.
+
 ## Roles and stop conditions
 
 Assign these roles before power is applied:

@@ -38,7 +38,13 @@ ros2 topic echo /map_metadata --once
 ros2 topic hz /map
 ```
 
-Stop the rate command with `Ctrl+C`, then inspect the transform:
+Stop the rate command, then arm the simulation before driving:
+
+```bash
+ros2 service call /robot/arm std_srvs/srv/Trigger '{}'
+```
+
+Then inspect the transform:
 
 ```bash
 ros2 run tf2_ros tf2_echo map odom

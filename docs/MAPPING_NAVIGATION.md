@@ -4,6 +4,17 @@ Complete Labs 1–6 before this guide. Mapping starts deadman-protected joystick
 teleoperation by default. Navigation keeps joystick teleoperation disabled so
 Nav2 remains the sole motion owner after you send a goal.
 
+Simulation starts in `READY_DISARMED`. After each mapping or navigation launch,
+use a second sourced terminal to run:
+
+```bash
+ros2 topic echo /robot/state --once
+ros2 service call /robot/arm std_srvs/srv/Trigger '{}'
+```
+
+Hardware software-arming is disabled in the current production phase; the
+physical workflows below are read-only until the local hardware gate is added.
+
 For simulation, use the local simulation DDS profile. This prevents a
 previously sourced robot Wi-Fi or Ethernet profile from leaking into the local
 Gazebo session:

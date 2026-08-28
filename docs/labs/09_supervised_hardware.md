@@ -5,6 +5,11 @@ check, topic echo, or controller listing must leave every target velocity at
 zero. Any movement begins only after the safety operator and instructor approve
 a separate, human-operated teleop action.
 
+> **Phase 1 status:** complete only the read-only readiness portion of this lab.
+> The safety supervisor rejects software arming on hardware. Terminal 3 remains
+> blocked until the product adds and accepts a physical local-enable and
+> emergency-stop health input.
+
 ## Learning goals
 
 - Apply a written readiness gate before enabling physical motion.
@@ -82,6 +87,10 @@ Record instructor and safety-operator initials plus the time. A WARN requires an
 instructor decision; any FAIL ends the lab.
 
 ### Terminal 3 — human-operated low-speed control
+
+This step is not authorized in the current Phase 1 production revision. Retain
+the command below as the future lifted-wheel acceptance procedure; do not run it
+until the local hardware arming gate has passed review.
 
 Only after Safety Gate A, enable motor power as directed by the instructor. Keep
 the wheels on the approved lift for the first direction check. The terminal

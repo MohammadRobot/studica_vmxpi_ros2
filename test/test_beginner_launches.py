@@ -177,6 +177,9 @@ class BeginnerLaunchContractTest(unittest.TestCase):
         self.assertIn('package="teleop_twist_joy"', bringup)
         self.assertIn('"use_joystick",', bringup)
         self.assertIn('"input_cmd_vel_topic": "/cmd_vel"', runtime)
+        self.assertIn('executable="safety_supervisor_node"', runtime)
+        self.assertIn('"enable_cmd_vel_bridge": False', runtime)
+        self.assertIn('"state_topic": "/robot/state"', runtime)
         self.assertIn('"output_odom_topic": "/odom"', runtime)
         self.assertIn('"mock_scan_output_topic": "/scan"', runtime)
         self.assertIn(

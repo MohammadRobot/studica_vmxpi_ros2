@@ -24,6 +24,7 @@ path.
 | Guide | Scope |
 |---|---|
 | [System architecture](ARCHITECTURE.md) | Runtime layers and stable public interfaces |
+| [Safety supervisor API](SAFETY_SUPERVISOR.md) | State, arm/disarm, command validation, and Phase 1 limits |
 | [Robot health and velocity PID](ROBOT_HEALTH_AND_PID.md) | Titan MCV2 safety and validation details |
 | [Networking](NETWORKING.md) | Generated Cyclone DDS profiles for simulation, Wi-Fi, Ethernet, and Foxglove |
 | [Advanced profiles](PROFILE_AUTHORING.md) | 2WD, mecanum, omni, and custom robot configuration |
@@ -79,6 +80,8 @@ Application code uses only standard ROS interfaces:
 | Direction | Topic | Type |
 |---|---|---|
 | publish | `/cmd_vel` | `geometry_msgs/msg/Twist` |
+| subscribe | `/robot/state` | `std_msgs/msg/String` |
+| subscribe | `/robot/safety_reason` | `std_msgs/msg/String` |
 | subscribe | `/odom` | `nav_msgs/msg/Odometry` |
 | subscribe | `/imu` | `sensor_msgs/msg/Imu` |
 | subscribe | `/scan` | `sensor_msgs/msg/LaserScan` |
@@ -88,9 +91,13 @@ Application code uses only standard ROS interfaces:
 
 The same names are used in simulation, mock mode, and hardware. Controller
 internals are advanced implementation details, not application command APIs.
+Simulation must be explicitly armed through `/robot/arm`; `/robot/disarm` is
+always a safe stop request. Hardware software-arming is intentionally disabled
+in the current phase.
 
 ## Safety promise
 
 Documentation checks, setup, CI, and health checks never initiate motion.
-Mapping requires L1 plus stick input, navigation requires a goal, and hardware
-motion requires a separate supervised action after verification.
+Simulation requires explicit arm plus a command source; mapping also requires
+L1 plus stick input, and navigation requires a goal. Hardware software-arming is
+disabled until the local production safety gate is implemented.

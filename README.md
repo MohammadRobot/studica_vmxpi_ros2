@@ -32,8 +32,9 @@ Both profiles share one parameterized description and mesh set. Physical
 Simulation is the safe default. Real hardware requires an instructor, a clear
 work area, and a reachable physical emergency stop.
 
-Joystick-enabled simulation remains stationary until L1 is held and a stick is
-moved. Never run hardware commands on a desk or with people near the wheels.
+Joystick-enabled simulation remains stationary until L1 is held, a stick is
+moved, and the simulation has been explicitly armed. Never run hardware
+commands on a desk or with people near the wheels.
 
 ## Fresh installation
 
@@ -89,6 +90,8 @@ source "$STUDICA_WS/install/setup.bash"
 ros2 node list
 ros2 topic list
 ros2 topic hz /scan
+ros2 topic echo /robot/state --once
+ros2 service call /robot/arm std_srvs/srv/Trigger '{}'
 ```
 
 Drive with the connected DualShock: hold L1, use the left stick vertically, and
@@ -96,8 +99,8 @@ use the right stick horizontally. R1 enables turbo while L1 remains held. To use
 keyboard teleop instead, relaunch with `use_joystick:=false` and follow the
 [joystick guide](docs/JOYSTICK.md) motion-publisher rules.
 
-When finished, release L1 and press `Ctrl+C` in the launch terminal. Confirm
-that Gazebo closes before starting another launch.
+When finished, release L1, call `/robot/disarm`, and press `Ctrl+C` in the launch
+terminal. Confirm that Gazebo closes before starting another launch.
 
 ## One public motion interface
 
@@ -108,22 +111,26 @@ Topic: /cmd_vel
 Type:  geometry_msgs/msg/Twist
 ```
 
-Example one-second forward command followed by automatic timeout:
+After arming simulation, publish continuously and press `Ctrl+C` to test the
+publisher-loss stop:
 
 ```bash
-ros2 topic pub --once /cmd_vel geometry_msgs/msg/Twist \
+ros2 topic pub -r 10 /cmd_vel geometry_msgs/msg/Twist \
   "{linear: {x: 0.10}, angular: {z: 0.0}}"
 ```
 
-Internal controller topics vary by drive controller. A project adapter owns
-that detail so application code stays portable. Do not publish directly to a
-controller's internal command topic.
+The safety supervisor validates, expires, and limits this input. Internal
+controller topics vary by drive controller; only the supervisor owns that
+detail. Do not publish directly to a controller's internal command topic. See
+[Safety supervisor API](docs/SAFETY_SUPERVISOR.md).
 
 ## Essential robot topics
 
 | Topic | Message type | Meaning |
 |---|---|---|
 | `/cmd_vel` | `geometry_msgs/msg/Twist` | Requested robot speed |
+| `/robot/state` | `std_msgs/msg/String` | Boot, armed, disarmed, fault, update, or shutdown state |
+| `/robot/safety_reason` | `std_msgs/msg/String` | Latest motion acceptance or rejection reason |
 | `/odom` | `nav_msgs/msg/Odometry` | Estimated motion and pose |
 | `/imu` | `sensor_msgs/msg/Imu` | Orientation plus sensor-frame acceleration and rotation |
 | `/scan` | `sensor_msgs/msg/LaserScan` | LiDAR distance scan |
@@ -143,6 +150,7 @@ ros2 launch studica_vmxpi_ros2 sim.launch.py use_camera:=true
 
 ```bash
 ros2 control list_controllers
+ros2 topic echo /robot/state --once
 ros2 topic hz /odom
 ros2 topic echo /imu --once
 ros2 run tf2_ros tf2_echo odom base_link
@@ -164,6 +172,11 @@ required component returns `1`; a usage or setup error returns `2`. Add
 
 `bringup.launch.py` remains available for instructors and advanced robot
 profiles. Beginners should use the four small launch files above.
+
+The current production-safety phase intentionally rejects `/robot/arm` in
+hardware mode. Physical motion remains gated until the next phase connects a
+local safety enable and emergency-stop health input; do not deploy this phase
+to the VMX-pi for motion testing.
 
 ## Course path
 
@@ -194,21 +207,8 @@ Do not guess hardware values or disable a safety check to make a launch pass.
 Follow [Supervised hardware](docs/HARDWARE.md), run the read-only health check,
 and use the guarded lifted-wheel validator before any floor test.
 
-## Documentation
-
-- [Quick start](docs/QUICK_START.md)
-- [Documentation index](docs/README.md)
-- [Installation](docs/INSTALL.md)
-- [Launch arguments](docs/LAUNCH_ARGUMENTS.md)
-- [Course and labs](docs/COURSE.md)
-- [Troubleshooting](docs/TROUBLESHOOTING.md)
-- [Architecture](docs/ARCHITECTURE.md)
-- [Application development and deployment](docs/DEVELOPMENT.md)
-- [Mapping and navigation](docs/MAPPING_NAVIGATION.md)
-- [Supervised hardware](docs/HARDWARE.md)
-- [Networking, Cyclone DDS, and remote Foxglove](docs/NETWORKING.md)
-- [Advanced robot profiles](docs/PROFILE_AUTHORING.md)
-- [Instructor guide](docs/INSTRUCTOR_GUIDE.md)
+The [documentation index](docs/README.md) links installation, course, API,
+development, hardware, networking, troubleshooting, and instructor guides.
 
 ## Repository roles
 

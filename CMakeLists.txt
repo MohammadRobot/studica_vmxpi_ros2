@@ -123,7 +123,10 @@ find_package(builtin_interfaces REQUIRED)
 find_package(rclcpp REQUIRED)
 find_package(geometry_msgs REQUIRED)
 find_package(nav_msgs REQUIRED)
+find_package(rcl_interfaces REQUIRED)
 find_package(sensor_msgs REQUIRED)
+find_package(std_msgs REQUIRED)
+find_package(std_srvs REQUIRED)
 find_package(tf2_msgs REQUIRED)
 foreach(Dependency IN ITEMS ${THIS_PACKAGE_INCLUDE_DEPENDS})
   find_package(${Dependency} REQUIRED)
@@ -219,7 +222,14 @@ ament_target_dependencies(
 target_include_directories(topic_adapter_node PRIVATE hardware/include)
 target_compile_features(topic_adapter_node PUBLIC cxx_std_17)
 
+add_executable(safety_supervisor_node src/safety_supervisor_node.cpp)
+ament_target_dependencies(
+  safety_supervisor_node rcl_interfaces rclcpp geometry_msgs std_msgs std_srvs)
+target_include_directories(safety_supervisor_node PRIVATE hardware/include)
+target_compile_features(safety_supervisor_node PUBLIC cxx_std_17)
+
 install(TARGETS
+  safety_supervisor_node
   topic_adapter_node
   DESTINATION lib/${PROJECT_NAME}
 )
@@ -243,6 +253,9 @@ if(BUILD_TESTING)
   target_include_directories(test_topic_adapter PRIVATE hardware/include)
   ament_target_dependencies(
     test_topic_adapter builtin_interfaces geometry_msgs nav_msgs sensor_msgs)
+  ament_add_gtest(test_safety_supervisor test/test_safety_supervisor.cpp)
+  target_include_directories(test_safety_supervisor PRIVATE hardware/include)
+  target_compile_features(test_safety_supervisor PUBLIC cxx_std_17)
   find_package(ament_lint_auto REQUIRED)
   find_package(ament_lint_common REQUIRED)
   set(ament_cmake_flake8_CONFIG_FILE "${CMAKE_CURRENT_SOURCE_DIR}/.flake8")

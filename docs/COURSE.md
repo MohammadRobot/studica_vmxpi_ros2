@@ -44,6 +44,7 @@ the public interfaces below.
 | Topic | Type | Application use |
 |---|---|---|
 | `/cmd_vel` | `geometry_msgs/msg/Twist` | Publish requested robot speed |
+| `/robot/state` | `std_msgs/msg/String` | Observe the safety state |
 | `/odom` | `nav_msgs/msg/Odometry` | Observe estimated pose and velocity |
 | `/imu` | `sensor_msgs/msg/Imu` | Observe orientation and inertial motion |
 | `/scan` | `sensor_msgs/msg/LaserScan` | Observe LiDAR ranges |
@@ -70,9 +71,10 @@ edit generated files under `build`, `install`, or `log`.
 ## Safety boundary
 
 Simulation is the independent development environment. Setup, checks, and launch
-startup do not move the robot. Movement occurs only after a person holds the
-joystick deadman and moves a stick, publishes `/cmd_vel`, sends a Nav2 goal, or
-explicitly starts a reviewed waypoint route with `--start`.
+startup do not move the robot. Simulation first requires an explicit `/robot/arm`
+call; movement then requires a person to hold the joystick deadman and move a
+stick, publish `/cmd_vel`, send a Nav2 goal, or explicitly start a reviewed
+waypoint route with `--start`.
 
 Real hardware adds stored energy, pinch points, network delay, and persistent
 fault handling. Lab 9 requires all of the following:

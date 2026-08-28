@@ -142,6 +142,8 @@ private:
   }
 
   void setupNav2Bridge() {
+    nav2_enable_cmd_vel_bridge_ = this->declare_parameter<bool>(
+        "enable_cmd_vel_bridge", true);
     nav2_input_cmd_vel_topic_ = this->declare_parameter<std::string>(
         "input_cmd_vel_topic", "/cmd_vel");
     nav2_output_cmd_vel_topic_ = this->declare_parameter<std::string>(
@@ -153,12 +155,14 @@ private:
     nav2_cmd_vel_frame_id_ =
         this->declare_parameter<std::string>("cmd_vel_frame_id", "base_link");
 
-    nav2_cmd_vel_sub_ = this->create_subscription<geometry_msgs::msg::Twist>(
-        nav2_input_cmd_vel_topic_, 10,
-        std::bind(&TopicAdapterNode::nav2CmdVelCallback, this,
-                  std::placeholders::_1));
-    nav2_cmd_vel_pub_ = this->create_publisher<geometry_msgs::msg::TwistStamped>(
-        nav2_output_cmd_vel_topic_, 10);
+    if (nav2_enable_cmd_vel_bridge_) {
+      nav2_cmd_vel_sub_ = this->create_subscription<geometry_msgs::msg::Twist>(
+          nav2_input_cmd_vel_topic_, 10,
+          std::bind(&TopicAdapterNode::nav2CmdVelCallback, this,
+                    std::placeholders::_1));
+      nav2_cmd_vel_pub_ = this->create_publisher<geometry_msgs::msg::TwistStamped>(
+          nav2_output_cmd_vel_topic_, 10);
+    }
 
     nav2_odom_sub_ = this->create_subscription<nav_msgs::msg::Odometry>(
         nav2_input_odom_topic_, 10,
@@ -167,12 +171,14 @@ private:
     nav2_odom_pub_ =
         this->create_publisher<nav_msgs::msg::Odometry>(nav2_output_odom_topic_, 10);
 
-    RCLCPP_INFO(this->get_logger(),
-                "Nav2 bridge enabled: %s (Twist) -> %s (TwistStamped), %s -> %s",
-                nav2_input_cmd_vel_topic_.c_str(),
-                nav2_output_cmd_vel_topic_.c_str(),
-                nav2_input_odom_topic_.c_str(),
-                nav2_output_odom_topic_.c_str());
+    RCLCPP_INFO(this->get_logger(), "Odometry bridge enabled: %s -> %s",
+                nav2_input_odom_topic_.c_str(), nav2_output_odom_topic_.c_str());
+    if (nav2_enable_cmd_vel_bridge_) {
+      RCLCPP_WARN(this->get_logger(),
+                  "Legacy command bridge enabled: %s (Twist) -> %s (TwistStamped)",
+                  nav2_input_cmd_vel_topic_.c_str(),
+                  nav2_output_cmd_vel_topic_.c_str());
+    }
   }
 
   void setupTfRelay() {
@@ -284,6 +290,7 @@ private:
   std::string nav2_input_odom_topic_;
   std::string nav2_output_odom_topic_;
   std::string nav2_cmd_vel_frame_id_;
+  bool nav2_enable_cmd_vel_bridge_{true};
   rclcpp::Subscription<geometry_msgs::msg::Twist>::SharedPtr nav2_cmd_vel_sub_;
   rclcpp::Publisher<geometry_msgs::msg::TwistStamped>::SharedPtr nav2_cmd_vel_pub_;
   rclcpp::Subscription<nav_msgs::msg::Odometry>::SharedPtr nav2_odom_sub_;

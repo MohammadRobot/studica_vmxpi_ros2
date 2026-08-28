@@ -376,6 +376,21 @@ def generate_launch_description():
             "/robot_base_controller/odom",
             "Primary drive odometry topic.",
         ),
+        _declare_arg(
+            "safety_command_timeout",
+            "0.25",
+            "Monotonic command receive timeout enforced by the safety supervisor.",
+        ),
+        _declare_arg(
+            "safety_max_linear_speed",
+            "0.5",
+            "Safety-supervisor absolute planar linear speed limit (m/s).",
+        ),
+        _declare_arg(
+            "safety_max_angular_speed",
+            "1.5",
+            "Safety-supervisor absolute yaw-rate limit (rad/s).",
+        ),
     ]
 
     gui = LaunchConfiguration("gui")
@@ -393,6 +408,39 @@ def generate_launch_description():
     drive_odom_topic = LaunchConfiguration("drive_odom_topic")
     use_monitoring = LaunchConfiguration("use_monitoring")
     use_foxglove = LaunchConfiguration("use_foxglove")
+
+    safety_supervisor_node = Node(
+        package="studica_vmxpi_ros2",
+        executable="safety_supervisor_node",
+        name="safety_supervisor",
+        output="screen",
+        parameters=[
+            {
+                "use_sim_time": use_sim_time_param,
+                "hardware_mode": ParameterValue(use_hardware, value_type=bool),
+                "allow_software_arm": ParameterValue(
+                    PythonExpression(_expr_is_false(use_hardware)), value_type=bool
+                ),
+                "input_cmd_vel_topic": "/cmd_vel",
+                "output_cmd_vel_topic": drive_cmd_topic,
+                "state_topic": "/robot/state",
+                "safety_reason_topic": "/robot/safety_reason",
+                "cmd_vel_frame_id": "base_link",
+                "command_timeout_sec": ParameterValue(
+                    LaunchConfiguration("safety_command_timeout"), value_type=float
+                ),
+                "max_linear_x": ParameterValue(
+                    LaunchConfiguration("safety_max_linear_speed"), value_type=float
+                ),
+                "max_linear_y": ParameterValue(
+                    LaunchConfiguration("safety_max_linear_speed"), value_type=float
+                ),
+                "max_angular_z": ParameterValue(
+                    LaunchConfiguration("safety_max_angular_speed"), value_type=float
+                ),
+            }
+        ],
+    )
 
     pkg_studica_vmxpi_ros2 = get_package_share_directory("studica_vmxpi_ros2")
     install_dir = get_package_prefix("studica_vmxpi_ros2")
@@ -530,6 +578,7 @@ def generate_launch_description():
                 {
                     "use_sim_time": use_sim_time_param,
                     "enable_nav2_bridge": True,
+                    "enable_cmd_vel_bridge": False,
                     "input_cmd_vel_topic": "/cmd_vel",
                     "output_cmd_vel_topic": drive_cmd_topic,
                     "input_odom_topic": "/ground_truth/odom",
@@ -555,6 +604,7 @@ def generate_launch_description():
             {
                 "use_sim_time": use_sim_time_param,
                 "enable_nav2_bridge": True,
+                "enable_cmd_vel_bridge": False,
                 "input_cmd_vel_topic": "/cmd_vel",
                 "output_cmd_vel_topic": drive_cmd_topic,
                 "input_odom_topic": drive_odom_topic,
@@ -586,6 +636,7 @@ def generate_launch_description():
             {
                 "use_sim_time": use_sim_time_param,
                 "enable_nav2_bridge": True,
+                "enable_cmd_vel_bridge": False,
                 "input_cmd_vel_topic": "/cmd_vel",
                 "output_cmd_vel_topic": drive_cmd_topic,
                 "input_odom_topic": drive_odom_topic,
@@ -804,6 +855,7 @@ def generate_launch_description():
         imu_sensor_broadcaster_spawner,
         imu_alias_relay_node,
         mock_scan_node,
+        safety_supervisor_node,
         control_api_bridge_node_gt,
         control_api_bridge_node,
         hardware_control_api_bridge_node,

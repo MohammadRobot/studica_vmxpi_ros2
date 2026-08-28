@@ -63,6 +63,7 @@ export STUDICA_WS="$HOME/studica_ws"
 source "$HOME/.ros/studica_sim.env"
 source /opt/ros/humble/setup.bash
 source "$STUDICA_WS/install/setup.bash"
+ros2 service call /robot/arm std_srvs/srv/Trigger '{}'
 ros2 run teleop_twist_keyboard teleop_twist_keyboard \
   --ros-args -r cmd_vel:=/cmd_vel -p speed:=0.10 -p turn:=0.25
 ```

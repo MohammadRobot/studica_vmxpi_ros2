@@ -7,6 +7,11 @@ the configured joystick nodes by default and publish only the stable public
 attached to the PC while `robot.launch.py` runs separately on the VMXPi. Motion
 still requires the L1 deadman button.
 
+The safety supervisor adds a separate robot-state gate. In simulation, call
+`ros2 service call /robot/arm std_srvs/srv/Trigger '{}'` once after launch;
+L1 remains required for every joystick motion. Software arming is disabled on
+hardware in the current production phase.
+
 Test in simulation first. For hardware, follow the instructor-supervised process
 in [Supervised hardware](HARDWARE.md) and keep the physical emergency stop
 reachable.
@@ -66,6 +71,12 @@ ros2 launch studica_vmxpi_ros2 mapping.launch.py
 
 The launch starts both `joy_node` and `teleop_twist_joy_node` using
 `config/dualshock4_teleop.yaml`. Do not start another copy of either node.
+In another sourced terminal, confirm `READY_DISARMED`, then arm simulation:
+
+```bash
+ros2 topic echo /robot/state --once
+ros2 service call /robot/arm std_srvs/srv/Trigger '{}'
+```
 
 ## 4. Manual diagnostic mode
 
@@ -197,9 +208,10 @@ See [Networking](NETWORKING.md) when nodes exist but cannot discover one another
 ## Cleanup
 
 1. release L1 and center both sticks;
-2. verify the robot is stopped;
-3. stop the main launch, which also stops its joystick nodes;
-4. in manual diagnostic mode, stop teleop and then `joy_node` before simulation.
+2. call `ros2 service call /robot/disarm std_srvs/srv/Trigger '{}'`;
+3. verify the robot is stopped;
+4. stop the main launch, which also stops its joystick nodes;
+5. in manual diagnostic mode, stop teleop and then `joy_node` before simulation.
 
 The controller timeout is a backup. Cleanly stopping the motion publisher is the
 normal end of a teleoperation session.

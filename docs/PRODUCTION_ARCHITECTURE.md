@@ -5,6 +5,19 @@ robot implements these controls. A feature must not be described as production
 ready until its acceptance tests are automated and have passed on VMXPi
 hardware.
 
+## Implementation status
+
+Phase 1 now implements the state-machine core and a single-owner command
+supervisor in all runtime launches. Automated tests prove boot-disarmed output,
+explicit simulation arm/disarm, monotonic expiry, publisher loss, source
+conflict rejection, planar/finite validation, and speed/acceleration limits.
+See [Safety supervisor API](SAFETY_SUPERVISOR.md).
+
+Hardware arming, diagnostic and emergency-stop integration, source-specific
+joystick/Nav2/remote arbitration, authenticated leases, systemd activation, and
+atomic updates remain gated future work. This revision is not deployed to the
+physical VMX-pi.
+
 ## Safety invariants
 
 1. Boot never authorizes motion. A healthy boot ends in `READY_DISARMED`.

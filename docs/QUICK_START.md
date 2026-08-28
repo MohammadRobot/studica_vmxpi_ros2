@@ -63,8 +63,14 @@ source /opt/ros/humble/setup.bash
 source "$STUDICA_WS/install/setup.bash"
 
 ros2 control list_controllers
+ros2 topic echo /robot/state --once
+ros2 service call /robot/arm std_srvs/srv/Trigger '{}'
 ros2 run studica_robot_monitor robot_check --mode simulation
 ```
+
+The arm service works only in mock and simulation modes. Call
+`ros2 service call /robot/disarm std_srvs/srv/Trigger '{}'` before stopping the
+session.
 
 Use `use_camera:=true` for image topics or `use_point_cloud:=true` for the raw
 and floor-filtered point-cloud pipeline:
@@ -97,6 +103,12 @@ For application code, select `studica_robot_apps` instead. See
 [Application development](DEVELOPMENT.md) for the PC-to-VMXPi deployment loop.
 
 ## Physical robot prerequisites
+
+> **Phase 1 hardware gate:** the production safety supervisor is integrated,
+> but hardware arming is intentionally disabled until a robot-local physical
+> enable and emergency-stop health signal are connected and accepted on a
+> lifted robot. The commands below remain useful for read-only bringup; do not
+> use this source revision for physical motion.
 
 Before hardware motion:
 

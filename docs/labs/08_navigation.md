@@ -44,6 +44,7 @@ ros2 run tf2_ros tf2_echo map base_link
 ros2 topic hz /camera/depth/points_filtered
 ros2 param get /local_costmap/local_costmap \
   voxel_layer.observation_sources
+ros2 service call /robot/arm std_srvs/srv/Trigger '{}'
 ```
 
 Stop `tf2_echo` after valid transforms appear.

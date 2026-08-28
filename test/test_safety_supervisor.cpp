@@ -1,0 +1,113 @@
+// Copyright (c) 2026 studica_vmxpi_ros2 contributors
+// SPDX-License-Identifier: Apache-2.0
+
+#include <limits>
+
+#include "gtest/gtest.h"
+#include "studica_vmxpi_ros2/safety_supervisor.hpp"
+
+namespace safety = studica_vmxpi_ros2::safety_supervisor;
+
+TEST(SafetyStateMachine, BootsDisarmedAndRequiresAllArmConditions)
+{
+  safety::RobotStateMachine machine;
+  EXPECT_EQ(machine.state(), safety::RobotState::BOOTING);
+  EXPECT_FALSE(machine.motion_allowed());
+
+  EXPECT_TRUE(machine.complete_boot(true).accepted);
+  EXPECT_EQ(machine.state(), safety::RobotState::READY_DISARMED);
+  EXPECT_FALSE(machine.arm({false, true, true, true}).accepted);
+  EXPECT_FALSE(machine.arm({true, false, true, true}).accepted);
+  EXPECT_FALSE(machine.arm({true, true, false, true}).accepted);
+  EXPECT_FALSE(machine.arm({true, true, true, false}).accepted);
+  EXPECT_FALSE(machine.motion_allowed());
+
+  EXPECT_TRUE(machine.arm({true, true, true, true}).accepted);
+  EXPECT_EQ(machine.state(), safety::RobotState::ARMED);
+  EXPECT_TRUE(machine.motion_allowed());
+  EXPECT_TRUE(machine.disarm().accepted);
+  EXPECT_EQ(machine.state(), safety::RobotState::READY_DISARMED);
+}
+
+TEST(SafetyStateMachine, FaultsLatchAndUpdatesRequireDisarmedState)
+{
+  safety::RobotStateMachine machine;
+  ASSERT_TRUE(machine.complete_boot(true).accepted);
+  ASSERT_TRUE(machine.arm({true, true, true, true}).accepted);
+  EXPECT_FALSE(machine.begin_update().accepted);
+
+  machine.latch_fault();
+  EXPECT_EQ(machine.state(), safety::RobotState::FAULT);
+  EXPECT_FALSE(machine.acknowledge_fault(false, true).accepted);
+  EXPECT_FALSE(machine.acknowledge_fault(true, false).accepted);
+  EXPECT_TRUE(machine.acknowledge_fault(true, true).accepted);
+  EXPECT_EQ(machine.state(), safety::RobotState::READY_DISARMED);
+
+  EXPECT_TRUE(machine.begin_update().accepted);
+  EXPECT_EQ(machine.state(), safety::RobotState::UPDATING);
+  EXPECT_TRUE(machine.finish_update(false).accepted);
+  EXPECT_EQ(machine.state(), safety::RobotState::FAULT);
+  EXPECT_FALSE(machine.motion_allowed());
+}
+
+TEST(SafetyCommand, RejectsMotionUnlessArmedFreshFinitePlanarAndSingleSource)
+{
+  const safety::Limits limits{0.5, 0.4, 1.0};
+  safety::Command command;
+  command.linear_x = 0.2;
+  command.angular_z = -0.3;
+
+  EXPECT_EQ(
+    safety::evaluate(
+      safety::RobotState::READY_DISARMED, command, true, 1.0, 1.1, 1U, 0.25, limits).decision,
+    safety::CommandDecision::DISARMED);
+  EXPECT_EQ(
+    safety::evaluate(
+      safety::RobotState::ARMED, command, false, 1.0, 1.1, 1U, 0.25, limits).decision,
+    safety::CommandDecision::NO_COMMAND);
+  EXPECT_EQ(
+    safety::evaluate(
+      safety::RobotState::ARMED, command, true, 1.0, 1.1, 0U, 0.25, limits).decision,
+    safety::CommandDecision::SOURCE_MISSING);
+  EXPECT_EQ(
+    safety::evaluate(
+      safety::RobotState::ARMED, command, true, 1.0, 1.1, 2U, 0.25, limits).decision,
+    safety::CommandDecision::SOURCE_CONFLICT);
+  EXPECT_EQ(
+    safety::evaluate(
+      safety::RobotState::ARMED, command, true, 1.0, 1.3, 1U, 0.25, limits).decision,
+    safety::CommandDecision::STALE);
+
+  command.linear_x = std::numeric_limits<double>::quiet_NaN();
+  EXPECT_EQ(
+    safety::evaluate(
+      safety::RobotState::ARMED, command, true, 1.0, 1.1, 1U, 0.25, limits).decision,
+    safety::CommandDecision::NONFINITE);
+  command.linear_x = 0.2;
+  command.angular_x = 0.1;
+  EXPECT_EQ(
+    safety::evaluate(
+      safety::RobotState::ARMED, command, true, 1.0, 1.1, 1U, 0.25, limits).decision,
+    safety::CommandDecision::UNSUPPORTED_3D);
+}
+
+TEST(SafetyCommand, ClampsSpeedAndLimitsAcceleration)
+{
+  const safety::Limits limits{0.5, 0.4, 1.0};
+  safety::Command command;
+  command.linear_x = 4.0;
+  command.linear_y = -3.0;
+  command.angular_z = 2.0;
+  const auto evaluated = safety::evaluate(
+    safety::RobotState::ARMED, command, true, 1.0, 1.1, 1U, 0.25, limits);
+  ASSERT_EQ(evaluated.decision, safety::CommandDecision::ACCEPTED);
+  EXPECT_DOUBLE_EQ(evaluated.output.linear_x, 0.5);
+  EXPECT_DOUBLE_EQ(evaluated.output.linear_y, -0.4);
+  EXPECT_DOUBLE_EQ(evaluated.output.angular_z, 1.0);
+
+  const safety::Command limited = safety::rate_limit_planar(
+    evaluated.output, {}, 0.1, 1.0, 2.0);
+  EXPECT_NEAR(limited.linear_x, 0.1, 1e-9);
+  EXPECT_NEAR(limited.linear_y, -0.1, 1e-9);
+  EXPECT_NEAR(limited.angular_z, 0.2, 1e-9);
+}
