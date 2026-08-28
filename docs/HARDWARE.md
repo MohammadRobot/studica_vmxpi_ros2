@@ -9,11 +9,11 @@ startup, navigation startup, or ordinary package tests.
 
 > **Current production phase:** the supervisor rejects network/software arm
 > requests, and the VMX/Titan plugin now enforces the local enable and E-stop
-> status gate. FlexDIO channel 8 is operator-reported for E-stop status, but its
-> electrical acceptance and the separate local-enable channel remain pending.
-> The checked-in DIO channels therefore remain deliberately `-1`, so hardware
-> startup is blocked. Continue only with read-only and motor-power-disabled
-> checks.
+> status gate. The operator confirmed FlexDIO channel 8 for E-stop status and
+> channel 9 for a separate local-enable switch. The mapping is checked in but
+> is not deployed; motor-power-disconnected input testing and the lifted-wheel
+> fixture remain mandatory. Continue only with read-only and
+> motor-power-disabled checks.
 
 ## Roles and stop conditions
 
@@ -39,10 +39,10 @@ With motor power disabled:
 6. keep camera and LiDAR cables away from wheels.
 
 Then complete and record the circuit inspection in
-[Physical hardware safety gate](HARDWARE_SAFETY_GATE.md). Do not replace the
-two `-1` safety channel placeholders until channel 8's normally-closed
-signal-to-ground behavior, the separate physical power contacts, and a
-different unused local-enable FlexDIO channel are verified.
+[Physical hardware safety gate](HARDWARE_SAFETY_GATE.md). The `stack_4wd`
+profile records E-stop channel 8 and local-enable channel 9. Do not deploy or
+start hardware bringup until the input-only test confirms both active-low states
+with Titan motor power disconnected.
 
 The VMXPi remains powered for software checks only when the instructor considers
 that safe. Motor power stays disabled until the health report is understood.

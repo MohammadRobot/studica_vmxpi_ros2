@@ -38,8 +38,20 @@ def validate(profile, tmp_path):
     return errors
 
 
+def test_stack_4wd_uses_confirmed_safety_channels(tmp_path):
+    profile = load_profile()
+    safety = profile["hardware"]["safety_gate"]
+    assert safety["estop_ok_dio_channel"] == 8
+    assert safety["local_enable_dio_channel"] == 9
+    assert validate(profile, tmp_path) == []
+
+
 def test_unconfigured_pair_is_valid_but_remains_a_runtime_block(tmp_path):
-    assert validate(load_profile(), tmp_path) == []
+    profile = deepcopy(load_profile())
+    safety = profile["hardware"]["safety_gate"]
+    safety["estop_ok_dio_channel"] = -1
+    safety["local_enable_dio_channel"] = -1
+    assert validate(profile, tmp_path) == []
 
 
 def test_configured_distinct_flexdio_channels_are_valid(tmp_path):

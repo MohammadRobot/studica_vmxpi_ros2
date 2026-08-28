@@ -2,9 +2,10 @@
 
 This document records the Phase 2 hardware gate for the physical `stack_4wd`
 robot. The deterministic logic and VMX/Titan enforcement are implemented, and
-the operator has connected the E-stop status input to FlexDIO channel 8. The
-electrical acceptance checks and separate local-enable input are not complete.
-This is not permission to move the robot or deploy boot services.
+the operator has confirmed the E-stop status input on FlexDIO channel 8 and a
+separate local-enable input on channel 9. Software input and lifted-wheel
+acceptance are not complete. This is not permission to move the robot or deploy
+boot services.
 
 ## Evidence from the robot
 
@@ -52,18 +53,17 @@ it is not the stopping mechanism.
 | Field | Recorded value | Acceptance status |
 |---|---|---|
 | Robot profile | `stack_4wd` | Confirmed physical profile |
-| `ESTOP_OK` input | VMX FlexDIO channel `8` | Operator-reported connection on 2026-08-28 |
+| `ESTOP_OK` input | VMX FlexDIO channel `8` | Operator-confirmed connection on 2026-08-28 |
 | VMX input bias | Pull-up | Confirmed in `studica_driver::DIO` input initialization |
-| E-stop status contact | Must be normally closed from signal to VMX ground when healthy | Continuity and open-wire tests pending |
-| E-stop primary contacts | Must remove Titan motor power or hardware enable | Independent power-cut test pending |
-| Channel collision | Old optional duty-cycle and ultrasonic examples mention channel 8 but are disabled | Recheck before deployment; accessory container remains forbidden |
-| `LOCAL_ENABLE` input | Unassigned | A different unused FlexDIO channel is required |
+| E-stop status contact | Normally closed from channel 8 signal to VMX ground when healthy | Operator-confirmed; software state sequence pending |
+| E-stop primary contacts | Remove Titan motor power or hardware enable | Operator-confirmed; lifted fixture verification pending |
+| Channel collision | Old optional duty-cycle and ultrasonic examples mention channels 8/9 but are disabled | Inspected inactive; accessory container remains forbidden |
+| `LOCAL_ENABLE` input | VMX FlexDIO channel `9` | Operator-confirmed separate maintained switch on 2026-08-28 |
 
-The checked-in `stack_4wd` profile remains fail-closed with both channel values
-at `-1`. Profile validation intentionally rejects a partly configured pair, so
-channel 8 will not become a runtime parameter until the local-enable channel is
-selected and both circuits pass motor-power-disconnected input tests. Guessing
-the second channel or the E-stop contact polarity is forbidden.
+The checked-in `stack_4wd` profile records channels 8 and 9 as a pair. Other
+physical profiles retain fail-closed `-1` placeholders. This mapping is not a
+deployment authorization: the revision remains off the robot until both inputs
+pass the motor-power-disconnected state sequence below.
 
 ## Local-enable sequence
 
@@ -100,10 +100,10 @@ instance that owns Titan and the IMU. It:
    complete control cycle before accepting motion after enable;
 6. exports read-only gate state for the supervisor and diagnostics.
 
-Every checked-in profile currently uses `-1` for both channel parameters.
-`VmxSystemHardware` rejects that configuration before it opens motor control.
-This is the deliberate compile-ready/runtime-blocked state until the wiring
-inspection records two real FlexDIO channels.
+The `stack_4wd` profile uses the confirmed channel 8/9 pair. Other physical
+profiles keep `-1` for both channel parameters, which `VmxSystemHardware`
+rejects before it opens motor control. The configured `stack_4wd` revision is
+not deployed until its acceptance fixtures pass.
 
 The ROS safety supervisor mirrors the hardware state so applications see
 `BOOTING`, `READY_DISARMED`, `ARMED`, and `FAULT`. It rejects malformed,
@@ -155,13 +155,30 @@ Before any boot service or floor motion:
    part numbers, contact type, and wiring diagram;
 2. continuity-test the E-stop's primary power contacts and auxiliary status
    contact with motor power disconnected;
-3. test each DIO state with Titan motor power disconnected;
-4. lift all wheels and place an operator at the physical E-stop;
-5. cold-boot at least 20 times with enable OFF, ON, disconnected, and bouncing;
-6. verify zero targets for E-stop press, enable release, wire removal, DIO read
+3. build the hardware packages on the VMXPi without starting robot bringup;
+4. with Titan motor power physically disconnected and no other VMX HAL owner,
+   run the input-only acceptance tool and archive its complete output:
+
+   ```bash
+   set -o pipefail
+   source /opt/ros/humble/setup.bash
+   source "$HOME/studica_ws/install/setup.bash"
+   check_bin="$(ros2 pkg prefix studica_vmxpi_ros2)/lib/studica_vmxpi_ros2/safety_input_check"
+   sudo env "LD_LIBRARY_PATH=$LD_LIBRARY_PATH" "$check_bin" \
+     --estop-channel 8 \
+     --enable-channel 9 \
+     --confirm-motor-power-disconnected |& tee safety-input-check.log
+   ```
+
+   The tool never initializes Titan. It verifies healthy baseline, E-stop
+   press/release, enable ON/OFF, E-stop status-wire removal, and reconnection.
+   Any read failure, wrong polarity, unstable state, or timeout fails the test.
+5. lift all wheels and place an operator at the physical E-stop;
+6. cold-boot at least 20 times with enable OFF, ON, disconnected, and bouncing;
+7. verify zero targets for E-stop press, enable release, wire removal, DIO read
    failure, encoder loss, over-temperature, supervisor crash, and controller
    restart;
-7. verify recovery always requires enable OFF followed by a new ON edge;
-8. archive timestamps, logs, wiring photos, and the signed result.
+8. verify recovery always requires enable OFF followed by a new ON edge;
+9. archive timestamps, logs, wiring photos, and the signed result.
 
 Only a passing fixture authorizes the later systemd/autostart phase.

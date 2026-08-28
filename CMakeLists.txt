@@ -230,6 +230,17 @@ ament_target_dependencies(
 target_include_directories(safety_supervisor_node PRIVATE hardware/include)
 target_compile_features(safety_supervisor_node PUBLIC cxx_std_17)
 
+if(VMXPI_FOUND)
+  add_executable(safety_input_check tools/safety_input_check.cpp)
+  target_include_directories(safety_input_check PRIVATE
+    ${VMXPI_INCLUDE_DIRS}
+    /usr/local/include/vmxpi
+  )
+  target_link_libraries(safety_input_check PRIVATE ${VMXPI_LIBRARIES})
+  target_compile_features(safety_input_check PUBLIC cxx_std_17)
+  install(TARGETS safety_input_check DESTINATION lib/${PROJECT_NAME})
+endif()
+
 install(TARGETS
   safety_supervisor_node
   topic_adapter_node

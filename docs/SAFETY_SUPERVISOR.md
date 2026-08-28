@@ -9,8 +9,9 @@ exactly one `/dynamic_joint_states` publisher.
 
 Simulation and mock arm through `/robot/arm`. Hardware can reach `ARMED` only
 when the local VMX gate reports its physically authorized `ENABLED` state. The
-checked-in physical profiles still set both DIO channels to `-1`, so this path
-cannot be used until wiring inspection and lifted acceptance.
+`stack_4wd` profile records the operator-confirmed channel 8/9 safety pair, but
+deployment remains blocked until the physical input and lifted-wheel fixtures
+pass. Other physical profiles retain `-1` placeholders.
 
 ## Public interfaces
 
