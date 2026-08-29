@@ -101,9 +101,13 @@ hold/release sequence then demonstrated:
 The wheel run is **not acceptance evidence**. Six attempted directions logged
 FAIL before the sequence was manually cancelled. The operator then identified
 that the battery was very low, and the VMXPi subsequently rebooted. A low or
-sagging supply invalidates motor tracking results and can explain both stopped
-encoders and network/compute instability. The report and 26.43-second MCAP are
-retained as failure evidence:
+sagging supply invalidates motor tracking results and can explain severe
+tracking loss, intermittent stuck-encoder diagnostics, and network/compute
+instability. MCAP extraction found a 2.0 rad/s maximum target but only 1.063,
+1.259, 0.946, and 0.317 rad/s maximum measured speed for front-left,
+front-right, rear-left, and rear-right respectively. The hardware gate remained
+consistently enabled for all 651 recorded state samples. The report and
+26.43-second MCAP are retained as failure evidence:
 
 - report SHA-256:
   `3146d30c10ab21380b241e45c266e14c9a6cf4ba8a1953b90b6de11d24d39b56`;
