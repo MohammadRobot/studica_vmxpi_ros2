@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- Added a read-only, machine-readable VMXPi production runtime audit with a
+  versioned minimal-service/package/port/SSH profile, contract tests, a measured
+  physical-robot idle baseline, and a staged appliance-image migration plan.
+- Made the safety supervisor timer fail closed on live ROS graph errors and
+  exit cleanly when shutdown invalidates the ROS context mid-callback.
 - Locked first-party dependency manifests and CI checkouts to immutable commits,
   pinned GitHub Actions, and added an offline release-contract check.
 - Replaced the installer's mutable ROS repository setup with a checksum-verified

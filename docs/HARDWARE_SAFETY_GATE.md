@@ -123,6 +123,41 @@ failed trial or blocking diagnostic, and atomically retains partial results.
 The complete lifted fixture remains blocked until that revision passes with a
 charged, measured battery.
 
+### Charged lifted retry: safe first-trial failure
+
+The two 12 V, 3000 mAh NiMH packs measured 13.33 V individually and 13.36 V in
+parallel at open circuit. On 2026-08-29, with all wheels lifted and an operator
+at the E-stop, the hardened validator was retried against
+`studica_robot_monitor` commit
+`f51a2fc0f3c1d23264bdfa7651d7f118d87eaaf2`. It stopped automatically after
+the first `front_left_wheel_joint` `+2.0 rad/s` trial failed tracking:
+
+- all 285 samples had fresh encoders and the measured direction was correct;
+- the maximum uncommanded-wheel velocity was `0.0 rad/s`;
+- the peak commanded-wheel measurement was only `0.4681 rad/s`;
+- settled mean absolute tracking error was `1.8546 rad/s`, above the
+  `0.300 rad/s` limit;
+- the wheel stopped within one second and no blocking diagnostic error was
+  present;
+- after the failure, the local gate was `READY`, motion authorization was off,
+  all targets and measured velocities were zero, and Titan temperature was
+  approximately 32.6 C.
+
+The retained 4.08-second evidence is:
+
+- report:
+  `/home/vmx/studica_acceptance_ws/charged_results/motor_validation_20260829T144204Z/report.yaml`,
+  SHA-256 `f31a9bc1e97a837090e10da44553189cc0914f1c5614590f9860e1643aac8716`;
+- MCAP:
+  `/home/vmx/studica_acceptance_ws/charged_results/motor_validation_20260829T144204Z/telemetry/telemetry_0.mcap`,
+  SHA-256 `dea45276adc30abcdcf738924d7d29542d1cc518a0c58fd7c699a0634adb4ac7`.
+
+This controlled charged failure shows that low battery was not the sole cause
+of the earlier tracking loss. PID configuration, encoder scaling, Titan motor
+configuration, wiring, and mechanical load must be diagnosed with motor power
+disconnected before another commanded wheel test. No boot service or floor
+motion is authorized.
+
 ## Local-enable sequence
 
 The deterministic gate has four states:

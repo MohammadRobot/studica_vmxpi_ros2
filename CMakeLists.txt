@@ -200,12 +200,13 @@ install(
   DESTINATION share/studica_vmxpi_ros2
 )
 install(
-  DIRECTORY dependencies examples
+  DIRECTORY dependencies deployment examples
   DESTINATION share/studica_vmxpi_ros2
   PATTERN "__pycache__" EXCLUDE
   PATTERN "*.pyc" EXCLUDE
 )
 install(PROGRAMS
+  scripts/audit_vmxpi_runtime.py
   scripts/configure_cyclonedds.py
   scripts/create_profile.sh
   scripts/depth_to_pointcloud.py
@@ -335,6 +336,13 @@ if(BUILD_TESTING)
     GENERATE_RESULT_FOR_RETURN_CODE_ZERO
     COMMAND ${Python3_EXECUTABLE}
       ${CMAKE_CURRENT_SOURCE_DIR}/test/test_setup_contract.py
+      ${CMAKE_CURRENT_SOURCE_DIR}
+  )
+  ament_add_test(
+    validate_vmxpi_runtime_audit
+    GENERATE_RESULT_FOR_RETURN_CODE_ZERO
+    COMMAND ${Python3_EXECUTABLE}
+      ${CMAKE_CURRENT_SOURCE_DIR}/test/test_vmxpi_runtime_audit.py
       ${CMAKE_CURRENT_SOURCE_DIR}
   )
   ament_add_test(

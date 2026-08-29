@@ -137,6 +137,12 @@ private:
     return std::chrono::duration<double>(point.time_since_epoch()).count();
   }
 
+  bool contextValid() noexcept
+  {
+    const auto context = this->get_node_base_interface()->get_context();
+    return context && context->is_valid();
+  }
+
   void validateParameters() const
   {
     const bool topics_valid = !input_topic_.empty() && !output_topic_.empty() &&
@@ -441,7 +447,52 @@ private:
         safety_interfaces->interface_names, safety_interfaces->values));
   }
 
+  void handleTimerFailure(const char * detail) noexcept
+  {
+    // SIGINT/SIGTERM invalidates the rcl context before an already-running
+    // timer callback necessarily returns. Graph and publish calls are then
+    // expected to fail; hardware command timeout remains the shutdown stop.
+    if (!contextValid()) {
+      return;
+    }
+    RCLCPP_ERROR(this->get_logger(), "safety timer failed closed: %s", detail);
+    try {
+      std::lock_guard<std::mutex> lock(mutex_);
+      state_machine_.latch_fault();
+      joystick_deadman_gate_.invalidate();
+      has_command_ = false;
+      last_command_ = {};
+      publishZero();
+      publishState();
+      publishReason("ROS_GRAPH_ERROR");
+    } catch (const std::exception & error) {
+      if (contextValid()) {
+        RCLCPP_ERROR(
+          this->get_logger(), "failed to publish the fail-closed timer state: %s",
+          error.what());
+      }
+    } catch (...) {
+      if (contextValid()) {
+        RCLCPP_ERROR(this->get_logger(), "failed to publish the fail-closed timer state");
+      }
+    }
+  }
+
   void timerCallback()
+  {
+    if (!contextValid()) {
+      return;
+    }
+    try {
+      timerCallbackImpl();
+    } catch (const std::exception & error) {
+      handleTimerFailure(error.what());
+    } catch (...) {
+      handleTimerFailure("unknown exception");
+    }
+  }
+
+  void timerCallbackImpl()
   {
     std::lock_guard<std::mutex> lock(mutex_);
     const auto now = SteadyClock::now();

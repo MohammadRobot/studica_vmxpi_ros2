@@ -18,9 +18,11 @@ VMX/Titan write boundary. It disables Titan and forces zero unless two valid
 active-low DIO samples, drive health, the boot-release sequence, and a new local
 enable edge all agree. The operator confirmed E-stop status on FlexDIO channel
 8 and separate local enable on channel 9; `stack_4wd` now records that pair.
-Motor-power-disconnected input acceptance passed on 2026-08-28. Deployment
-remains blocked pending lifted-wheel fault and recovery acceptance. See
-[Physical hardware safety gate](HARDWARE_SAFETY_GATE.md).
+Motor-power-disconnected input acceptance passed on 2026-08-28. A charged
+lifted-wheel run on 2026-08-29 stopped safely on its first failed tracking
+trial, so deployment remains blocked pending drivetrain diagnosis and complete
+lifted-wheel fault and recovery acceptance. See [Physical hardware safety
+gate](HARDWARE_SAFETY_GATE.md).
 
 The hardware-only monitor publishes a fail-closed
 `Robot/Control/HardwareSafety` diagnostic from the exported state. The
@@ -31,6 +33,12 @@ raw L1 deadman in the supervisor, and prevents fallback or reconnect-while-held
 motion. Nav2 selection, authenticated remote leases, systemd activation, and
 atomic updates remain gated future work. This revision is not deployed to the
 physical VMX-pi.
+
+A read-only VMXPi audit confirms that idle compute load is healthy but the
+current Ubuntu Desktop-derived image runs unnecessary services and exposes
+XRDP. The versioned audit profile and minimal image plan are in [VMXPi
+production image and runtime](VMXPI_PRODUCTION_IMAGE.md). No live boot services
+were enabled or disabled during that audit.
 
 ## Safety invariants
 

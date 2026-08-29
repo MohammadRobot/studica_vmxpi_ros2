@@ -1,0 +1,108 @@
+{
+  "schema_version": 1,
+  "profile": "vmxpi-production-v1",
+  "platform": {
+    "os_id": "ubuntu",
+    "version_id": "26.04",
+    "architecture": "arm64"
+  },
+  "required_active_units": [
+    "NetworkManager.service",
+    "bluetooth.service",
+    "hciuart.service",
+    "ssh.service",
+    "systemd-resolved.service",
+    "systemd-timesyncd.service",
+    "ufw.service",
+    "wpa_supplicant.service"
+  ],
+  "prohibited_active_units": [
+    "ModemManager.service",
+    "apport-autoreport.path",
+    "apport-autoreport.timer",
+    "apport.service",
+    "apt-daily-upgrade.timer",
+    "apt-daily.timer",
+    "avahi-daemon.service",
+    "cups-browsed.service",
+    "cups.service",
+    "display-manager.service",
+    "fwupd-refresh.timer",
+    "fwupd.service",
+    "gdm.service",
+    "kerneloops.service",
+    "motd-news.timer",
+    "networkd-dispatcher.service",
+    "packagekit.service",
+    "rtkit-daemon.service",
+    "snapd.service",
+    "snapd.socket",
+    "udisks2.service",
+    "unattended-upgrades.service",
+    "update-notifier-download.timer",
+    "update-notifier-motd.timer",
+    "upower.service",
+    "whoopsie.service",
+    "xrdp-sesman.service",
+    "xrdp.service"
+  ],
+  "prohibited_installed_packages": [
+    "apport",
+    "avahi-daemon",
+    "cups",
+    "fwupd",
+    "gdm3",
+    "kerneloops",
+    "packagekit",
+    "pipewire",
+    "pulseaudio",
+    "ros-jazzy-desktop",
+    "ros-humble-desktop",
+    "ros-lyrical-desktop",
+    "snapd",
+    "ubuntu-desktop",
+    "ubuntu-desktop-minimal",
+    "ubuntu-desktop-raspi",
+    "udisks2",
+    "upower",
+    "xorg",
+    "xrdp"
+  ],
+  "prohibited_process_markers": [
+    "_ros2_daemon",
+    "fwupd",
+    "packagekitd",
+    "pipewire",
+    "pipewire-media-",
+    "pulseaudio",
+    "udisksd",
+    "unattended-upgr",
+    "upowerd",
+    "xorg",
+    "xrdp"
+  ],
+  "allowed_public_tcp_ports": [
+    22
+  ],
+  "allowed_public_udp_ports": [],
+  "generic_hostnames": [
+    "localhost",
+    "raspberrypi",
+    "ubuntu",
+    "vmx"
+  ],
+  "required_sshd_settings": {
+    "passwordauthentication": "no",
+    "permitrootlogin": "no",
+    "pubkeyauthentication": "yes",
+    "x11forwarding": "no"
+  },
+  "thresholds": {
+    "max_journal_bytes": 536870912,
+    "max_normalized_load_1": 0.75,
+    "max_root_used_percent": 80.0,
+    "max_swap_used_percent": 10.0,
+    "max_temperature_c": 75.0,
+    "min_available_memory_percent": 15.0
+  }
+}
