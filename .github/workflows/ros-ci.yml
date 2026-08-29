@@ -45,7 +45,7 @@ jobs:
         uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
         with:
           repository: MohammadRobot/studica_robot_monitor
-          ref: 182be121ae0ed08b368d505b5e65b0250642f929
+          ref: f51a2fc0f3c1d23264bdfa7651d7f118d87eaaf2
           path: ros2_ws/src/studica_robot_monitor
 
       - name: Configure pinned ROS APT source

@@ -6,7 +6,7 @@ repositories:
   studica_robot_monitor:
     type: git
     url: https://github.com/MohammadRobot/studica_robot_monitor.git
-    version: 182be121ae0ed08b368d505b5e65b0250642f929
+    version: f51a2fc0f3c1d23264bdfa7651d7f118d87eaaf2
   studica_ros2_control:
     type: git
     url: https://github.com/MohammadRobot/studica_ros2_control.git
