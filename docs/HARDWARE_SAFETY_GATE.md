@@ -117,7 +117,7 @@ consistently enabled for all 651 recorded state samples. The report and
   `a3d11eb8e9485613344c7152fb8a9182bf7b35e4a978d3bde949f21a2391a600`.
 
 `studica_robot_monitor` commit
-`33dc9e32bb3b6ec7676d2def9014e5640568a5b4` now requires explicit charged
+`182be121ae0ed08b368d505b5e65b0250642f929` now requires explicit charged
 battery confirmation and a live `ENABLED` hardware gate, stops on the first
 failed trial or blocking diagnostic, and atomically retains partial results.
 The complete lifted fixture remains blocked until that revision passes with a
