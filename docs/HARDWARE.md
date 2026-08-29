@@ -10,7 +10,8 @@ startup, navigation startup, or ordinary package tests.
 > **Current production phase:** the supervisor rejects network/software arm
 > requests, and the VMX/Titan plugin now enforces the local enable and E-stop
 > status gate. The operator confirmed FlexDIO channel 8 for E-stop status and
-> channel 9 for a separate local-enable switch. The mapping is checked in but
+> channel 9 for a momentary Start button used as hold-to-run enable. The
+> mapping is checked in but
 > is not deployed; motor-power-disconnected input acceptance passed on
 > 2026-08-28, while the lifted-wheel fault and recovery fixture remains
 > mandatory. Do not install boot services or perform floor motion.
@@ -193,6 +194,8 @@ sudo vcgencmd get_throttled
 
 Required observations before motor power is enabled:
 
+- the battery is charged, its measured voltage is within the battery and Titan
+  manufacturer limits, and it remains stable under the expected test load;
 - every expected controller is active;
 - all four motor channels are present and encoder feedback is fresh;
 - target and measured velocities are zero;
@@ -235,7 +238,8 @@ reachable emergency stop. No one touches the robot during this test.
 ```bash
 ros2 run studica_robot_monitor validate_motors \
   --robot-lifted \
-  --emergency-stop-ready
+  --emergency-stop-ready \
+  --battery-ready
 echo "Exit code: $?"
 ```
 
@@ -244,6 +248,12 @@ four-joint forward-command controller. It tests each wheel independently at
 `+2` and `-2 rad/s` with a one-second ramp, two-second hold, and stop interval.
 It always commands zero and attempts to restore the base controller on success,
 failure, timeout, cancellation, or process exit.
+
+The validator refuses to begin unless the live local hardware gate is
+`ENABLED`. The operator must continuously hold the momentary Start button for
+the test. Releasing it removes motion authorization and stops the run. The first
+failed trial or blocking diagnostic also terminates the sequence; partial YAML
+evidence is saved atomically after each completed trial.
 
 Passing requires:
 

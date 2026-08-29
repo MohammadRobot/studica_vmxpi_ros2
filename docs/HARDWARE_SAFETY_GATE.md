@@ -41,7 +41,7 @@ The design needs two independent inputs:
 | Input | Physical device | Fail-safe meaning |
 |---|---|---|
 | `ESTOP_OK` | Auxiliary normally-closed contact on the physical emergency-stop circuit | Closed/grounded only when the E-stop loop is healthy |
-| `LOCAL_ENABLE` | Guarded maintained enable switch at the robot | ON requests local motion authorization; OFF immediately removes it |
+| `LOCAL_ENABLE` | Momentary Start button at the robot | Held requests motion authorization; release immediately removes it |
 
 Both inputs use VMX pull-ups and active-low wiring. An open connector or broken
 wire therefore reads inactive/not-OK and disables motion. The physical E-stop's
@@ -59,7 +59,7 @@ it is not the stopping mechanism.
 | E-stop status contact | Normally closed from channel 8 signal to VMX ground when healthy | Input sequence passed on 2026-08-28 |
 | E-stop primary contacts | Remove Titan motor power or hardware enable | Operator-confirmed; lifted fixture verification pending |
 | Channel collision | Old optional duty-cycle and ultrasonic examples mention channels 8/9 but are disabled | Inspected inactive; accessory container remains forbidden |
-| `LOCAL_ENABLE` input | VMX FlexDIO channel `9` | Input sequence passed on 2026-08-28 |
+| `LOCAL_ENABLE` input | VMX FlexDIO channel `9`, momentary Start button | Input sequence passed on 2026-08-28; powered hold/release sequence passed on 2026-08-29 |
 
 The checked-in `stack_4wd` profile records channels 8 and 9 as a pair. Other
 physical profiles retain fail-closed `-1` placeholders. This mapping is not a
@@ -85,6 +85,40 @@ The motor-power-disconnected fixture used `studica_drivers` commit
   `/home/vmx/studica_acceptance_ws/safety-input-check-20260828-rerun1.log`, with
   SHA-256 `bac299e1b9ca7be578ab92c6a567ac01581a047c3ed60aafb70d9c469a807460`.
 
+### First lifted attempt: invalid low-battery run
+
+On 2026-08-29, the isolated stack reached a 13 PASS, 0 WARN, 0 FAIL
+readiness result with the E-stop released and Start released. The powered
+hold/release sequence then demonstrated:
+
+- Start held: `enable_active=1`, `motion_enabled=1`, gate `ENABLED`, and all
+  four target and measured velocities remained zero;
+- Start released: the gate returned to `READY`, motion authorization became
+  zero, and all four target and measured velocities remained zero;
+- VMX temperature was 50.6 C with `throttled=0x0`; Titan temperature was
+  28.6 C before the wheel test.
+
+The wheel run is **not acceptance evidence**. Six attempted directions logged
+FAIL before the sequence was manually cancelled. The operator then identified
+that the battery was very low, and the VMXPi subsequently rebooted. A low or
+sagging supply invalidates motor tracking results and can explain both stopped
+encoders and network/compute instability. The report and 26.43-second MCAP are
+retained as failure evidence:
+
+- report SHA-256:
+  `3146d30c10ab21380b241e45c266e14c9a6cf4ba8a1953b90b6de11d24d39b56`;
+- MCAP SHA-256:
+  `64c1f5d862434505923267d6921b42c5c734871f4d37b6f0ad1f59a6f5f849d3`;
+- run log SHA-256:
+  `a3d11eb8e9485613344c7152fb8a9182bf7b35e4a978d3bde949f21a2391a600`.
+
+`studica_robot_monitor` commit
+`33dc9e32bb3b6ec7676d2def9014e5640568a5b4` now requires explicit charged
+battery confirmation and a live `ENABLED` hardware gate, stops on the first
+failed trial or blocking diagnostic, and atomically retains partial results.
+The complete lifted fixture remains blocked until that revision passes with a
+charged, measured battery.
+
 ## Local-enable sequence
 
 The deterministic gate has four states:
@@ -96,10 +130,10 @@ The deterministic gate has four states:
 | `ENABLED` | Hardware-gated | Enable OFF, E-stop loss, invalid read, or drive fault |
 | `FAULT_LATCHED` | Disabled | Cause cleared and enable held OFF for 500 ms |
 
-An enable switch left ON across boot cannot authorize motion. Releasing the
-switch disables motion immediately without debounce. Turning it OFF after a
-cleared fault is the local acknowledgement, but a new OFF-to-ON transition is
-still required to enable.
+An enable control held active across boot cannot authorize motion. Releasing
+the momentary Start button disables motion immediately without debounce. A
+released button after a cleared fault is the local acknowledgement, but a new
+released-to-held transition is still required to enable.
 
 The testable reference logic is in `local_enable_gate.hpp`. It uses a monotonic
 time input and treats invalid time, DIO sample failure, E-stop loss, and unhealthy
@@ -153,7 +187,7 @@ interfaces for read-only diagnostics:
 |---|---|
 | `input_valid` | `1` only when both DIO reads succeeded |
 | `estop_ok` | `1` only when the active-low E-stop status contact is closed |
-| `enable_active` | `1` while the active-low local switch requests enable |
+| `enable_active` | `1` while the active-low local Start button requests enable |
 | `drive_healthy` | `1` when PID, temperature, feedback, and fault state permit motion |
 | `motion_enabled` | `1` only while the hardware gate authorizes Titan output |
 | `gate_state` | `0` waiting, `1` ready, `2` enabled, `3` fault-latched |
@@ -171,7 +205,7 @@ diagnostic is not emitted in simulation mode.
 
 Before any boot service or floor motion:
 
-1. record the selected FlexDIO labels, channel numbers, voltage jumper, switch
+1. record the selected FlexDIO labels, channel numbers, voltage jumper, control
    part numbers, contact type, and wiring diagram;
 2. continuity-test the E-stop's primary power contacts and auxiliary status
    contact with motor power disconnected;
@@ -194,11 +228,15 @@ Before any boot service or floor motion:
    press/release, enable ON/OFF, E-stop status-wire removal, and reconnection.
    Any read failure, wrong polarity, unstable state, or timeout fails the test.
 5. lift all wheels and place an operator at the physical E-stop;
-6. cold-boot at least 20 times with enable OFF, ON, disconnected, and bouncing;
-7. verify zero targets for E-stop press, enable release, wire removal, DIO read
+6. measure and record a charged battery within its manufacturer limits, then
+   confirm it remains stable under the expected test load;
+7. cold-boot at least 20 times with Start released, held, disconnected, and
+   bouncing;
+8. verify zero targets for E-stop press, Start release, wire removal, DIO read
    failure, encoder loss, over-temperature, supervisor crash, and controller
    restart;
-8. verify recovery always requires enable OFF followed by a new ON edge;
-9. archive timestamps, logs, wiring photos, and the signed result.
+9. verify recovery always requires Start released followed by a new press;
+10. archive timestamps, logs, wiring photos, battery measurements, and the
+    signed result.
 
 Only a passing fixture authorizes the later systemd/autostart phase.
