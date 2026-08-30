@@ -38,9 +38,10 @@ RUN apt-get -o Acquire::Retries=3 update \
 COPY dependencies/hardware.repos /opt/studica/hardware.repos
 COPY package.xml /opt/studica/studica_vmxpi_ros2.package.xml
 RUN rosdep init \
+    && rosdep update --rosdistro humble \
     && mkdir -p /opt/studica/rosdep-cache \
-    && rosdep --sources-cache-dir /opt/studica/rosdep-cache \
-      update --rosdistro humble \
+    && cp -a /root/.ros/rosdep/sources.cache/. \
+      /opt/studica/rosdep-cache/ \
     && mkdir -p /tmp/studica-rosdep/src/studica_vmxpi_ros2 \
     && vcs import --recursive /tmp/studica-rosdep/src \
       < /opt/studica/hardware.repos \
@@ -53,7 +54,7 @@ RUN rosdep init \
       --skip-keys "gz_ros2_control ros_gz_bridge ros_gz_sim" \
       -y \
     && chmod -R a+rX /opt/studica/rosdep-cache \
-    && rm -rf /tmp/studica-rosdep /var/lib/apt/lists/*
+    && rm -rf /tmp/studica-rosdep /var/lib/apt/lists/* /root/.ros
 
 COPY deployment/build_arm64_release_in_container.sh \
   /usr/local/bin/build-studica-arm64-release

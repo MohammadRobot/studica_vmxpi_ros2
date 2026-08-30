@@ -141,12 +141,23 @@ def validate_builder(root: Path, manifest: dict[str, Any]) -> list[str]:
             "AS runtime-inventory",
             f"--checksum=sha256:{ROS_APT_SOURCE_SHA256}",
             f"/download/{ROS_APT_SOURCE_VERSION}/ros2-apt-source_{ROS_APT_SOURCE_VERSION}.jammy_all.deb",
+            "rosdep update --rosdistro humble",
+            "cp -a /root/.ros/rosdep/sources.cache/.",
             "--sources-cache-dir /opt/studica/rosdep-cache",
             "/usr/local/bin/prepare-studica-arm64-sources",
         ),
         "ARM64 Dockerfile",
         failures,
     )
+    if re.search(
+        r"rosdep\s+--sources-cache-dir\s+/opt/studica/rosdep-cache\s+"
+        r"update\b",
+        dockerfile,
+    ):
+        failures.append(
+            "ARM64 Dockerfile must populate the portable rosdep cache from the "
+            "default update directory"
+        )
     require_text(
         dockerignore,
         (

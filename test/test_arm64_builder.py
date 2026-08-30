@@ -75,6 +75,37 @@ class Arm64BuilderTest(unittest.TestCase):
         self.assertIn("--allow-emulation", result.stdout)
         self.assertIn("never connects to the robot", result.stdout)
 
+    def test_rosdep_update_does_not_target_the_portable_cache_directly(self):
+        dockerfile = (ROOT / "deployment/arm64-builder.Dockerfile").read_text(
+            encoding="utf-8"
+        )
+        broken = dockerfile.replace(
+            "rosdep update --rosdistro humble",
+            "rosdep --sources-cache-dir /opt/studica/rosdep-cache "
+            "update --rosdistro humble",
+        )
+        with tempfile.TemporaryDirectory() as temporary:
+            fixture = Path(temporary) / "fixture"
+            fixture.mkdir()
+            for source in ROOT.iterdir():
+                target = fixture / source.name
+                if source.is_dir():
+                    target.symlink_to(source, target_is_directory=True)
+                else:
+                    target.symlink_to(source)
+            (fixture / "deployment").unlink()
+            (fixture / "deployment").mkdir()
+            for source in (ROOT / "deployment").iterdir():
+                target = fixture / "deployment" / source.name
+                if source.name == "arm64-builder.Dockerfile":
+                    target.write_text(broken, encoding="utf-8")
+                elif source.is_dir():
+                    target.symlink_to(source, target_is_directory=True)
+                else:
+                    target.symlink_to(source)
+            failures = VALIDATOR.validate_builder(fixture, self.manifest)
+        self.assertTrue(any("portable rosdep cache" in item for item in failures))
+
     def test_imported_hardware_checkout_must_match_commit_origin_and_cleanliness(self):
         with tempfile.TemporaryDirectory() as temporary:
             workspace = Path(temporary) / "workspace"
