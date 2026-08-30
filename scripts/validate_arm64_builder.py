@@ -223,6 +223,7 @@ def validate_builder(root: Path, manifest: dict[str, Any]) -> list[str]:
             "-DCMAKE_DISABLE_FIND_PACKAGE_SWIG=TRUE",
             "-DCMAKE_DISABLE_FIND_PACKAGE_PythonInterp=TRUE",
             "-DCMAKE_DISABLE_FIND_PACKAGE_PythonLibs=TRUE",
+            'export LIBRARY_PATH="${ydlidar_prefix}/lib',
             "-DSTUDICA_PRODUCTION_INSTALL=ON",
             "--merge-install",
             "--builder-image-id",

@@ -106,6 +106,37 @@ class Arm64BuilderTest(unittest.TestCase):
             failures = VALIDATOR.validate_builder(fixture, self.manifest)
         self.assertTrue(any("portable rosdep cache" in item for item in failures))
 
+    def test_isolated_ydlidar_prefix_is_available_to_the_linker(self):
+        container_script = (
+            ROOT / "deployment/build_arm64_release_in_container.sh"
+        ).read_text(encoding="utf-8")
+        broken = container_script.replace(
+            'export LIBRARY_PATH="${ydlidar_prefix}/lib'
+            '${LIBRARY_PATH:+:${LIBRARY_PATH}}"',
+            "",
+        )
+        with tempfile.TemporaryDirectory() as temporary:
+            fixture = Path(temporary) / "fixture"
+            fixture.mkdir()
+            for source in ROOT.iterdir():
+                target = fixture / source.name
+                if source.is_dir():
+                    target.symlink_to(source, target_is_directory=True)
+                else:
+                    target.symlink_to(source)
+            (fixture / "deployment").unlink()
+            (fixture / "deployment").mkdir()
+            for source in (ROOT / "deployment").iterdir():
+                target = fixture / "deployment" / source.name
+                if source.name == "build_arm64_release_in_container.sh":
+                    target.write_text(broken, encoding="utf-8")
+                elif source.is_dir():
+                    target.symlink_to(source, target_is_directory=True)
+                else:
+                    target.symlink_to(source)
+            failures = VALIDATOR.validate_builder(fixture, self.manifest)
+        self.assertTrue(any("LIBRARY_PATH" in item for item in failures))
+
     def test_imported_hardware_checkout_must_match_commit_origin_and_cleanliness(self):
         with tempfile.TemporaryDirectory() as temporary:
             workspace = Path(temporary) / "workspace"

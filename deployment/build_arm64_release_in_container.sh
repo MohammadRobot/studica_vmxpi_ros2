@@ -76,6 +76,10 @@ cmake --install "${workspace}/ydlidar-sdk-build"
 
 export CMAKE_PREFIX_PATH="${ydlidar_prefix}${CMAKE_PREFIX_PATH:+:${CMAKE_PREFIX_PATH}}"
 export LD_LIBRARY_PATH="${ydlidar_prefix}/lib:${LD_LIBRARY_PATH}"
+# The pinned YDLidar package config exports ``-lydlidar_sdk`` but leaves
+# YDLIDAR_SDK_LIBRARY_DIRS empty.  Keep the SDK in its isolated prefix and give
+# GCC's linker the matching search directory instead of installing it globally.
+export LIBRARY_PATH="${ydlidar_prefix}/lib${LIBRARY_PATH:+:${LIBRARY_PATH}}"
 
 source_setup_file /opt/ros/humble/setup.bash
 colcon --log-base "${workspace}/log" build \
