@@ -3,7 +3,7 @@
   "profile": "vmxpi-production-v1",
   "platform": {
     "os_id": "ubuntu",
-    "version_id": "26.04",
+    "version_id": "22.04",
     "architecture": "arm64"
   },
   "required_active_units": [

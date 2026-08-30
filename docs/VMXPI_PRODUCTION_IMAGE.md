@@ -13,7 +13,7 @@ measurements.
 
 | Measurement | Observed result | Assessment |
 |---|---:|---|
-| OS | Ubuntu 22.04.5, arm64, Linux 5.15 Raspberry Pi kernel | Valid POC platform |
+| OS | Ubuntu 22.04.5, arm64, Linux 5.15 Raspberry Pi kernel | Selected Phase-1 platform |
 | CPU | Four cores; five one-second samples were 100% idle | No idle CPU problem |
 | Load | `0.00, 0.32, 1.02` after builds and hardware tests | Falling normally |
 | Memory | 214 MiB used; 3.3 GiB available of 3.7 GiB | Large idle margin |
@@ -72,11 +72,11 @@ After systemd robot units exist, require the exact release units explicitly:
   --require-unit studica-monitor.service
 ```
 
-The policy is `deployment/vmxpi-production-v1.json`. It deliberately targets
-the Ubuntu 26.04/Lyrical production candidate, so the current 22.04/Humble POC
-also receives a platform finding. A product variant may use an explicit
-versioned policy; exceptions passed on the command line are test tools and are
-not a production configuration mechanism.
+The policy is `deployment/vmxpi-production-v1.json`. It targets the selected
+Ubuntu 22.04 arm64 and ROS 2 Humble Phase-1 platform. A product variant or a
+future platform migration must use a new explicit, versioned policy;
+exceptions passed on the command line are test tools and are not a production
+configuration mechanism.
 
 ## Target operating-system services
 
@@ -147,26 +147,30 @@ dependencies. Compilation and `git pull` happen off-robot. Each release is an
 immutable, signed artifact installed under `/opt/studica/releases`, as defined
 in [Release process](RELEASE_PROCESS.md).
 
-## Platform lifecycle decision
+## Phase-1 platform decision
 
-The current Ubuntu 22.04 and ROS 2 Humble pair both reach the end of their
-standard support windows in May 2027. That is suitable for the existing POC and
-a controlled beta, but it is too short a runway for a new commercial product.
-See the official [Ubuntu release cycle](https://ubuntu.com/about/release-cycle)
-and [ROS 2 distribution schedule](https://docs.ros.org/en/humble/Releases.html).
+The selected production baseline for now is Ubuntu 22.04 arm64 with ROS 2
+Humble. It matches the current Studica VMXPi SDK and hardware integration and
+keeps platform migration risk separate from the safety, packaging, update, and
+support work still required to turn the POC into a product. The production
+image uses the Humble `ros-base` variant plus explicitly selected runtime
+packages; selecting Humble does not justify retaining ROS Desktop or Ubuntu
+Desktop on the robot.
 
-The default production profile targets Ubuntu 26.04 arm64 with ROS 2 Lyrical,
-the current
-ROS LTS supported through May 2031. ROS documents Ubuntu 26.04 x86-64 and arm64
-as supported targets in the [Lyrical installation guide](https://docs.ros.org/en/lyrical/Installation/Alternatives/Ubuntu-Install-Binary.html).
-This is a candidate, not yet a supported Studica platform: the VMXPi SDK, Titan
-firmware path, camera, LiDAR, Cyclone DDS, `ros2_control`, and every hardware
-test must pass before selecting it.
+This selection is time-bounded. Ubuntu 22.04 standard security maintenance and
+ROS 2 Humble support both end in May 2027. See the official
+[Ubuntu release cycle](https://ubuntu.com/about/release-cycle) and
+[ROS 2 distribution schedule](https://docs.ros.org/en/humble/Releases.html).
+Before a commercial release, the product support matrix must define the last
+supported Humble release, security-maintenance method, customer upgrade path,
+and a migration deadline that occurs before upstream ROS support ends.
 
-If a required vendor SDK blocks Ubuntu 26.04, Ubuntu 24.04 with ROS 2 Jazzy is
-the time-bounded fallback through May 2029. Do not silently ship the Humble
-image past its public support window. Record the selected pair and migration
-commitment in the product support matrix.
+Do not introduce Ubuntu 24.04/Jazzy or Ubuntu 26.04/Lyrical into the Phase-1
+image. Evaluate a successor only in a separate compatibility branch and only
+after the VMXPi SDK, Titan firmware path, camera, LiDAR, Cyclone DDS,
+`ros2_control`, update rollback, and the complete hardware-in-the-loop safety
+suite pass. The production profile must be versioned again when that migration
+is approved.
 
 ## Staged image migration
 

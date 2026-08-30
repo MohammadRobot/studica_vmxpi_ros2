@@ -34,7 +34,7 @@ class VmxpiRuntimeAuditTest(unittest.TestCase):
         self.clean_snapshot = AUDIT.Snapshot(
             timestamp_utc="2026-08-29T15:00:00+00:00",
             os_id="ubuntu",
-            version_id="26.04",
+            version_id="22.04",
             architecture="arm64",
             hostname="studica-a1b2c3",
             system_state="running",
@@ -73,7 +73,7 @@ class VmxpiRuntimeAuditTest(unittest.TestCase):
         self.assertNotIn("bluetooth.service", raw["prohibited_active_units"])
         self.assertIn("xrdp.service", raw["prohibited_active_units"])
         self.assertIn("ros-humble-desktop", raw["prohibited_installed_packages"])
-        self.assertEqual(raw["platform"]["version_id"], "26.04")
+        self.assertEqual(raw["platform"]["version_id"], "22.04")
 
     def test_clean_appliance_snapshot_passes(self):
         self.assertEqual(

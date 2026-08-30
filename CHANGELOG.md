@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Selected Ubuntu 22.04 arm64 with ROS 2 Humble as the Phase-1 VMXPi
+  production baseline and documented its May 2027 lifecycle gate.
 - Added a read-only, machine-readable VMXPi production runtime audit with a
   versioned minimal-service/package/port/SSH profile, contract tests, a measured
   physical-robot idle baseline, and a staged appliance-image migration plan.
