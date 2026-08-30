@@ -161,7 +161,7 @@ ros2 launch studica_vmxpi_ros2 robot.launch.py [arguments]
 | `use_colored_depth_cloud` | `false` | Start registered 320×240 color and depth at 15 Hz for RViz DepthCloud |
 | `use_point_cloud` | `false` | Publish raw 320×240 depth points at 5 Hz |
 | `use_point_cloud_filter` | `false` | Also publish the floor/body-filtered cloud when raw points are enabled |
-| `use_foxglove` | `true` | Start the read-only Foxglove bridge |
+| `use_foxglove` | `false` | Start the optional read-only Foxglove bridge |
 | `use_joystick` | `false` | Start joystick teleop on the VMXPi |
 | `control_source` | follows `use_joystick` | Select `application` (`/cmd_vel`) or `joystick` (`/cmd_vel/joy` plus `/joy`) |
 | `joystick_deadman_button` | `4` | Raw `/joy` button index independently required by the supervisor |
@@ -284,7 +284,7 @@ ros2 launch studica_vmxpi_ros2 bringup.launch.py \
 | `ydlidar_params_file` | empty | Override the YDLidar YAML |
 | `use_camera` | automatic | Enable the hardware camera |
 | `use_monitoring` | automatic | Enable robot health monitoring |
-| `use_foxglove` | automatic | Enable the read-only Foxglove bridge |
+| `use_foxglove` | `false` | Enable the optional read-only Foxglove bridge |
 | `use_joystick` | `false` | Enable deadman-protected joystick teleop |
 | `joystick_config_file` | project DualShock YAML | Override joystick parameters |
 | `foxglove_address` | `127.0.0.1` | Foxglove bind address |

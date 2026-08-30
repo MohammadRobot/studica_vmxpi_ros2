@@ -6,6 +6,8 @@
   production baseline and documented its May 2027 lifecycle gate.
 - Added a validated minimal runtime package manifest that keeps Bluetooth
   joystick support while excluding desktop, simulation, GUI, and build tooling.
+- Split the headless robot-core ROS dependency contract from explicit classroom
+  desktop and Gazebo Harmonic APT bundles, with Foxglove disabled by default.
 - Added a read-only, machine-readable VMXPi production runtime audit with a
   versioned minimal-service/package/port/SSH profile, contract tests, a measured
   physical-robot idle baseline, and a staged appliance-image migration plan.

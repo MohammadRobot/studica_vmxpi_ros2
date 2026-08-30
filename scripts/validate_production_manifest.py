@@ -9,6 +9,7 @@ from pathlib import Path
 import re
 import sys
 from typing import Any
+import xml.etree.ElementTree as ET
 
 import yaml
 
@@ -18,6 +19,7 @@ REQUIRED_APT_PACKAGES = {
     "bluez",
     "network-manager",
     "openssh-server",
+    "ros-humble-backward-ros",
     "ros-humble-ros-base",
     "ros-humble-rmw-cyclonedds-cpp",
     "ufw",
@@ -28,6 +30,56 @@ REQUIRED_SOURCE_PACKAGES = {
     "studica_robot_monitor",
     "studica_ros2_control",
     "studica_vmxpi_ros2",
+}
+APT_BUNDLES = (
+    "dependencies/apt/development-core.txt",
+    "dependencies/apt/development-desktop.txt",
+    "dependencies/apt/simulation-harmonic.txt",
+)
+CORE_REQUIRED_ROSDEP_KEYS = {
+    "controller_manager",
+    "diagnostic_aggregator",
+    "diff_drive_controller",
+    "forward_command_controller",
+    "imu_sensor_broadcaster",
+    "joy",
+    "rmw_cyclonedds_cpp",
+    "robot_localization",
+    "robot_state_publisher",
+    "studica_drivers",
+    "studica_robot_monitor",
+    "teleop_twist_joy",
+}
+CORE_FORBIDDEN_ROSDEP_KEYS = {
+    "action_msgs",
+    "foxglove_bridge",
+    "gz_ros2_control",
+    "joint_state_publisher_gui",
+    "mecanum_drive_controller",
+    "nav2_bringup",
+    "nav2_msgs",
+    "ros2controlcli",
+    "ros_gz_bridge",
+    "ros_gz_sim",
+    "rosbag2_storage_mcap",
+    "rviz2",
+    "slam_toolbox",
+    "teleop_twist_keyboard",
+}
+DEVELOPMENT_APT_COVERAGE = {
+    "action_msgs": "ros-humble-action-msgs",
+    "foxglove_bridge": "ros-humble-foxglove-bridge",
+    "joint_state_publisher_gui": "ros-humble-joint-state-publisher-gui",
+    "mecanum_drive_controller": "ros-humble-mecanum-drive-controller",
+    "nav2_bringup": "ros-humble-nav2-bringup",
+    "nav2_msgs": "ros-humble-nav2-msgs",
+    "ros2controlcli": "ros-humble-ros2controlcli",
+    "ros_gz_bridge": "ros-humble-ros-gzharmonic-bridge",
+    "ros_gz_sim": "ros-humble-ros-gzharmonic",
+    "rosbag2_storage_mcap": "ros-humble-rosbag2-storage-mcap",
+    "rviz2": "ros-humble-rviz2",
+    "slam_toolbox": "ros-humble-slam-toolbox",
+    "teleop_twist_keyboard": "ros-humble-teleop-twist-keyboard",
 }
 
 
@@ -66,6 +118,81 @@ def load_hardware_pins(root: Path, failures: list[str]) -> dict[str, str]:
         if GIT_SHA_RE.fullmatch(version) is None:
             failures.append(f"hardware source {name} is not pinned to a full commit")
     return pins
+
+
+def load_development_apt_bundles(root: Path, failures: list[str]) -> set[str]:
+    all_packages: list[str] = []
+    package_name = re.compile(r"[a-z0-9][a-z0-9+.-]*")
+    for relative_path in APT_BUNDLES:
+        path = root / relative_path
+        try:
+            packages = [
+                line.strip()
+                for line in path.read_text(encoding="utf-8").splitlines()
+                if line.strip() and not line.lstrip().startswith("#")
+            ]
+        except OSError as error:
+            failures.append(f"cannot read {relative_path}: {error}")
+            continue
+        if packages != sorted(packages):
+            failures.append(f"{relative_path} package names must be sorted")
+        if len(packages) != len(set(packages)):
+            failures.append(f"{relative_path} contains duplicate package names")
+        invalid = [item for item in packages if package_name.fullmatch(item) is None]
+        if invalid:
+            failures.append(f"{relative_path} contains invalid package names: {invalid}")
+        all_packages.extend(packages)
+
+    duplicates = sorted(
+        package for package in set(all_packages) if all_packages.count(package) > 1
+    )
+    if duplicates:
+        failures.append(f"APT packages occur in multiple development bundles: {duplicates}")
+    return set(all_packages)
+
+
+def validate_dependency_boundary(root: Path, failures: list[str]) -> None:
+    try:
+        package_root = ET.parse(root / "package.xml").getroot()
+    except (OSError, ET.ParseError) as error:
+        failures.append(f"cannot read package.xml: {error}")
+        return
+
+    dependency_tags = {
+        "build_depend",
+        "build_export_depend",
+        "depend",
+        "exec_depend",
+    }
+    dependencies = {
+        element.text.strip()
+        for element in package_root
+        if element.tag in dependency_tags and element.text
+    }
+    forbidden = sorted(dependencies & CORE_FORBIDDEN_ROSDEP_KEYS)
+    if forbidden:
+        failures.append(f"robot-core package.xml contains developer dependencies: {forbidden}")
+    missing = sorted(CORE_REQUIRED_ROSDEP_KEYS - dependencies)
+    if missing:
+        failures.append(f"robot-core package.xml is missing runtime dependencies: {missing}")
+
+    apt_packages = load_development_apt_bundles(root, failures)
+    for rosdep_key, apt_package in DEVELOPMENT_APT_COVERAGE.items():
+        if apt_package not in apt_packages:
+            failures.append(
+                f"developer dependency {rosdep_key} is not covered by {apt_package}"
+            )
+
+    simulation_path = root / "dependencies" / "simulation.repos"
+    try:
+        simulation_sources = yaml.safe_load(
+            simulation_path.read_text(encoding="utf-8")
+        )["repositories"]
+    except (OSError, KeyError, TypeError, yaml.YAMLError) as error:
+        failures.append(f"cannot read dependencies/simulation.repos: {error}")
+        simulation_sources = {}
+    if "gz_ros2_control" not in simulation_sources:
+        failures.append("developer dependency gz_ros2_control is missing from simulation.repos")
 
 
 def validate_manifest(root: Path, manifest: dict[str, Any]) -> list[str]:
@@ -210,6 +337,8 @@ def validate_manifest(root: Path, manifest: dict[str, Any]) -> list[str]:
     for package in sorted(set(all_declared_source) - {"studica_vmxpi_ros2"}):
         if package not in hardware_pins:
             failures.append(f"source package is missing from hardware.repos: {package}")
+
+    validate_dependency_boundary(root, failures)
 
     return failures
 

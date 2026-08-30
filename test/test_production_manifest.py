@@ -38,6 +38,27 @@ class ProductionManifestTest(unittest.TestCase):
         self.assertNotIn("ros-humble-foxglove-bridge", packages)
         self.assertNotIn("ros-humble-nav2-bringup", packages)
 
+    def test_robot_core_manifest_excludes_developer_dependencies(self):
+        failures = []
+        VALIDATOR.validate_dependency_boundary(ROOT, failures)
+        self.assertEqual(failures, [])
+
+    def test_optional_foxglove_is_off_by_default(self):
+        robot_launch = ROOT.joinpath(
+            "bringup", "launch", "robot.launch.py"
+        ).read_text(encoding="utf-8")
+        self.assertRegex(
+            robot_launch,
+            r'"use_foxglove",\s+default_value="false"',
+        )
+        bringup_launch = ROOT.joinpath(
+            "bringup", "launch", "bringup.launch.py"
+        ).read_text(encoding="utf-8")
+        self.assertIn(
+            'if not use_foxglove:\n        use_foxglove = "false"',
+            bringup_launch,
+        )
+
     def test_platform_cannot_drift_from_selected_baseline(self):
         changed = deepcopy(self.manifest)
         changed["platform"]["version_id"] = "24.04"

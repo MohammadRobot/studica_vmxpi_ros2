@@ -7,6 +7,20 @@ lists. Every `version` must be a full 40-character Git commit.
 `hardware.repos` is the VMXPi overlay and adds hardware accessories and sensor
 drivers. Repositories present in both manifests must use the same commit.
 
+The `apt/` directory separates binary development dependencies from the
+headless robot-core `package.xml`:
+
+- `development-core.txt` contains source build, test, and headless ROS tools;
+- `development-desktop.txt` contains classroom GUI, visualization, mapping,
+  navigation, recording, and support tools;
+- `simulation-harmonic.txt` contains Gazebo Harmonic packages used only in
+  simulation mode.
+
+These bundles are inputs to `scripts/setup_ubuntu.sh`; they are not production
+image inputs. The production boundary is the separately validated
+`deployment/vmxpi-runtime-packages-v1.json`. Keep every text bundle sorted,
+with one APT package per line and no package duplicated between bundles.
+
 To update a dependency:
 
 1. Review the upstream changes and license impact.

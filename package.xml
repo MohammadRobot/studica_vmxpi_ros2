@@ -17,10 +17,8 @@
   <depend>urdf</depend>
   <depend>xacro</depend>
   <depend>ros2_control</depend>
-  <depend>gz_ros2_control</depend>
   <depend>joint_state_broadcaster</depend>
   <depend>diff_drive_controller</depend>
-  <depend>mecanum_drive_controller</depend>
   <depend>imu_sensor_broadcaster</depend>
   <depend>geometry_msgs</depend>
   <depend>builtin_interfaces</depend>
@@ -42,30 +40,18 @@
   <exec_depend>ament_index_python</exec_depend>
   <exec_depend>launch</exec_depend>
   <exec_depend>launch_ros</exec_depend>
-  <exec_depend>joint_state_publisher_gui</exec_depend>
   <exec_depend>robot_state_publisher</exec_depend>
   <exec_depend>robot_localization</exec_depend>
   <exec_depend>tf2_ros</exec_depend>
-  <exec_depend>ros2controlcli</exec_depend>
-  <exec_depend>rviz2</exec_depend>
-  <exec_depend>nav2_bringup</exec_depend>
-  <exec_depend>slam_toolbox</exec_depend>
-  <exec_depend>ros_gz_sim</exec_depend>
-  <exec_depend>ros_gz_bridge</exec_depend>
   <exec_depend>ydlidar_ros2_driver</exec_depend>
   <exec_depend>orbbec_camera</exec_depend>
   <exec_depend>studica_robot_monitor</exec_depend>
   <exec_depend>diagnostic_aggregator</exec_depend>
-  <exec_depend>foxglove_bridge</exec_depend>
   <exec_depend>forward_command_controller</exec_depend>
-  <exec_depend>rosbag2_storage_mcap</exec_depend>
   <exec_depend>joy</exec_depend>
   <exec_depend>teleop_twist_joy</exec_depend>
-  <exec_depend>teleop_twist_keyboard</exec_depend>
   <exec_depend>rmw_cyclonedds_cpp</exec_depend>
   <exec_depend>rclpy</exec_depend>
-  <exec_depend>nav2_msgs</exec_depend>
-  <exec_depend>action_msgs</exec_depend>
   <exec_depend>python3-yaml</exec_depend>
   <exec_depend>python3-numpy</exec_depend>
  

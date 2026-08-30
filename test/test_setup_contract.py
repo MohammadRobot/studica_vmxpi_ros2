@@ -14,6 +14,7 @@ import yaml
 ROOT = Path(sys.argv[1]).resolve() if len(sys.argv) > 1 else Path(__file__).parents[1]
 SETUP = ROOT / "scripts" / "setup_ubuntu.sh"
 CYCLONEDDS_SETUP = ROOT / "scripts" / "configure_cyclonedds.py"
+APT_BUNDLE_DIR = ROOT / "dependencies" / "apt"
 PIN = "a2d290e37be67ba082744e323339d82031f051c0"
 COMMIT = re.compile(r"[0-9a-f]{40}")
 
@@ -61,6 +62,36 @@ class SetupContractTest(unittest.TestCase):
             self.assertEqual(
                 simulation[repository]["version"], hardware[repository]["version"]
             )
+
+    def test_classroom_apt_dependencies_are_explicit_mode_bundles(self):
+        def packages(filename):
+            return {
+                line.strip()
+                for line in APT_BUNDLE_DIR.joinpath(filename)
+                .read_text(encoding="utf-8")
+                .splitlines()
+                if line.strip() and not line.lstrip().startswith("#")
+            }
+
+        core = packages("development-core.txt")
+        desktop = packages("development-desktop.txt")
+        simulation = packages("simulation-harmonic.txt")
+        self.assertIn("ros-humble-ros2-control", core)
+        self.assertNotIn("ros-humble-desktop", core)
+        self.assertIn("ros-humble-desktop", desktop)
+        self.assertIn("ros-humble-nav2-bringup", desktop)
+        self.assertIn("gz-harmonic", simulation)
+        self.assertTrue(core.isdisjoint(desktop))
+        self.assertTrue(core.isdisjoint(simulation))
+        self.assertTrue(desktop.isdisjoint(simulation))
+
+        setup = SETUP.read_text(encoding="utf-8")
+        for filename in (
+            "development-core.txt",
+            "development-desktop.txt",
+            "simulation-harmonic.txt",
+        ):
+            self.assertIn(filename, setup)
 
     def test_installer_never_starts_ros_or_edits_shell_startup(self):
         source = SETUP.read_text(encoding="utf-8")

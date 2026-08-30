@@ -30,6 +30,7 @@
     ],
     "ros_core": [
       "ros-humble-ament-index-python",
+      "ros-humble-backward-ros",
       "ros-humble-controller-manager",
       "ros-humble-diagnostic-aggregator",
       "ros-humble-diff-drive-controller",

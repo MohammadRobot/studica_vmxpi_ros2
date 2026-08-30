@@ -171,7 +171,7 @@ def _runtime_actions(context, *args, **kwargs):
     if not use_monitoring:
         use_monitoring = "true" if mode == "hardware" else "false"
     if not use_foxglove:
-        use_foxglove = "true" if mode == "hardware" else "false"
+        use_foxglove = "false"
     if not use_imu_odometry:
         use_imu_odometry = "true" if mode == "hardware" else "false"
 
@@ -439,7 +439,7 @@ def generate_launch_description():
             _declare_arg(
                 "use_foxglove",
                 "",
-                "Leave empty to enable the read-only Foxglove bridge in hardware mode only.",
+                "Leave empty to keep the optional read-only Foxglove bridge disabled.",
             ),
             _declare_arg(
                 "use_joystick",

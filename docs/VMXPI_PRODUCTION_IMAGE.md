@@ -125,10 +125,17 @@ silently break maintenance or erase expected log handling.
 
 ## ROS runtime package split
 
-The current repository is a classroom source package. Its installer requests
-`ros-humble-desktop`, and its package manifest includes simulation, RViz,
-navigation, camera, mapping, joystick, and developer dependencies together.
-It cannot be the final production package boundary.
+The source repository supports both classroom and robot workflows, but its ROS
+`package.xml` now declares only the headless robot-core dependency contract.
+GUI, Gazebo, Nav2, SLAM, Foxglove, rosbag, CLI, and keyboard tools live in the
+explicit `dependencies/apt/` developer bundles consumed by
+`scripts/setup_ubuntu.sh`. The classroom installer still requests ROS Desktop;
+the production manifest does not.
+
+This dependency split prevents `rosdep` for the core package from silently
+pulling desktop tooling into a product image. It does not yet create separate
+binary packages: the repository still installs shared launch and documentation
+assets, so release packaging must complete the binary and filesystem split.
 
 Create release packages with these responsibilities:
 

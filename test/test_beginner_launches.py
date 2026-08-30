@@ -400,9 +400,11 @@ class BeginnerLaunchContractTest(unittest.TestCase):
         self.assertIn('default_value="true"', robot_launch)
 
         package_xml = ROOT.joinpath("package.xml").read_text(encoding="utf-8")
-        setup = ROOT.joinpath("scripts", "setup_ubuntu.sh").read_text(encoding="utf-8")
+        development_core = ROOT.joinpath(
+            "dependencies", "apt", "development-core.txt"
+        ).read_text(encoding="utf-8")
         self.assertIn("<exec_depend>robot_localization</exec_depend>", package_xml)
-        self.assertIn("ros-humble-robot-localization", setup)
+        self.assertIn("ros-humble-robot-localization", development_core)
 
     def test_hardware_controller_rate_defaults_to_validated_25_hz(self):
         expected_fragments = {

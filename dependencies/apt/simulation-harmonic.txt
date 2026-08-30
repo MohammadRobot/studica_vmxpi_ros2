@@ -1,0 +1,4 @@
+# Gazebo Harmonic packages used only by the simulation development mode.
+gz-harmonic
+ros-humble-ros-gzharmonic
+ros-humble-ros-gzharmonic-bridge

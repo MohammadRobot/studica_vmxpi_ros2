@@ -79,8 +79,8 @@ def generate_launch_description():
         ),
         DeclareLaunchArgument(
             "use_foxglove",
-            default_value="true",
-            description="Start the read-only Foxglove bridge.",
+            default_value="false",
+            description="Start the optional read-only Foxglove bridge.",
         ),
         DeclareLaunchArgument(
             "use_joystick",

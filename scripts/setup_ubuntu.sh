@@ -259,6 +259,21 @@ install_gazebo_repository() {
     /etc/apt/sources.list.d/gazebo-stable.list >/dev/null
 }
 
+load_package_bundle() {
+  local bundle_path="$1"
+  local output_name="$2"
+  local line
+  local -n output_packages="${output_name}"
+
+  [[ -r "${bundle_path}" ]] || die "package bundle is missing: ${bundle_path}"
+  while IFS= read -r line || [[ -n "${line}" ]]; do
+    [[ -z "${line}" || "${line}" == \#* ]] && continue
+    [[ "${line}" =~ ^[a-z0-9][a-z0-9+.-]*$ ]] || die \
+      "invalid package name in ${bundle_path}: ${line}"
+    output_packages+=("${line}")
+  done < "${bundle_path}"
+}
+
 install_packages() {
   install_ros_repository
   if [[ "${mode}" == "simulation" ]]; then
@@ -266,45 +281,14 @@ install_packages() {
   fi
   apt_get update
 
-  local packages=(
-    build-essential
-    cmake
-    git
-    python3-colcon-common-extensions
-    python3-pip
-    python3-pytest
-    python3-rosdep
-    python3-vcstool
-    python3-yaml
-    ros-dev-tools
-    ros-humble-backward-ros
-    ros-humble-controller-manager
-    ros-humble-desktop
-    ros-humble-diagnostic-aggregator
-    ros-humble-foxglove-bridge
-    ros-humble-forward-command-controller
-    ros-humble-imu-sensor-broadcaster
-    ros-humble-joy
-    ros-humble-nav2-bringup
-    ros-humble-navigation2
-    ros-humble-robot-localization
-    ros-humble-robot-state-publisher
-    ros-humble-ros2-control
-    ros-humble-ros2-controllers
-    ros-humble-rosbag2-storage-mcap
-    ros-humble-rqt-common-plugins
-    ros-humble-slam-toolbox
-    ros-humble-teleop-twist-joy
-    ros-humble-teleop-twist-keyboard
-    ros-humble-xacro
-    shellcheck
-  )
+  local packages=()
+  load_package_bundle \
+    "${repo_root}/dependencies/apt/development-core.txt" packages
+  load_package_bundle \
+    "${repo_root}/dependencies/apt/development-desktop.txt" packages
   if [[ "${mode}" == "simulation" ]]; then
-    packages+=(
-      gz-harmonic
-      ros-humble-ros-gzharmonic
-      ros-humble-ros-gzharmonic-bridge
-    )
+    load_package_bundle \
+      "${repo_root}/dependencies/apt/simulation-harmonic.txt" packages
   fi
 
   info "installing ROS 2 classroom packages"

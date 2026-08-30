@@ -269,8 +269,8 @@ def generate_launch_description():
         ),
         _declare_arg(
             "use_foxglove",
-            LaunchConfiguration("use_hardware"),
-            "Launch a read-only Foxglove Bridge for telemetry.",
+            "false",
+            "Launch the optional read-only Foxglove Bridge for telemetry.",
         ),
         _declare_arg(
             "foxglove_address",
