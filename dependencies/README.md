@@ -38,3 +38,6 @@ temporary workspace and runs `scripts/verify_hardware_checkout.py`. The build
 stops if a checkout has the wrong commit, a different origin, or any generated
 or local changes. See `deployment/arm64-builder-v1.json` for the versioned
 container and input contract.
+Dependency acquisition runs in a networked container that has no VMXPi SDK
+mount; the verified prepared tree is then mounted read-only for the
+network-disabled SDK build.

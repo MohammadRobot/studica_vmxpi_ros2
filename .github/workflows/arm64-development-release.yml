@@ -1,0 +1,125 @@
+name: ARM64 Development Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      approved_commit:
+        description: "Exact 40-character commit currently at main"
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: arm64-development-release
+  cancel-in-progress: false
+
+jobs:
+  authorize:
+    name: Authorize immutable main commit
+    runs-on: ubuntu-22.04
+    timeout-minutes: 5
+    env:
+      APPROVED_COMMIT: ${{ inputs.approved_commit }}
+    steps:
+      - name: Reject a non-main or ambiguous dispatch
+        run: |
+          [[ "${GITHUB_EVENT_NAME}" == "workflow_dispatch" ]]
+          [[ "${GITHUB_REF}" == "refs/heads/main" ]]
+          [[ "${APPROVED_COMMIT}" =~ ^[0-9a-f]{40}$ ]]
+          [[ "${APPROVED_COMMIT}" == "${GITHUB_SHA}" ]]
+
+  build:
+    name: Build isolated development artifact
+    needs: authorize
+    environment: arm64-development-release
+    runs-on: [self-hosted, linux, ARM64, studica-arm64-release]
+    timeout-minutes: 180
+    env:
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
+      STUDICA_VMXPI_SDK_ROOT: ${{ vars.VMXPI_SDK_ROOT }}
+    steps:
+      - name: Checkout approved source
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Verify ephemeral ARM64 worker and SDK boundary
+        run: |
+          [[ "$(uname -m)" == "aarch64" ]]
+          [[ "$(git rev-parse HEAD)" == "${GITHUB_SHA}" ]]
+          [[ -z "$(git status --porcelain --untracked-files=normal)" ]]
+          [[ -n "${STUDICA_VMXPI_SDK_ROOT}" ]]
+
+          sdk_root="$(realpath -e "${STUDICA_VMXPI_SDK_ROOT}")"
+          [[ "${sdk_root}" == /opt/studica-builder-inputs/* ]]
+          [[ "${sdk_root}/" != "${GITHUB_WORKSPACE}/"* ]]
+          [[ "${sdk_root}/" != "${RUNNER_TEMP}/"* ]]
+          [[ -r "${sdk_root}/include/vmxpi/VMXPi.h" ]]
+          [[ -r "${sdk_root}/lib/vmxpi/libvmxpi_hal_cpp.so" ]]
+          [[ ! -w "${sdk_root}" ]]
+          [[ ! -w "${sdk_root}/include/vmxpi" ]]
+          [[ ! -w "${sdk_root}/lib/vmxpi" ]]
+          if find "${sdk_root}/include/vmxpi" "${sdk_root}/lib/vmxpi" \
+              -xdev -type f -perm /022 -print -quit | grep -q .; then
+            echo "SDK files must not be group- or world-writable" >&2
+            exit 2
+          fi
+
+          docker version
+          docker buildx version
+          docker_architecture="$(docker info --format '{{.Architecture}}')"
+          [[ "${docker_architecture}" == "arm64" || \
+             "${docker_architecture}" == "aarch64" ]]
+
+          release_output="${RUNNER_TEMP}/studica-arm64-release-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          [[ ! -e "${release_output}" ]]
+          printf 'STUDICA_VMXPI_SDK_ROOT=%s\n' "${sdk_root}" >> "${GITHUB_ENV}"
+          printf 'STUDICA_RELEASE_OUTPUT=%s\n' "${release_output}" >> "${GITHUB_ENV}"
+
+          ./scripts/build_arm64_release.sh \
+            --sdk-root "${sdk_root}" \
+            --output-dir "${release_output}" \
+            --check-only
+
+      - name: Build offline with the qualified SDK
+        run: |
+          ./scripts/build_arm64_release.sh \
+            --sdk-root "${STUDICA_VMXPI_SDK_ROOT}" \
+            --output-dir "${STUDICA_RELEASE_OUTPUT}"
+
+      - name: Verify checksums, provenance, and activation denial
+        run: |
+          ./scripts/verify_release_artifacts.py \
+            --output-dir "${STUDICA_RELEASE_OUTPUT}" \
+            --expected-commit "${GITHUB_SHA}"
+          {
+            echo "## ARM64 development release"
+            echo
+            echo "Commit: \`${GITHUB_SHA}\`"
+            echo
+            echo "Activation remains blocked."
+            echo
+            echo '```text'
+            sha256sum "${STUDICA_RELEASE_OUTPUT}"/*
+            echo '```'
+          } >> "${GITHUB_STEP_SUMMARY}"
+
+      - name: Upload verified development artifact
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: studica-arm64-development-${{ github.sha }}
+          path: ${{ env.STUDICA_RELEASE_OUTPUT }}
+          if-no-files-found: error
+          retention-days: 14
+          compression-level: 0
+
+      - name: Remove temporary release files
+        if: always()
+        run: |
+          expected="${RUNNER_TEMP}/studica-arm64-release-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          if [[ "${STUDICA_RELEASE_OUTPUT:-}" == "${expected}" && -d "${expected}" ]]; then
+            rm -rf -- "${expected}"
+          fi

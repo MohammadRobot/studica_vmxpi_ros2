@@ -57,10 +57,15 @@ RUN rosdep init \
 
 COPY deployment/build_arm64_release_in_container.sh \
   /usr/local/bin/build-studica-arm64-release
-RUN chmod 0755 /usr/local/bin/build-studica-arm64-release \
+COPY deployment/prepare_arm64_release_sources.sh \
+  /usr/local/bin/prepare-studica-arm64-sources
+RUN chmod 0755 \
+      /usr/local/bin/build-studica-arm64-release \
+      /usr/local/bin/prepare-studica-arm64-sources \
     && mkdir -p \
       /inputs \
       /output \
+      /prepared \
       /source \
       /workspace \
       /usr/local/include/vmxpi \

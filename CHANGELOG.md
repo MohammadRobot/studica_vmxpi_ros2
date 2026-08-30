@@ -16,6 +16,9 @@
 - Added a fail-closed isolated ARM64 Docker/Buildx builder with an immutable
   Jammy base, read-only source/SDK inputs, verified hardware checkouts, separate
   minimal-runtime inventory, and builder-image provenance.
+- Added a protected manual ARM64 release workflow for an ephemeral native
+  worker, separated networked dependency acquisition from the offline
+  SDK-enabled build, and added full post-build artifact verification.
 - Added a read-only, machine-readable VMXPi production runtime audit with a
   versioned minimal-service/package/port/SSH profile, contract tests, a measured
   physical-robot idle baseline, and a staged appliance-image migration plan.

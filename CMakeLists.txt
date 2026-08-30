@@ -429,6 +429,13 @@ if(BUILD_TESTING)
       ${CMAKE_CURRENT_SOURCE_DIR}
   )
   ament_add_test(
+    validate_release_artifacts
+    GENERATE_RESULT_FOR_RETURN_CODE_ZERO
+    COMMAND ${Python3_EXECUTABLE}
+      ${CMAKE_CURRENT_SOURCE_DIR}/test/test_release_artifacts.py
+      ${CMAKE_CURRENT_SOURCE_DIR}
+  )
+  ament_add_test(
     validate_python_examples
     GENERATE_RESULT_FOR_RETURN_CODE_ZERO
     COMMAND ${Python3_EXECUTABLE} -m pytest -q

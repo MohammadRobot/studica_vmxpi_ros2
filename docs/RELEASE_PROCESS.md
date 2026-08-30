@@ -70,6 +70,14 @@ or artifact. The Git source is also read-only. A temporary workspace receives
 fresh clones of every `hardware.repos` dependency, and every commit, origin,
 and clean-tree state is verified before compilation.
 
+Source acquisition and the SDK-enabled build are separate containers. The
+networked preparation container never receives an SDK mount. The subsequent
+compile, test, and bundle container receives the prepared source and SDK as
+read-only mounts and runs with `--network none`. After construction,
+`scripts/verify_release_artifacts.py` checks the outer checksum, internal
+payload checksums, source commit, builder provenance, platform, and explicit
+activation denial without extracting the archive.
+
 Native ARM64 Docker is required by default. `--allow-emulation` is an explicit
 development escape hatch for a Buildx worker that already advertises
 `linux/arm64`; the script does not install or register QEMU. Use `--check-only`
@@ -91,6 +99,12 @@ repository snapshot. Ubuntu and ROS APT indexes can change between runs; the
 profile declares `apt_repository_snapshot: false`. Beta promotion remains
 blocked until those repositories and every resolved binary version are locked
 to a retained snapshot.
+
+The manual-only `.github/workflows/arm64-development-release.yml` executes this
+gate on a protected, ephemeral native ARM64 runner. Provisioning, independent
+approval, SDK qualification, execution, archival, and failure handling are in
+[ARM64 development release worker](ARM64_RELEASE_WORKER.md). Do not attach a
+persistent self-hosted runner to this public repository.
 
 ### Manual equivalent
 

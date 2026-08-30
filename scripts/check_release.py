@@ -77,19 +77,25 @@ def check_ci_pins(
         failures.append(f"cannot read ROS CI workflow: {error}")
         return
 
-    for line_number, line in enumerate(workflow.splitlines(), start=1):
-        stripped = line.strip()
-        if not stripped.startswith("uses:"):
-            continue
-        action = stripped.removeprefix("uses:").strip().split()[0]
-        if action.startswith("./"):
-            continue
-        reference = action.rsplit("@", maxsplit=1)[-1]
-        fail_if(
-            GIT_SHA_RE.fullmatch(reference) is None,
-            f"ros-ci.yml:{line_number}: action must be pinned to a full commit",
-            failures,
-        )
+    workflow_dir = root / ".github" / "workflows"
+    workflow_paths = sorted(workflow_dir.glob("*.yml")) + sorted(
+        workflow_dir.glob("*.yaml")
+    )
+    for checked_path in workflow_paths:
+        checked_workflow = checked_path.read_text(encoding="utf-8")
+        for line_number, line in enumerate(checked_workflow.splitlines(), start=1):
+            stripped = line.strip()
+            if not stripped.startswith("uses:"):
+                continue
+            action = stripped.removeprefix("uses:").strip().split()[0]
+            if action.startswith("./"):
+                continue
+            reference = action.rsplit("@", maxsplit=1)[-1]
+            fail_if(
+                GIT_SHA_RE.fullmatch(reference) is None,
+                f"{checked_path.name}:{line_number}: action must be pinned to a full commit",
+                failures,
+            )
 
     hardware = manifests.get("hardware.repos", {})
     for repository in FIRST_PARTY:

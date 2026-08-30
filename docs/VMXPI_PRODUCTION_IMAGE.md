@@ -196,6 +196,15 @@ A 2026-08-30 preflight on the current development workstation could not execute
 it: the account could not access the Docker daemon and no VMXPi SDK was locally
 provisioned. The running robot is intentionally not used as a compiler.
 
+The next worker contract is now checked in as a manual-only GitHub workflow.
+It accepts only an explicitly confirmed commit at `main`, waits on the
+`arm64-development-release` environment, routes to a dedicated ephemeral
+native ARM64 runner, keeps dependency acquisition separate from the SDK, runs
+the SDK-enabled build without container networking, verifies the complete
+development artifact, and uploads it for 14 days. See
+[ARM64 development release worker](ARM64_RELEASE_WORKER.md). This is a runnable
+gate definition, not evidence that a worker or real release artifact exists.
+
 ## Phase-1 platform decision
 
 The selected production baseline for now is Ubuntu 22.04 arm64 with ROS 2
@@ -321,9 +330,10 @@ Recovery-clone work is temporarily deferred. Until it resumes, do not harden
 the live image, remove live packages, or install systemd robot units. The
 bootable clone remains a release requirement before any of those operations.
 
-1. Provision a dedicated ARM64 Docker worker with a licensed VMXPi SDK input,
-   run `scripts/build_arm64_release.sh`, and archive the first development
-   artifact, inventory, checksums, SBOM, and builder image ID.
+1. Provision the documented ephemeral ARM64 Docker worker with a qualified,
+   licensed VMXPi SDK input, run the protected manual workflow, and archive the
+   first verified development artifact, inventory, checksums, SBOM, workflow
+   record, and builder image ID.
 2. Turn the Ubuntu 22.04/Humble package manifest into a reproducible operating-
    system image recipe with locked binary repositories.
 3. Diagnose and pass the charged lifted-wheel tracking failure.

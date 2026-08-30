@@ -38,6 +38,7 @@ path.
 | [VMXPi production image](VMXPI_PRODUCTION_IMAGE.md) | Measured load, minimal OS/service profile, package split, and staged hardening |
 | [Physical hardware safety gate](HARDWARE_SAFETY_GATE.md) | Phase 2 local enable, E-stop status, wiring gate, and acceptance fixture |
 | [Release process](RELEASE_PROCESS.md) | Immutable inputs, artifacts, rollout channels, and release gates |
+| [ARM64 release worker](ARM64_RELEASE_WORKER.md) | Ephemeral native worker, protected manual workflow, SDK boundary, and artifact verification |
 
 ## Course files
 

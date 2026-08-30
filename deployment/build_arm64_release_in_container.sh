@@ -4,9 +4,10 @@
 
 set -euo pipefail
 
-readonly source_mount="/source"
+readonly prepared_root="/prepared"
 readonly workspace="/workspace"
-readonly source_root="${workspace}/src/studica_vmxpi_ros2"
+readonly source_tree="${prepared_root}/src"
+readonly source_root="${source_tree}/studica_vmxpi_ros2"
 readonly ydlidar_prefix="${workspace}/vendor/ydlidar_sdk"
 readonly inventory="/inputs/dpkg-inventory.tsv"
 readonly output_dir="/output"
@@ -26,7 +27,8 @@ source_setup_file() {
 }
 
 [[ "$(uname -m)" == "aarch64" ]] || die "builder must execute as AArch64"
-[[ -d "${source_mount}/.git" ]] || die "read-only Git source mount is missing"
+[[ -d "${source_root}/.git" ]] || die "prepared Git source mount is missing"
+[[ -r "${prepared_root}/source-commit" ]] || die "prepared source commit is missing"
 [[ -r /usr/local/include/vmxpi/VMXPi.h ]] || die "VMXPi SDK headers are missing"
 [[ -r /usr/local/lib/vmxpi/libvmxpi_hal_cpp.so ]] || die \
   "VMXPi SDK shared library is missing"
@@ -36,29 +38,29 @@ source_setup_file() {
 [[ "${STUDICA_BUILDER_IMAGE_ID:-}" =~ ^sha256:[0-9a-f]{64}$ ]] || die \
   "STUDICA_BUILDER_IMAGE_ID must be an immutable Docker image ID"
 
-mkdir -p "${workspace}/src" "${workspace}/home" "${workspace}/vendor"
-export HOME="${workspace}/home"
+mkdir -p "${workspace}/build" "${workspace}/install" "${workspace}/log" \
+  "${workspace}/vendor"
+export GIT_OPTIONAL_LOCKS=0
 export LD_LIBRARY_PATH="/usr/local/lib/vmxpi${LD_LIBRARY_PATH:+:${LD_LIBRARY_PATH}}"
 
-git -C "${source_mount}" diff --quiet --ignore-submodules --
-git -C "${source_mount}" diff --cached --quiet --ignore-submodules --
-[[ -z "$(git -C "${source_mount}" status --porcelain --untracked-files=normal)" ]] || die \
-  "source repository must be clean"
-
-git clone --no-local --no-hardlinks "${source_mount}" "${source_root}"
-vcs import --recursive "${workspace}/src" \
-  < "${source_root}/dependencies/hardware.repos"
+[[ "$(git -C "${source_root}" rev-parse HEAD)" == \
+  "$(tr -d '\n' < "${prepared_root}/source-commit")" ]] || die \
+  "prepared source commit does not match its recorded identity"
+git -C "${source_root}" diff --quiet --ignore-submodules --
+git -C "${source_root}" diff --cached --quiet --ignore-submodules --
+[[ -z "$(git -C "${source_root}" status --porcelain --untracked-files=normal)" ]] || die \
+  "prepared product source must be clean"
 python3 "${source_root}/scripts/verify_hardware_checkout.py" \
-  --workspace "${workspace}"
+  --workspace "${prepared_root}"
 
 rosdep --sources-cache-dir /opt/studica/rosdep-cache check \
-  --from-paths "${workspace}/src" \
+  --from-paths "${source_tree}" \
   --ignore-src \
   --rosdistro humble \
   --skip-keys "gz_ros2_control ros_gz_bridge ros_gz_sim"
 
 cmake \
-  -S "${workspace}/src/YDLidar-SDK" \
+  -S "${source_tree}/YDLidar-SDK" \
   -B "${workspace}/ydlidar-sdk-build" \
   -DCMAKE_BUILD_TYPE=Release \
   -DCMAKE_INSTALL_PREFIX="${ydlidar_prefix}" \
@@ -74,7 +76,7 @@ export LD_LIBRARY_PATH="${ydlidar_prefix}/lib:${LD_LIBRARY_PATH}"
 
 source_setup_file /opt/ros/humble/setup.bash
 colcon --log-base "${workspace}/log" build \
-  --base-paths "${workspace}/src" \
+  --base-paths "${source_tree}" \
   --build-base "${workspace}/build" \
   --install-base "${workspace}/install" \
   --merge-install \
@@ -86,7 +88,7 @@ colcon --log-base "${workspace}/log" build \
 
 source_setup_file "${workspace}/install/setup.bash"
 colcon --log-base "${workspace}/log" test \
-  --base-paths "${workspace}/src" \
+  --base-paths "${source_tree}" \
   --build-base "${workspace}/build" \
   --install-base "${workspace}/install" \
   --packages-select \
@@ -98,7 +100,7 @@ colcon --log-base "${workspace}/log" test \
   --return-code-on-test-failure
 colcon test-result --test-result-base "${workspace}/build" --verbose
 python3 "${source_root}/scripts/verify_hardware_checkout.py" \
-  --workspace "${workspace}"
+  --workspace "${prepared_root}"
 
 python3 "${source_root}/scripts/build_release_bundle.py" \
   --source-root "${source_root}" \

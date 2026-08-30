@@ -13,6 +13,8 @@ output_dir=""
 allow_emulation=false
 check_only=false
 build_workspace=""
+prepared_sources=""
+offline_workspace=""
 
 usage() {
   cat <<'EOF'
@@ -31,7 +33,8 @@ Options:
   -h, --help          Show this help.
 
 Native ARM64 is required by default. This script never connects to the robot,
-installs or activates an artifact, or enables ROS services.
+installs or activates an artifact, or enables ROS services. Dependency source
+is acquired without the SDK; compilation with the SDK runs without networking.
 EOF
 }
 
@@ -130,6 +133,9 @@ fi
 
 mkdir -p "${output_dir}"
 build_workspace="$(mktemp -d -t studica-arm64-build.XXXXXXXX)"
+prepared_sources="${build_workspace}/prepared"
+offline_workspace="${build_workspace}/offline"
+mkdir -p "${prepared_sources}" "${offline_workspace}"
 commit="$(git -C "${repo_root}" rev-parse HEAD)"
 builder_tag="studica-arm64-builder:${commit:0:12}"
 runtime_tag="studica-arm64-runtime-inventory:${commit:0:12}"
@@ -150,24 +156,47 @@ docker buildx build \
   "${repo_root}"
 
 inventory="${build_workspace}/dpkg-inventory.tsv"
-docker run --rm --platform linux/arm64 "${runtime_tag}" | LC_ALL=C sort > "${inventory}"
+docker run --rm \
+  --platform linux/arm64 \
+  --network none \
+  --read-only \
+  --cap-drop ALL \
+  --security-opt no-new-privileges \
+  "${runtime_tag}" | LC_ALL=C sort > "${inventory}"
 builder_image_id="$(docker image inspect --format '{{.Id}}' "${builder_tag}")"
 [[ "${builder_image_id}" =~ ^sha256:[0-9a-f]{64}$ ]] || die \
   "Docker returned an invalid builder image ID"
 
+# Dependency acquisition is intentionally separated from the proprietary SDK.
+# This container has network access but receives no VMXPi SDK mount.
 docker run --rm \
   --platform linux/arm64 \
   --read-only \
   --cap-drop ALL \
   --security-opt no-new-privileges \
   --user "$(id -u):$(id -g)" \
-  --env "STUDICA_BUILDER_IMAGE_ID=${builder_image_id}" \
+  --entrypoint /usr/local/bin/prepare-studica-arm64-sources \
   --mount "type=bind,src=${repo_root},dst=/source,readonly" \
+  --mount "type=bind,src=${prepared_sources},dst=/prepared" \
+  --tmpfs /tmp:rw,nosuid,nodev,size=1g \
+  "${builder_tag}"
+
+# Source execution starts only after networking is disabled. The SDK and the
+# complete prepared source tree are both mounted read-only.
+docker run --rm \
+  --platform linux/arm64 \
+  --network none \
+  --read-only \
+  --cap-drop ALL \
+  --security-opt no-new-privileges \
+  --user "$(id -u):$(id -g)" \
+  --env "STUDICA_BUILDER_IMAGE_ID=${builder_image_id}" \
+  --mount "type=bind,src=${prepared_sources},dst=/prepared,readonly" \
   --mount "type=bind,src=${sdk_root}/include/vmxpi,dst=/usr/local/include/vmxpi,readonly" \
   --mount "type=bind,src=${sdk_root}/lib/vmxpi,dst=/usr/local/lib/vmxpi,readonly" \
   --mount "type=bind,src=${inventory},dst=/inputs/dpkg-inventory.tsv,readonly" \
   --mount "type=bind,src=${output_dir},dst=/output" \
-  --mount "type=bind,src=${build_workspace},dst=/workspace" \
+  --mount "type=bind,src=${offline_workspace},dst=/workspace" \
   --tmpfs /tmp:rw,nosuid,nodev,size=1g \
   "${builder_tag}"
 

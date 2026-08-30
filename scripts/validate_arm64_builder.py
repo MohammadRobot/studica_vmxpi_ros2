@@ -77,12 +77,17 @@ def validate_builder(root: Path, manifest: dict[str, Any]) -> list[str]:
         "dockerignore": "deployment/arm64-builder.Dockerfile.dockerignore",
         "build_target": "build-env",
         "runtime_inventory_target": "runtime-inventory",
+        "source_preparation_entrypoint": (
+            "/usr/local/bin/prepare-studica-arm64-sources"
+        ),
     }:
         failures.append("builder container targets differ from the v1 contract")
     if manifest.get("execution") != {
         "emulation_requires_opt_in": True,
         "native_arm64_default": True,
-        "network_required_during_build": True,
+        "network_required_for_image_and_source_preparation": True,
+        "source_preparation_without_sdk": True,
+        "sdk_enabled_build_network": "none",
         "sdk_mounts_read_only": [
             "/usr/local/include/vmxpi",
             "/usr/local/lib/vmxpi",
@@ -108,15 +113,21 @@ def validate_builder(root: Path, manifest: dict[str, Any]) -> list[str]:
     dockerfile_path = root / "deployment/arm64-builder.Dockerfile"
     dockerignore_path = root / "deployment/arm64-builder.Dockerfile.dockerignore"
     host_script_path = root / "scripts/build_arm64_release.sh"
+    prepare_script_path = root / "deployment/prepare_arm64_release_sources.sh"
     container_script_path = root / "deployment/build_arm64_release_in_container.sh"
     verifier_path = root / "scripts/verify_hardware_checkout.py"
+    artifact_verifier_path = root / "scripts/verify_release_artifacts.py"
     release_builder_path = root / "scripts/build_release_bundle.py"
+    workflow_path = root / ".github/workflows/arm64-development-release.yml"
     try:
         dockerfile = dockerfile_path.read_text(encoding="utf-8")
         dockerignore = dockerignore_path.read_text(encoding="utf-8")
         host_script = host_script_path.read_text(encoding="utf-8")
+        prepare_script = prepare_script_path.read_text(encoding="utf-8")
         container_script = container_script_path.read_text(encoding="utf-8")
+        artifact_verifier = artifact_verifier_path.read_text(encoding="utf-8")
         release_builder = release_builder_path.read_text(encoding="utf-8")
+        workflow = workflow_path.read_text(encoding="utf-8")
     except OSError as error:
         failures.append(f"cannot read builder implementation: {error}")
         return failures
@@ -131,6 +142,7 @@ def validate_builder(root: Path, manifest: dict[str, Any]) -> list[str]:
             f"--checksum=sha256:{ROS_APT_SOURCE_SHA256}",
             f"/download/{ROS_APT_SOURCE_VERSION}/ros2-apt-source_{ROS_APT_SOURCE_VERSION}.jammy_all.deb",
             "--sources-cache-dir /opt/studica/rosdep-cache",
+            "/usr/local/bin/prepare-studica-arm64-sources",
         ),
         "ARM64 Dockerfile",
         failures,
@@ -140,6 +152,7 @@ def validate_builder(root: Path, manifest: dict[str, Any]) -> list[str]:
         (
             "**",
             "!deployment/build_arm64_release_in_container.sh",
+            "!deployment/prepare_arm64_release_sources.sh",
             "!deployment/vmxpi-runtime-packages-v1.json",
             "!dependencies/apt/development-core.txt",
             "!dependencies/hardware.repos",
@@ -164,13 +177,34 @@ def validate_builder(root: Path, manifest: dict[str, Any]) -> list[str]:
             "output directory must not overlap the VMXPi SDK root",
             "output directory must not contain the VMXPi SDK root",
             "validate_arm64_builder.py",
+            "--entrypoint /usr/local/bin/prepare-studica-arm64-sources",
+            "--network none",
+            "src=${prepared_sources},dst=/prepared,readonly",
         ),
         "host builder",
         failures,
     )
     require_text(
+        prepare_script,
+        (
+            'readonly source_mount="/source"',
+            'readonly prepared_root="/prepared"',
+            "vcs import --recursive",
+            "verify_hardware_checkout.py",
+            'rev-parse HEAD > "${prepared_root}/source-commit"',
+        ),
+        "networked source-preparation stage",
+        failures,
+    )
+    for sdk_path in ("/usr/local/include/vmxpi", "/usr/local/lib/vmxpi"):
+        if sdk_path in prepare_script:
+            failures.append(
+                f"source-preparation stage must not reference the SDK mount: {sdk_path}"
+            )
+    require_text(
         container_script,
         (
+            'readonly prepared_root="/prepared"',
             "verify_hardware_checkout.py",
             "--sources-cache-dir /opt/studica/rosdep-cache",
             "-DSTUDICA_PRODUCTION_INSTALL=ON",
@@ -181,6 +215,12 @@ def validate_builder(root: Path, manifest: dict[str, Any]) -> list[str]:
         "container builder",
         failures,
     )
+    for network_operation in ("vcs import", "git clone", "curl ", "wget "):
+        if network_operation in container_script:
+            failures.append(
+                "offline SDK-enabled builder contains a network/source acquisition "
+                f"operation: {network_operation}"
+            )
     require_text(
         release_builder,
         (
@@ -191,10 +231,58 @@ def validate_builder(root: Path, manifest: dict[str, Any]) -> list[str]:
         "release bundle builder",
         failures,
     )
+    require_text(
+        artifact_verifier,
+        (
+            'metadata.get("activation_authorized") is not False',
+            'rollback.get("activation_authorized") is not False',
+            "external archive checksum does not match",
+            "internal checksum mismatch",
+            "release input hash mismatch",
+            "expected_commit",
+        ),
+        "release artifact verifier",
+        failures,
+    )
+    require_text(
+        workflow,
+        (
+            "workflow_dispatch:",
+            "approved_commit:",
+            "environment: arm64-development-release",
+            "runs-on: [self-hosted, linux, ARM64, studica-arm64-release]",
+            "persist-credentials: false",
+            "actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09",
+            "actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a",
+            "--check-only",
+            "verify_release_artifacts.py",
+            "Activation remains blocked.",
+        ),
+        "manual ARM64 release workflow",
+        failures,
+    )
+    for automatic_trigger in ("pull_request:", "schedule:"):
+        if automatic_trigger in workflow:
+            failures.append(
+                f"ARM64 SDK workflow must not have automatic trigger: {automatic_trigger}"
+            )
+    sdk_mount_position = host_script.find("dst=/usr/local/include/vmxpi,readonly")
+    offline_position = host_script.rfind("--network none", 0, sdk_mount_position)
+    if sdk_mount_position < 0 or offline_position < 0:
+        failures.append("VMXPi SDK mount must occur only in a network-disabled container")
     for forbidden in ("192.168.1.173", "ssh ", "git pull", "/opt/studica/current"):
-        if forbidden in host_script or forbidden in container_script:
+        if any(
+            forbidden in text
+            for text in (host_script, prepare_script, container_script, workflow)
+        ):
             failures.append(f"builder must not contain live-robot action: {forbidden}")
-    for path in (host_script_path, container_script_path, verifier_path):
+    for path in (
+        host_script_path,
+        prepare_script_path,
+        container_script_path,
+        verifier_path,
+        artifact_verifier_path,
+    ):
         if not path.is_file() or not path.stat().st_mode & 0o111:
             failures.append(f"builder executable is missing or not executable: {path.name}")
     return failures

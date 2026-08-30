@@ -22,12 +22,15 @@
     "dockerfile": "deployment/arm64-builder.Dockerfile",
     "dockerignore": "deployment/arm64-builder.Dockerfile.dockerignore",
     "build_target": "build-env",
-    "runtime_inventory_target": "runtime-inventory"
+    "runtime_inventory_target": "runtime-inventory",
+    "source_preparation_entrypoint": "/usr/local/bin/prepare-studica-arm64-sources"
   },
   "execution": {
     "emulation_requires_opt_in": true,
     "native_arm64_default": true,
-    "network_required_during_build": true,
+    "network_required_for_image_and_source_preparation": true,
+    "source_preparation_without_sdk": true,
+    "sdk_enabled_build_network": "none",
     "sdk_mounts_read_only": [
       "/usr/local/include/vmxpi",
       "/usr/local/lib/vmxpi"
