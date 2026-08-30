@@ -238,6 +238,10 @@ def validate_builder(root: Path, manifest: dict[str, Any]) -> list[str]:
                 "offline SDK-enabled builder contains a network/source acquisition "
                 f"operation: {network_operation}"
             )
+    if container_script.count("--merge-install") != 2:
+        failures.append(
+            "container builder must use the merged install layout for both build and test"
+        )
     require_text(
         release_builder,
         (

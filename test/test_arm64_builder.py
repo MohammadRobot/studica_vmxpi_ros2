@@ -137,6 +137,12 @@ class Arm64BuilderTest(unittest.TestCase):
             failures = VALIDATOR.validate_builder(fixture, self.manifest)
         self.assertTrue(any("LIBRARY_PATH" in item for item in failures))
 
+    def test_colcon_test_reuses_the_merged_install_layout(self):
+        container_script = (
+            ROOT / "deployment/build_arm64_release_in_container.sh"
+        ).read_text(encoding="utf-8")
+        self.assertEqual(container_script.count("--merge-install"), 2)
+
     def test_imported_hardware_checkout_must_match_commit_origin_and_cleanliness(self):
         with tempfile.TemporaryDirectory() as temporary:
             workspace = Path(temporary) / "workspace"

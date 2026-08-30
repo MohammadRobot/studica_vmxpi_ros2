@@ -98,6 +98,7 @@ colcon --log-base "${workspace}/log" test \
   --base-paths "${source_tree}" \
   --build-base "${workspace}/build" \
   --install-base "${workspace}/install" \
+  --merge-install \
   --packages-select \
     studica_drivers \
     studica_robot_monitor \
