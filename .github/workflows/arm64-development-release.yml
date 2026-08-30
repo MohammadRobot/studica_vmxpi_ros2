@@ -82,13 +82,15 @@ jobs:
           ./scripts/build_arm64_release.sh \
             --sdk-root "${sdk_root}" \
             --output-dir "${release_output}" \
+            --build-workers 1 \
             --check-only
 
       - name: Build offline with the qualified SDK
         run: |
           ./scripts/build_arm64_release.sh \
             --sdk-root "${STUDICA_VMXPI_SDK_ROOT}" \
-            --output-dir "${STUDICA_RELEASE_OUTPUT}"
+            --output-dir "${STUDICA_RELEASE_OUTPUT}" \
+            --build-workers 1
 
       - name: Verify checksums, provenance, and activation denial
         run: |

@@ -4,13 +4,22 @@ This runbook provisions the off-robot worker used to execute the isolated
 Ubuntu 22.04/ROS 2 Humble release builder. It produces a verified development
 artifact; it does not install software, contact a robot, or authorize motion.
 
-The repository contains the workflow and checks, but no worker has been
-provisioned and no real ARM64 artifact has been archived yet.
+The repository contains the workflow and checks, but no dedicated production
+worker has been provisioned and no real ARM64 artifact has been archived yet.
+
+For the current one-maintainer development phase, a VMXPi may be used as a
+temporary, ephemeral builder because no separate ARM64 host is available. This
+exception is limited to non-activatable `development` artifacts. Keep the
+E-stop pressed, Titan motor power disconnected, and robot-control services
+stopped. Use `--build-workers 1`, monitor the input rail and kernel
+undervoltage reports, and stop after any brownout or reboot. A VMXPi build does
+not satisfy the independent production release-worker or promotion gate.
 
 ## Trust boundary
 
-Use a dedicated, disposable native ARM64 Linux host. Do not register the VMXPi
-robot as a runner and do not use a general development computer that contains
+For production release work, use a dedicated, disposable native ARM64 Linux
+host. Outside the temporary development exception above, do not register the
+VMXPi robot as a runner or use a general development computer that contains
 unrelated credentials. Membership in the Docker group is effectively
 root-level access, so the entire release job and its approved source commit are
 trusted inputs.
@@ -75,6 +84,7 @@ Before registration, validate the local worker from a clean checkout:
 ./scripts/build_arm64_release.sh \
   --sdk-root /opt/studica-builder-inputs/vmxpi-sdk \
   --output-dir /tmp/studica-arm64-preflight-output \
+  --build-workers 1 \
   --check-only
 ```
 
@@ -120,6 +130,10 @@ The workflow independently verifies the typed commit, native architecture,
 clean checkout, Docker access, read-only SDK permissions, builder preflight,
 archive SHA-256, every internal payload checksum, source provenance, and both
 activation-denial records. It retains the GitHub artifact for 14 days.
+
+When the repository has only one maintainer, the independent-review step
+cannot be claimed. Keep the environment and artifact in the development
+channel, record the exception, and add the reviewer before beta promotion.
 
 After downloading and unpacking the GitHub artifact wrapper, verify it again:
 

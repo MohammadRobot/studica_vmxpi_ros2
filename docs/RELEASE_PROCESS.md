@@ -61,7 +61,8 @@ The supported entry point is the fail-closed Docker/Buildx orchestrator:
 ```bash
 ./scripts/build_arm64_release.sh \
   --sdk-root <QUALIFIED_VMXPI_SDK_ROOT> \
-  --output-dir "$STUDICA_WS/release-artifacts"
+  --output-dir "$STUDICA_WS/release-artifacts" \
+  --build-workers 1
 ```
 
 The SDK root must contain `include/vmxpi` and `lib/vmxpi`; the script mounts
@@ -81,7 +82,10 @@ activation denial without extracting the archive.
 Native ARM64 Docker is required by default. `--allow-emulation` is an explicit
 development escape hatch for a Buildx worker that already advertises
 `linux/arm64`; the script does not install or register QEMU. Use `--check-only`
-to validate the worker without building anything.
+to validate the worker without building anything. `--build-workers` limits the
+SDK-enabled container's CPU quota, package concurrency, and compiler/test
+parallelism. Use one worker on a temporary VMXPi builder to reduce peak load;
+this is a load reduction, not a substitute for a stable power rail.
 
 The builder uses `deployment/arm64-builder.Dockerfile` and the versioned
 `deployment/arm64-builder-v1.json` contract. Its official Ubuntu Jammy base is

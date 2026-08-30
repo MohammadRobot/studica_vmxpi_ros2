@@ -12,6 +12,7 @@ sdk_root=""
 output_dir=""
 allow_emulation=false
 check_only=false
+build_workers="$(nproc)"
 build_workspace=""
 prepared_sources=""
 offline_workspace=""
@@ -28,6 +29,7 @@ Required:
   --output-dir PATH   Artifact directory outside this Git repository.
 
 Options:
+  --build-workers N  Limit SDK-enabled compile/test work to N CPU workers.
   --allow-emulation   Permit an amd64 Docker host with registered ARM64 QEMU.
   --check-only        Validate prerequisites without building images or artifacts.
   -h, --help          Show this help.
@@ -66,6 +68,11 @@ while (($# > 0)); do
       output_dir="$2"
       shift 2
       ;;
+    --build-workers)
+      (($# >= 2)) || die "--build-workers needs a positive integer"
+      build_workers="$2"
+      shift 2
+      ;;
     --allow-emulation)
       allow_emulation=true
       shift
@@ -82,6 +89,10 @@ while (($# > 0)); do
   esac
 done
 
+[[ "${build_workers}" =~ ^[1-9][0-9]*$ ]] || die \
+  "--build-workers must be a positive integer"
+((build_workers <= $(nproc))) || die \
+  "--build-workers cannot exceed the host CPU count ($(nproc))"
 [[ -n "${sdk_root}" ]] || die "--sdk-root is required"
 [[ -n "${output_dir}" ]] || die "--output-dir is required"
 sdk_root="$(realpath -e "${sdk_root}")"
@@ -124,8 +135,8 @@ case "${docker_architecture}" in
     ;;
 esac
 
-printf '[builder] prerequisites passed: Docker host=%s, target=linux/arm64\n' \
-  "${docker_architecture}"
+printf '[builder] prerequisites passed: Docker host=%s, target=linux/arm64, workers=%s\n' \
+  "${docker_architecture}" "${build_workers}"
 if ${check_only}; then
   printf '[builder] check-only complete; no image or artifact was created\n'
   exit 0
@@ -190,7 +201,9 @@ docker run --rm \
   --cap-drop ALL \
   --security-opt no-new-privileges \
   --user "$(id -u):$(id -g)" \
+  --cpus "${build_workers}" \
   --env "STUDICA_BUILDER_IMAGE_ID=${builder_image_id}" \
+  --env "STUDICA_BUILD_WORKERS=${build_workers}" \
   --mount "type=bind,src=${prepared_sources},dst=/prepared,readonly" \
   --mount "type=bind,src=${sdk_root}/include/vmxpi,dst=/usr/local/include/vmxpi,readonly" \
   --mount "type=bind,src=${sdk_root}/lib/vmxpi,dst=/usr/local/lib/vmxpi,readonly" \

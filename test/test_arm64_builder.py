@@ -73,7 +73,48 @@ class Arm64BuilderTest(unittest.TestCase):
         )
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertIn("--allow-emulation", result.stdout)
+        self.assertIn("--build-workers N", result.stdout)
         self.assertIn("never connects to the robot", result.stdout)
+
+    def test_host_builder_rejects_invalid_worker_limit_before_docker(self):
+        result = subprocess.run(
+            [
+                str(ROOT / "scripts/build_arm64_release.sh"),
+                "--sdk-root",
+                "/does/not/exist",
+                "--output-dir",
+                "/tmp/studica-invalid-worker-test",
+                "--build-workers",
+                "0",
+            ],
+            check=False,
+            capture_output=True,
+            text=True,
+        )
+        self.assertEqual(result.returncode, 2)
+        self.assertIn("positive integer", result.stderr)
+
+    def test_vmxpi_workflow_uses_single_worker_low_power_build(self):
+        workflow = (
+            ROOT / ".github/workflows/arm64-development-release.yml"
+        ).read_text(encoding="utf-8")
+        self.assertEqual(workflow.count("--build-workers 1"), 2)
+
+        host_script = (ROOT / "scripts/build_arm64_release.sh").read_text(
+            encoding="utf-8"
+        )
+        self.assertIn('--cpus "${build_workers}"', host_script)
+        self.assertIn("STUDICA_BUILD_WORKERS=${build_workers}", host_script)
+
+        container_script = (
+            ROOT / "deployment/build_arm64_release_in_container.sh"
+        ).read_text(encoding="utf-8")
+        self.assertIn(
+            'export CMAKE_BUILD_PARALLEL_LEVEL="${build_workers}"',
+            container_script,
+        )
+        self.assertIn('export MAKEFLAGS="-j${build_workers}"', container_script)
+        self.assertEqual(container_script.count("--executor sequential"), 2)
 
     def test_rosdep_update_does_not_target_the_portable_cache_directly(self):
         dockerfile = (ROOT / "deployment/arm64-builder.Dockerfile").read_text(

@@ -11,6 +11,7 @@ readonly source_root="${source_tree}/studica_vmxpi_ros2"
 readonly ydlidar_prefix="${workspace}/vendor/ydlidar_sdk"
 readonly inventory="/inputs/dpkg-inventory.tsv"
 readonly output_dir="/output"
+readonly build_workers="${STUDICA_BUILD_WORKERS:-$(nproc)}"
 
 die() {
   printf 'ERROR: %s\n' "$*" >&2
@@ -37,12 +38,17 @@ source_setup_file() {
   "release output mount is not writable"
 [[ "${STUDICA_BUILDER_IMAGE_ID:-}" =~ ^sha256:[0-9a-f]{64}$ ]] || die \
   "STUDICA_BUILDER_IMAGE_ID must be an immutable Docker image ID"
+[[ "${build_workers}" =~ ^[1-9][0-9]*$ ]] || die \
+  "STUDICA_BUILD_WORKERS must be a positive integer"
 
 mkdir -p "${workspace}/build" "${workspace}/home" "${workspace}/install" \
   "${workspace}/log/ros" "${workspace}/pycache" "${workspace}/vendor"
 export GIT_OPTIONAL_LOCKS=0
 export HOME="${workspace}/home"
+export CMAKE_BUILD_PARALLEL_LEVEL="${build_workers}"
+export CTEST_PARALLEL_LEVEL="${build_workers}"
 export LD_LIBRARY_PATH="/usr/local/lib/vmxpi${LD_LIBRARY_PATH:+:${LD_LIBRARY_PATH}}"
+export MAKEFLAGS="-j${build_workers}"
 export PYTHONPYCACHEPREFIX="${workspace}/pycache"
 export ROS_LOG_DIR="${workspace}/log/ros"
 export ROS_LOCALHOST_ONLY=1
@@ -76,7 +82,7 @@ cmake \
   -DCMAKE_DISABLE_FIND_PACKAGE_SWIG=TRUE \
   -DCMAKE_DISABLE_FIND_PACKAGE_PythonInterp=TRUE \
   -DCMAKE_DISABLE_FIND_PACKAGE_PythonLibs=TRUE
-cmake --build "${workspace}/ydlidar-sdk-build" --parallel "$(nproc)"
+cmake --build "${workspace}/ydlidar-sdk-build" --parallel "${build_workers}"
 cmake --install "${workspace}/ydlidar-sdk-build"
 
 export CMAKE_PREFIX_PATH="${ydlidar_prefix}${CMAKE_PREFIX_PATH:+:${CMAKE_PREFIX_PATH}}"
@@ -88,6 +94,8 @@ export LIBRARY_PATH="${ydlidar_prefix}/lib${LIBRARY_PATH:+:${LIBRARY_PATH}}"
 
 source_setup_file /opt/ros/humble/setup.bash
 colcon --log-base "${workspace}/log" build \
+  --executor sequential \
+  --parallel-workers 1 \
   --base-paths "${source_tree}" \
   --build-base "${workspace}/build" \
   --install-base "${workspace}/install" \
@@ -100,6 +108,8 @@ colcon --log-base "${workspace}/log" build \
 
 source_setup_file "${workspace}/install/setup.bash"
 colcon --log-base "${workspace}/log" test \
+  --executor sequential \
+  --parallel-workers 1 \
   --base-paths "${source_tree}" \
   --build-base "${workspace}/build" \
   --install-base "${workspace}/install" \
