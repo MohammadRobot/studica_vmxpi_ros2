@@ -1,0 +1,113 @@
+{
+  "schema_version": 1,
+  "profile": "vmxpi-runtime-packages-v1",
+  "platform": {
+    "os_id": "ubuntu",
+    "version_id": "22.04",
+    "architecture": "arm64",
+    "ros_distro": "humble",
+    "ros_variant": "ros-base"
+  },
+  "base_image": {
+    "family": "ubuntu-server",
+    "install_mode": "minimal"
+  },
+  "required_apt_packages": {
+    "operating_system": [
+      "bluez",
+      "ca-certificates",
+      "dbus",
+      "iproute2",
+      "network-manager",
+      "openssh-server",
+      "pi-bluetooth",
+      "python3",
+      "python3-numpy",
+      "python3-yaml",
+      "systemd-timesyncd",
+      "ufw",
+      "wpasupplicant"
+    ],
+    "ros_core": [
+      "ros-humble-ament-index-python",
+      "ros-humble-controller-manager",
+      "ros-humble-diagnostic-aggregator",
+      "ros-humble-diff-drive-controller",
+      "ros-humble-forward-command-controller",
+      "ros-humble-imu-sensor-broadcaster",
+      "ros-humble-joint-state-broadcaster",
+      "ros-humble-launch-ros",
+      "ros-humble-rmw-cyclonedds-cpp",
+      "ros-humble-robot-localization",
+      "ros-humble-robot-state-publisher",
+      "ros-humble-ros-base",
+      "ros-humble-ros2-control",
+      "ros-humble-tf2-ros",
+      "ros-humble-xacro"
+    ]
+  },
+  "required_source_packages": [
+    "studica_drivers",
+    "studica_robot_monitor",
+    "studica_ros2_control",
+    "studica_vmxpi_ros2"
+  ],
+  "features": {
+    "bluetooth_joystick": {
+      "enabled": true,
+      "apt_packages": [
+        "ros-humble-joy",
+        "ros-humble-teleop-twist-joy"
+      ],
+      "source_packages": []
+    },
+    "camera": {
+      "enabled": true,
+      "apt_packages": [],
+      "source_packages": [
+        "OrbbecSDK_ROS2"
+      ]
+    },
+    "foxglove": {
+      "enabled": false,
+      "apt_packages": [
+        "ros-humble-foxglove-bridge"
+      ],
+      "source_packages": []
+    },
+    "lidar": {
+      "enabled": true,
+      "apt_packages": [],
+      "source_packages": [
+        "YDLidar-SDK",
+        "ydlidar_ros2_driver"
+      ]
+    },
+    "navigation_on_robot": {
+      "enabled": false,
+      "apt_packages": [
+        "ros-humble-nav2-bringup",
+        "ros-humble-slam-toolbox"
+      ],
+      "source_packages": []
+    }
+  },
+  "prohibited_apt_packages": [
+    "build-essential",
+    "cmake",
+    "git",
+    "ros-humble-desktop",
+    "ros-humble-desktop-full",
+    "ros-humble-rviz2",
+    "ubuntu-desktop",
+    "ubuntu-desktop-minimal",
+    "ubuntu-desktop-raspi",
+    "xorg",
+    "xrdp"
+  ],
+  "prohibited_apt_prefixes": [
+    "ros-humble-gazebo-",
+    "ros-humble-ros-gz-",
+    "ros-humble-rqt-"
+  ]
+}

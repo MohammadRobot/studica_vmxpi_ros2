@@ -147,6 +147,26 @@ dependencies. Compilation and `git pull` happen off-robot. Each release is an
 immutable, signed artifact installed under `/opt/studica/releases`, as defined
 in [Release process](RELEASE_PROCESS.md).
 
+The first machine-readable package boundary is
+`deployment/vmxpi-runtime-packages-v1.json`. It selects the minimal Ubuntu
+Server base, the headless Humble control runtime, Bluetooth joystick support,
+and the currently installed camera and LiDAR options. Foxglove and on-robot
+navigation are disabled in this baseline. Desktop, simulation, graphical, and
+build packages are explicitly prohibited.
+
+Validate the manifest and print its enabled APT package names on the development
+PC with:
+
+```bash
+./scripts/validate_production_manifest.py
+./scripts/validate_production_manifest.py --print-enabled-apt
+```
+
+This manifest defines the desired package boundary; it is not yet a production
+image recipe. The image builder must additionally lock the Ubuntu and ROS
+repository snapshots and exact binary versions, install the pinned source
+overlay, emit an SBOM, and sign the resulting artifact.
+
 ## Phase-1 platform decision
 
 The selected production baseline for now is Ubuntu 22.04 arm64 with ROS 2
@@ -268,14 +288,18 @@ of the final production image.
 
 ## Immediate next implementation work
 
-1. Keep the current VMXPi unchanged as evidence and capture a bootable clone.
-2. Run the new audit on the clone and archive its JSON result.
-3. Build the first image recipe and package manifest for the selected OS/ROS
-   candidate.
-4. Split the classroom package from the robot runtime dependency graph.
-5. Diagnose and pass the charged lifted-wheel tracking failure.
-6. Implement and test the systemd service chain and safe shutdown behavior.
-7. Implement signed atomic application updates and rollback.
+Recovery-clone work is temporarily deferred. Until it resumes, do not harden
+the live image, remove live packages, or install systemd robot units. The
+bootable clone remains a release requirement before any of those operations.
+
+1. Turn the checked-in Ubuntu 22.04/Humble package manifest into a reproducible
+   image recipe with locked binary repositories.
+2. Split the classroom package from the robot runtime dependency graph.
+3. Diagnose and pass the charged lifted-wheel tracking failure.
+4. Implement and test the systemd service chain and safe shutdown behavior in
+   an offline fixture; do not activate it on the robot before the hardware gate.
+5. Implement signed atomic application updates and rollback.
+6. Resume the bootable clone and audit archive before changing the live image.
 
 This order keeps image optimization independent of motor authorization while
 both streams progress toward the same production release gate.

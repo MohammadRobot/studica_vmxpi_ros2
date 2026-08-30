@@ -214,6 +214,7 @@ install(PROGRAMS
   scripts/point_cloud_filter.py
   scripts/run_waypoint_route.py
   scripts/check_project.sh
+  scripts/validate_production_manifest.py
   scripts/validate_profiles.py
   DESTINATION lib/${PROJECT_NAME}
 )
@@ -343,6 +344,13 @@ if(BUILD_TESTING)
     GENERATE_RESULT_FOR_RETURN_CODE_ZERO
     COMMAND ${Python3_EXECUTABLE}
       ${CMAKE_CURRENT_SOURCE_DIR}/test/test_vmxpi_runtime_audit.py
+      ${CMAKE_CURRENT_SOURCE_DIR}
+  )
+  ament_add_test(
+    validate_production_package_manifest
+    GENERATE_RESULT_FOR_RETURN_CODE_ZERO
+    COMMAND ${Python3_EXECUTABLE}
+      ${CMAKE_CURRENT_SOURCE_DIR}/test/test_production_manifest.py
       ${CMAKE_CURRENT_SOURCE_DIR}
   )
   ament_add_test(
