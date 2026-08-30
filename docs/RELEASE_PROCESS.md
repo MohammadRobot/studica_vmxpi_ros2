@@ -54,6 +54,50 @@ installing or activating it. Build in a clean Ubuntu 22.04 arm64 hardware
 workspace using the pinned `hardware.repos` sources. Use a merged, copied
 install—not `--symlink-install`—and select the production filesystem profile:
 
+### Isolated builder
+
+The supported entry point is the fail-closed Docker/Buildx orchestrator:
+
+```bash
+./scripts/build_arm64_release.sh \
+  --sdk-root <QUALIFIED_VMXPI_SDK_ROOT> \
+  --output-dir "$STUDICA_WS/release-artifacts"
+```
+
+The SDK root must contain `include/vmxpi` and `lib/vmxpi`; the script mounts
+only those two directories read-only and never copies them into the repository
+or artifact. The Git source is also read-only. A temporary workspace receives
+fresh clones of every `hardware.repos` dependency, and every commit, origin,
+and clean-tree state is verified before compilation.
+
+Native ARM64 Docker is required by default. `--allow-emulation` is an explicit
+development escape hatch for a Buildx worker that already advertises
+`linux/arm64`; the script does not install or register QEMU. Use `--check-only`
+to validate the worker without building anything.
+
+The builder uses `deployment/arm64-builder.Dockerfile` and the versioned
+`deployment/arm64-builder-v1.json` contract. Its official Ubuntu Jammy base is
+pinned by dated tag and complete OCI digest, and the ROS APT bootstrap package
+is pinned by version and SHA-256. The upstream references are the
+[official Ubuntu image tags](https://hub.docker.com/_/ubuntu/tags?name=jammy)
+and the
+[ROS APT source releases](https://github.com/ros-infrastructure/ros-apt-source/releases).
+Separate container targets produce the source build and the minimal target-root
+`dpkg` inventory. The final metadata records the local builder image ID, base
+image, exact installed packages, source pins, and VMXPi SDK content identity.
+
+This is an isolated development builder, not yet a fully reproducible package
+repository snapshot. Ubuntu and ROS APT indexes can change between runs; the
+profile declares `apt_repository_snapshot: false`. Beta promotion remains
+blocked until those repositories and every resolved binary version are locked
+to a retained snapshot.
+
+### Manual equivalent
+
+The following commands describe the core operation performed inside the
+isolated ARM64 builder. They are retained for diagnosis, not as the preferred
+release path:
+
 ```bash
 source /opt/ros/humble/setup.bash
 colcon build \
@@ -88,6 +132,7 @@ Then build the deterministic archive from a clean Git commit:
   --install-prefix <MERGED_ARM64_INSTALL> \
   --vmxpi-sdk-root /usr/local \
   --dpkg-inventory dpkg-inventory.tsv \
+  --builder-image-id sha256:<BUILDER_IMAGE_ID> \
   --output-dir "$STUDICA_WS/release-artifacts"
 ```
 

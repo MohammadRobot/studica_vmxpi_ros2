@@ -1,0 +1,47 @@
+{
+  "schema_version": 1,
+  "profile": "studica-arm64-builder-v1",
+  "platform": {
+    "architecture": "arm64",
+    "container_platform": "linux/arm64",
+    "os_id": "ubuntu",
+    "ros_distro": "humble",
+    "version_id": "22.04"
+  },
+  "base_image": {
+    "digest": "sha256:2edbbc5dc405e9612ba3584ce95480277e3eb374407b5505fe26f17df77c7dbc",
+    "reference": "ubuntu:jammy-20260810@sha256:2edbbc5dc405e9612ba3584ce95480277e3eb374407b5505fe26f17df77c7dbc",
+    "registry": "docker.io/library/ubuntu",
+    "tag": "jammy-20260810"
+  },
+  "ros_apt_source": {
+    "sha256": "767884cf4ed03116b9d64438930a832ed854147ae435279a7924dfdf60f94433",
+    "version": "1.2.0"
+  },
+  "container": {
+    "dockerfile": "deployment/arm64-builder.Dockerfile",
+    "dockerignore": "deployment/arm64-builder.Dockerfile.dockerignore",
+    "build_target": "build-env",
+    "runtime_inventory_target": "runtime-inventory"
+  },
+  "execution": {
+    "emulation_requires_opt_in": true,
+    "native_arm64_default": true,
+    "network_required_during_build": true,
+    "sdk_mounts_read_only": [
+      "/usr/local/include/vmxpi",
+      "/usr/local/lib/vmxpi"
+    ],
+    "source_mount_read_only": true
+  },
+  "artifact_policy": {
+    "activation_authorized": false,
+    "channel": "development"
+  },
+  "reproducibility": {
+    "apt_repository_snapshot": false,
+    "base_image_pinned": true,
+    "exact_installed_package_inventory": true,
+    "source_commits_pinned": true
+  }
+}

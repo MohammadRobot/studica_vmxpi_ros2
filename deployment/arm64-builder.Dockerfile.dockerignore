@@ -1,0 +1,10 @@
+**
+!deployment
+!deployment/arm64-builder.Dockerfile
+!deployment/build_arm64_release_in_container.sh
+!deployment/vmxpi-runtime-packages-v1.json
+!dependencies
+!dependencies/apt
+!dependencies/apt/development-core.txt
+!dependencies/hardware.repos
+!package.xml

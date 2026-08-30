@@ -32,3 +32,9 @@ To update a dependency:
 Never replace a commit with `main`, `master`, a floating tag, or a pull-request
 reference. Development can use a separate workspace overlay, but releases must
 build from these locks.
+
+The isolated production-build candidate imports `hardware.repos` into a new
+temporary workspace and runs `scripts/verify_hardware_checkout.py`. The build
+stops if a checkout has the wrong commit, a different origin, or any generated
+or local changes. See `deployment/arm64-builder-v1.json` for the versioned
+container and input contract.

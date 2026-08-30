@@ -17,7 +17,10 @@ if [[ "${#launch_py_files[@]}" -eq 0 ]]; then
 fi
 
 echo "[check] Shell syntax"
-mapfile -t shell_files < <(find "${repo_root}/scripts" -maxdepth 1 -type f -name '*.sh' | sort)
+mapfile -t shell_files < <(
+  find "${repo_root}/scripts" "${repo_root}/deployment" \
+    -maxdepth 1 -type f -name '*.sh' | sort
+)
 for shell_file in "${shell_files[@]}"; do
   bash -n "${shell_file}"
 done
@@ -34,7 +37,9 @@ python3 -m py_compile \
   "${repo_root}/scripts/check_docs.py" \
   "${repo_root}/scripts/check_release.py" \
   "${repo_root}/scripts/build_release_bundle.py" \
+  "${repo_root}/scripts/validate_arm64_builder.py" \
   "${repo_root}/scripts/validate_production_manifest.py" \
+  "${repo_root}/scripts/verify_hardware_checkout.py" \
   "${repo_root}/scripts/validate_profiles.py"
 
 echo "[check] Profile schema validation"
@@ -45,6 +50,7 @@ python3 "${repo_root}/scripts/validate_profiles.py" \
 python3 "${repo_root}/scripts/check_classroom.py" --root "${repo_root}"
 python3 "${repo_root}/scripts/check_docs.py" --root "${repo_root}"
 python3 "${repo_root}/scripts/check_release.py" --root "${repo_root}"
+python3 "${repo_root}/scripts/validate_arm64_builder.py" --root "${repo_root}"
 python3 "${repo_root}/scripts/validate_production_manifest.py" --root "${repo_root}"
 
 echo "[check] All checks passed."

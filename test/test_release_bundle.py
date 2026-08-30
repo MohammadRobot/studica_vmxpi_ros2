@@ -22,6 +22,7 @@ SPEC.loader.exec_module(BUILDER)
 COMMIT = "a" * 40
 EPOCH = 1_788_000_000
 RELEASE_VERSION = "0.1.0-dev.fixture"
+BUILDER_IMAGE_ID = "sha256:" + "b" * 64
 
 
 def write_fake_aarch64_elf(path):
@@ -106,7 +107,7 @@ class ReleaseFixture:
         lines = [f"{name}\t1.0-1\tarm64" for name in sorted(package_names)]
         self.inventory.write_text("\n".join(lines) + "\n", encoding="utf-8")
 
-    def build(self, output=None):
+    def build(self, output=None, builder_image_id=BUILDER_IMAGE_ID):
         return BUILDER.build_release_bundle(
             source_root=ROOT,
             install_prefix=self.install,
@@ -115,6 +116,7 @@ class ReleaseFixture:
             output_dir=output or self.output,
             commit=COMMIT,
             epoch=EPOCH,
+            builder_image_id=builder_image_id,
             release_version=RELEASE_VERSION,
         )
 
@@ -141,6 +143,12 @@ class ReleaseBundleTest(unittest.TestCase):
             self.assertEqual(metadata["channel"], "development")
             self.assertFalse(metadata["activation_authorized"])
             self.assertEqual(metadata["source"]["commit"], COMMIT)
+            self.assertEqual(metadata["builder"]["image_id"], BUILDER_IMAGE_ID)
+            self.assertEqual(
+                metadata["builder"]["profile"],
+                BUILDER.BUILDER_PROFILE_NAME,
+            )
+            self.assertIn("arm64_builder_profile_sha256", metadata["inputs"])
             self.assertIn("vmxpi_sdk_inventory_sha256", metadata["inputs"])
             self.assertEqual(
                 metadata["install"]["ros_packages"],
@@ -205,6 +213,12 @@ class ReleaseBundleTest(unittest.TestCase):
             with self.assertRaisesRegex(BUILDER.BundleError, "non-production packages"):
                 fixture.build()
 
+    def test_unpinned_builder_image_is_rejected(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            fixture = ReleaseFixture(temporary)
+            with self.assertRaisesRegex(BUILDER.BundleError, "builder image ID"):
+                fixture.build(builder_image_id="studica-arm64-builder:latest")
+
     def test_normal_developer_install_without_production_marker_is_rejected(self):
         with tempfile.TemporaryDirectory() as temporary:
             fixture = ReleaseFixture(temporary)
@@ -225,6 +239,12 @@ class ReleaseBundleTest(unittest.TestCase):
             with self.assertRaisesRegex(BUILDER.BundleError, "outside the Git source"):
                 fixture.build(output)
         self.assertFalse(output.exists())
+
+    def test_output_and_vmxpi_sdk_root_cannot_overlap(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            fixture = ReleaseFixture(temporary)
+            with self.assertRaisesRegex(BUILDER.BundleError, "must not overlap"):
+                fixture.build(fixture.sdk_root)
 
     def test_non_aarch64_binary_and_escaping_symlink_are_rejected(self):
         with tempfile.TemporaryDirectory() as temporary:
@@ -289,6 +309,7 @@ class ReleaseBundleTest(unittest.TestCase):
         self.assertEqual(help_result.returncode, 0, help_result.stderr)
         self.assertIn("--dpkg-inventory", help_result.stdout)
         self.assertIn("--vmxpi-sdk-root", help_result.stdout)
+        self.assertIn("--builder-image-id", help_result.stdout)
         cmake = ROOT.joinpath("CMakeLists.txt").read_text(encoding="utf-8")
         self.assertIn("STUDICA_PRODUCTION_INSTALL", cmake)
         self.assertIn("requires the VMXPi hardware interface", cmake)

@@ -27,7 +27,9 @@ import yaml
 PRODUCT = "studica-robot"
 PROFILE_NAME = "vmxpi-runtime-packages-v1"
 PRODUCTION_INSTALL_PROFILE = "vmxpi-production-install-v1"
+BUILDER_PROFILE_NAME = "studica-arm64-builder-v1"
 GIT_SHA_RE = re.compile(r"[0-9a-f]{40}")
+IMAGE_ID_RE = re.compile(r"sha256:[0-9a-f]{64}")
 RELEASE_VERSION_RE = re.compile(r"[0-9A-Za-z][0-9A-Za-z.+-]*")
 AARCH64_ELF_MACHINE = 183
 REQUIRED_ARM64_FILES = (
@@ -575,6 +577,7 @@ def build_release_bundle(
     output_dir: Path,
     commit: str,
     epoch: int,
+    builder_image_id: str,
     release_version: str | None = None,
 ) -> tuple[Path, Path]:
     source_root = source_root.resolve()
@@ -583,6 +586,8 @@ def build_release_bundle(
     output_dir = output_dir.resolve()
     if GIT_SHA_RE.fullmatch(commit) is None:
         raise BundleError("source commit must be a full 40-character Git SHA")
+    if IMAGE_ID_RE.fullmatch(builder_image_id) is None:
+        raise BundleError("builder image ID must be a full sha256 digest")
     if epoch < 0:
         raise BundleError("SOURCE_DATE_EPOCH must not be negative")
 
@@ -600,6 +605,21 @@ def build_release_bundle(
         raise BundleError("runtime package profile does not select Ubuntu 22.04/Humble ARM64")
     if profile.get("external_runtime_dependencies") != VMXPI_EXTERNAL_DEPENDENCY:
         raise BundleError("runtime package profile does not pin the VMXPi vendor SDK contract")
+    builder_profile_path = source_root / "deployment/arm64-builder-v1.json"
+    builder_profile = read_json(builder_profile_path)
+    if (
+        builder_profile.get("profile") != BUILDER_PROFILE_NAME
+        or builder_profile.get("platform") != {
+            "architecture": "arm64",
+            "container_platform": "linux/arm64",
+            "os_id": "ubuntu",
+            "ros_distro": "humble",
+            "version_id": "22.04",
+        }
+        or builder_profile.get("artifact_policy")
+        != {"activation_authorized": False, "channel": "development"}
+    ):
+        raise BundleError("ARM64 builder profile does not match the release contract")
     application_version = package_version(source_root / "package.xml")
     release_version = release_version or f"{application_version}-dev.{commit[:12]}"
     if (
@@ -624,6 +644,15 @@ def build_release_bundle(
         pass
     else:
         raise BundleError("VMXPi vendor SDK root must be outside the Git source tree")
+    for parent, child in (
+        (vmxpi_sdk_root, output_dir),
+        (output_dir, vmxpi_sdk_root),
+    ):
+        try:
+            child.relative_to(parent)
+        except ValueError:
+            continue
+        raise BundleError("release output and VMXPi SDK root must not overlap")
     sdk_inventory = vmxpi_sdk_inventory(vmxpi_sdk_root)
     repositories = hardware_repositories(source_root)
 
@@ -655,6 +684,7 @@ def build_release_bundle(
         install_file_count, install_bytes = tree_stats(staged_install)
 
         shutil.copy2(profile_path, metadata_root / "runtime-packages.json")
+        shutil.copy2(builder_profile_path, metadata_root / "arm64-builder.json")
         shutil.copy2(
             source_root / "dependencies" / "hardware.repos",
             metadata_root / "hardware.repos",
@@ -706,6 +736,11 @@ def build_release_bundle(
             },
             "platform": profile["platform"],
             "hardware_profile": "stack_4wd",
+            "builder": {
+                "profile": builder_profile["profile"],
+                "base_image": builder_profile["base_image"]["reference"],
+                "image_id": builder_image_id,
+            },
             "install": {
                 "layout": "merged-colcon",
                 "relative_prefix": "install",
@@ -723,6 +758,7 @@ def build_release_bundle(
                     metadata_root / "dpkg-inventory.tsv"
                 ),
                 "vmxpi_sdk_inventory_sha256": sha256_file(sdk_inventory_path),
+                "arm64_builder_profile_sha256": sha256_file(builder_profile_path),
             },
             "sbom": "metadata/sbom.spdx.json",
             "rollback": "metadata/rollback.json",
@@ -783,6 +819,11 @@ def main() -> int:
     parser.add_argument("--output-dir", type=Path, required=True)
     parser.add_argument("--release-version")
     parser.add_argument(
+        "--builder-image-id",
+        required=True,
+        help="immutable sha256 image ID reported by the isolated ARM64 builder",
+    )
+    parser.add_argument(
         "--source-date-epoch",
         type=int,
         help="override the Git commit time used for deterministic archive timestamps",
@@ -805,6 +846,7 @@ def main() -> int:
             output_dir=arguments.output_dir,
             commit=commit,
             epoch=epoch,
+            builder_image_id=arguments.builder_image_id,
             release_version=arguments.release_version,
         )
     except (

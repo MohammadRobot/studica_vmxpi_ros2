@@ -13,6 +13,9 @@
   SPDX 2.3 SBOM, rollback metadata, and explicit activation denial.
 - Added content-addressed provenance for the unmanaged VMXPi HAL headers and
   AArch64 runtime library, including an explicit SBOM dependency.
+- Added a fail-closed isolated ARM64 Docker/Buildx builder with an immutable
+  Jammy base, read-only source/SDK inputs, verified hardware checkouts, separate
+  minimal-runtime inventory, and builder-image provenance.
 - Added a read-only, machine-readable VMXPi production runtime audit with a
   versioned minimal-service/package/port/SSH profile, contract tests, a measured
   physical-robot idle baseline, and a staged appliance-image migration plan.

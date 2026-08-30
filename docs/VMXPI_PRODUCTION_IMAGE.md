@@ -187,6 +187,15 @@ exposed no reliable SDK package version. Release construction therefore
 content-addresses the required headers and library, records that inventory in
 the SBOM, and never assumes the vendor SDK is covered by the APT inventory.
 
+The first isolated ARM64 builder contract is now checked in as
+`deployment/arm64-builder-v1.json`. It pins the official dated Ubuntu Jammy OCI
+base and ROS APT bootstrap, requires native ARM64 unless emulation is explicitly
+requested, mounts source and VMXPi SDK inputs read-only, verifies every hardware
+source checkout, and records the generated builder image ID in each bundle.
+A 2026-08-30 preflight on the current development workstation could not execute
+it: the account could not access the Docker daemon and no VMXPi SDK was locally
+provisioned. The running robot is intentionally not used as a compiler.
+
 ## Phase-1 platform decision
 
 The selected production baseline for now is Ubuntu 22.04 arm64 with ROS 2
@@ -312,8 +321,9 @@ Recovery-clone work is temporarily deferred. Until it resumes, do not harden
 the live image, remove live packages, or install systemd robot units. The
 bootable clone remains a release requirement before any of those operations.
 
-1. Build the first development ARM64 application artifact in a clean hardware
-   build environment and archive its inventory, checksums, and SBOM.
+1. Provision a dedicated ARM64 Docker worker with a licensed VMXPi SDK input,
+   run `scripts/build_arm64_release.sh`, and archive the first development
+   artifact, inventory, checksums, SBOM, and builder image ID.
 2. Turn the Ubuntu 22.04/Humble package manifest into a reproducible operating-
    system image recipe with locked binary repositories.
 3. Diagnose and pass the charged lifted-wheel tracking failure.
