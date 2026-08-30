@@ -159,6 +159,7 @@ class Arm64BuilderTest(unittest.TestCase):
             ROOT / "dependencies/apt/development-core.txt"
         ).read_text(encoding="utf-8")
         self.assertIn("ros-humble-ros2launch", dependencies.splitlines())
+        self.assertIn("ros-humble-ros2topic", dependencies.splitlines())
         dockerfile = (ROOT / "deployment/arm64-builder.Dockerfile").read_text(
             encoding="utf-8"
         )

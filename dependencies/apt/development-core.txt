@@ -22,6 +22,7 @@ ros-humble-ros2-control
 ros-humble-ros2-controllers
 ros-humble-ros2controlcli
 ros-humble-ros2launch
+ros-humble-ros2topic
 ros-humble-teleop-twist-joy
 ros-humble-xacro
 shellcheck

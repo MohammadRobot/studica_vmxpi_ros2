@@ -152,6 +152,11 @@ def verify_topic_contract(env, timeout=20):
             timeout=10,
             check=False,
         )
+        if result.returncode != 0:
+            raise RuntimeError(
+                "Could not inspect the ROS topic graph:\n"
+                f"stdout:\n{result.stdout}\nstderr:\n{result.stderr}"
+            )
         output = result.stdout
         missing = [
             f"{topic} [{message_type}]"

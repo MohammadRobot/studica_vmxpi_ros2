@@ -272,10 +272,13 @@ def validate_builder(root: Path, manifest: dict[str, Any]) -> list[str]:
         "offline ROS XML schema catalog",
         failures,
     )
-    if "ros-humble-ros2launch" not in (
+    development_packages = (
         root / "dependencies/apt/development-core.txt"
-    ).read_text(encoding="utf-8"):
+    ).read_text(encoding="utf-8").splitlines()
+    if "ros-humble-ros2launch" not in development_packages:
         failures.append("ARM64 development image must include ros2 launch for runtime tests")
+    if "ros-humble-ros2topic" not in development_packages:
+        failures.append("ARM64 development image must include ros2 topic for runtime tests")
     require_text(
         release_builder,
         (
