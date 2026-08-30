@@ -49,6 +49,12 @@ class ProductionManifestTest(unittest.TestCase):
             VALIDATOR.EXPECTED_OVERLAY_ROS_PACKAGES,
         )
 
+    def test_unmanaged_vmxpi_sdk_is_an_explicit_runtime_dependency(self):
+        self.assertEqual(
+            self.manifest["external_runtime_dependencies"],
+            VALIDATOR.EXPECTED_EXTERNAL_RUNTIME_DEPENDENCIES,
+        )
+
     def test_optional_foxglove_is_off_by_default(self):
         robot_launch = ROOT.joinpath(
             "bringup", "launch", "robot.launch.py"

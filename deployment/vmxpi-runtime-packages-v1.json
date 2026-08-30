@@ -12,6 +12,16 @@
     "family": "ubuntu-server",
     "install_mode": "minimal"
   },
+  "external_runtime_dependencies": {
+    "studica_vmxpi_hal_cpp": {
+      "build_headers": "/usr/local/include/vmxpi",
+      "identity": "content-sha256",
+      "license": "NOASSERTION",
+      "package_manager": "unmanaged",
+      "runtime_library": "/usr/local/lib/vmxpi/libvmxpi_hal_cpp.so",
+      "supplier": "Studica"
+    }
+  },
   "required_apt_packages": {
     "operating_system": [
       "bluez",

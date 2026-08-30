@@ -41,6 +41,16 @@ EXPECTED_OVERLAY_ROS_PACKAGES = {
     "studica_vmxpi_ros2",
     "ydlidar_ros2_driver",
 }
+EXPECTED_EXTERNAL_RUNTIME_DEPENDENCIES = {
+    "studica_vmxpi_hal_cpp": {
+        "build_headers": "/usr/local/include/vmxpi",
+        "identity": "content-sha256",
+        "license": "NOASSERTION",
+        "package_manager": "unmanaged",
+        "runtime_library": "/usr/local/lib/vmxpi/libvmxpi_hal_cpp.so",
+        "supplier": "Studica",
+    }
+}
 APT_BUNDLES = (
     "dependencies/apt/development-core.txt",
     "dependencies/apt/development-desktop.txt",
@@ -263,6 +273,14 @@ def validate_manifest(root: Path, manifest: dict[str, Any]) -> list[str]:
     base_image = manifest.get("base_image")
     if base_image != {"family": "ubuntu-server", "install_mode": "minimal"}:
         failures.append("base_image must select the minimal Ubuntu Server base")
+
+    if (
+        manifest.get("external_runtime_dependencies")
+        != EXPECTED_EXTERNAL_RUNTIME_DEPENDENCIES
+    ):
+        failures.append(
+            "external_runtime_dependencies must declare the unmanaged VMXPi HAL SDK"
+        )
 
     required_groups = manifest.get("required_apt_packages")
     if not isinstance(required_groups, dict):

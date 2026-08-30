@@ -86,6 +86,7 @@ Then build the deterministic archive from a clean Git commit:
 ```bash
 ./scripts/build_release_bundle.py \
   --install-prefix <MERGED_ARM64_INSTALL> \
+  --vmxpi-sdk-root /usr/local \
   --dpkg-inventory dpkg-inventory.tsv \
   --output-dir "$STUDICA_WS/release-artifacts"
 ```
@@ -95,9 +96,13 @@ cannot dirty or accidentally enter the source release.
 
 The archive contains the application overlay under
 `/opt/studica/releases/<version>/install`, the exact package and source
-inventories, SPDX 2.3 SBOM, rollback contract, internal `SHA256SUMS`, and an
-external archive checksum. Identical inputs and `SOURCE_DATE_EPOCH` produce
-identical archive bytes.
+inventories, a content-addressed inventory of the unmanaged VMXPi C++ SDK,
+SPDX 2.3 SBOM, rollback contract, internal `SHA256SUMS`, and an external archive
+checksum. The SDK inventory hashes every header beneath `include/vmxpi` plus
+`lib/vmxpi/libvmxpi_hal_cpp.so`; the vendor SDK files themselves remain a
+qualified operating-system input and are not copied into the application
+bundle. Identical inputs and `SOURCE_DATE_EPOCH` produce identical archive
+bytes.
 
 This phase intentionally emits only a `development` artifact with
 `activation_authorized: false` and a `DO_NOT_ACTIVATE` marker. It does not

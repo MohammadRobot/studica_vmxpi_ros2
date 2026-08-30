@@ -31,6 +31,7 @@ GIT_SHA_RE = re.compile(r"[0-9a-f]{40}")
 RELEASE_VERSION_RE = re.compile(r"[0-9A-Za-z][0-9A-Za-z.+-]*")
 AARCH64_ELF_MACHINE = 183
 REQUIRED_ARM64_FILES = (
+    "lib/libstudica_drivers.so",
     "lib/libstudica_vmxpi_ros2.so",
     "lib/orbbec_camera/orbbec_camera_node",
     "lib/studica_vmxpi_ros2/safety_input_check",
@@ -38,6 +39,19 @@ REQUIRED_ARM64_FILES = (
     "lib/studica_vmxpi_ros2/topic_adapter_node",
     "lib/ydlidar_ros2_driver/ydlidar_ros2_driver_node",
 )
+VMXPI_SDK_PROFILE = "studica-vmxpi-hal-cpp-content-v1"
+VMXPI_SDK_HEADER = "include/vmxpi/VMXPi.h"
+VMXPI_SDK_LIBRARY = "lib/vmxpi/libvmxpi_hal_cpp.so"
+VMXPI_EXTERNAL_DEPENDENCY = {
+    "studica_vmxpi_hal_cpp": {
+        "build_headers": "/usr/local/include/vmxpi",
+        "identity": "content-sha256",
+        "license": "NOASSERTION",
+        "package_manager": "unmanaged",
+        "runtime_library": "/usr/local/lib/vmxpi/libvmxpi_hal_cpp.so",
+        "supplier": "Studica",
+    }
+}
 FORBIDDEN_INSTALL_PATHS = (
     "share/studica_vmxpi_ros2/config/slam_toolbox_hardware_mapper_params.yaml",
     "share/studica_vmxpi_ros2/config/slam_toolbox_mapper_params.yaml",
@@ -188,6 +202,64 @@ def elf_machine(path: Path) -> int:
     raise BundleError(f"required binary has an invalid ELF byte order: {path}")
 
 
+def is_elf(path: Path) -> bool:
+    try:
+        with path.open("rb") as stream:
+            return stream.read(4) == b"\x7fELF"
+    except OSError as error:
+        raise BundleError(f"cannot inspect binary {path}: {error}") from error
+
+
+def vmxpi_sdk_inventory(sdk_root: Path) -> dict[str, Any]:
+    sdk_root = sdk_root.resolve()
+    header_root = sdk_root / "include/vmxpi"
+    library = sdk_root / VMXPI_SDK_LIBRARY
+    required_header = sdk_root / VMXPI_SDK_HEADER
+    if not header_root.is_dir() or not required_header.is_file():
+        raise BundleError(
+            f"VMXPi SDK headers are missing beneath {header_root}"
+        )
+    if not library.is_file():
+        raise BundleError(f"VMXPi SDK runtime library is missing: {library}")
+    if elf_machine(library.resolve()) != AARCH64_ELF_MACHINE:
+        raise BundleError("VMXPi SDK runtime library is not AArch64")
+
+    selected_files = sorted(
+        [path for path in header_root.rglob("*") if path.is_file()] + [library]
+    )
+    files: list[dict[str, Any]] = []
+    identity_lines: list[str] = []
+    for path in selected_files:
+        relative = path.relative_to(sdk_root).as_posix()
+        try:
+            path.resolve(strict=True).relative_to(sdk_root)
+        except (OSError, ValueError) as error:
+            raise BundleError(f"VMXPi SDK path escapes its root: {relative}") from error
+        if path.stat().st_mode & 0o002:
+            raise BundleError(f"VMXPi SDK file is world-writable: {relative}")
+        digest = sha256_file(path)
+        size = path.stat().st_size
+        files.append({"path": relative, "sha256": digest, "bytes": size})
+        identity_lines.append(f"{digest}  {relative}\n")
+
+    content_sha256 = hashlib.sha256(
+        "".join(identity_lines).encode("utf-8")
+    ).hexdigest()
+    return {
+        "schema_version": 1,
+        "profile": VMXPI_SDK_PROFILE,
+        "package_name": "studica-vmxpi-hal-cpp",
+        "supplier": "Studica",
+        "package_manager": "unmanaged",
+        "license": "NOASSERTION",
+        "platform": {"architecture": "arm64", "elf_machine": "AArch64"},
+        "content_identity": f"sha256:{content_sha256}",
+        "runtime_library": VMXPI_SDK_LIBRARY,
+        "build_headers": "include/vmxpi",
+        "files": files,
+    }
+
+
 def validate_install_tree(
     install_prefix: Path,
     profile: dict[str, Any],
@@ -267,6 +339,8 @@ def validate_install_tree(
         if path.is_file():
             if path.stat().st_mode & 0o002:
                 raise BundleError(f"world-writable file in production install: {relative}")
+            if is_elf(path) and elf_machine(path.resolve()) != AARCH64_ELF_MACHINE:
+                raise BundleError(f"non-AArch64 ELF leaked into production install: {relative}")
     return discovered_packages
 
 
@@ -328,6 +402,7 @@ def build_spdx_sbom(
     epoch: int,
     debian_packages: list[DebianPackage],
     repositories: dict[str, dict[str, str]],
+    sdk_inventory: dict[str, Any],
 ) -> dict[str, Any]:
     product_id = spdx_id("Product", PRODUCT)
     packages: list[dict[str, Any]] = [
@@ -353,6 +428,31 @@ def build_spdx_sbom(
             "relatedSpdxElement": product_id,
         }
     ]
+    sdk_id = spdx_id("Vendor", sdk_inventory["package_name"])
+    packages.append(
+        {
+            "SPDXID": sdk_id,
+            "name": sdk_inventory["package_name"],
+            "versionInfo": sdk_inventory["content_identity"],
+            "downloadLocation": "NOASSERTION",
+            "filesAnalyzed": False,
+            "licenseConcluded": "NOASSERTION",
+            "licenseDeclared": sdk_inventory["license"],
+            "copyrightText": "NOASSERTION",
+            "supplier": f"Organization: {sdk_inventory['supplier']}",
+            "comment": (
+                "Unmanaged VMXPi vendor SDK; content-addressed because the "
+                "installed SDK does not expose a package version."
+            ),
+        }
+    )
+    relationships.append(
+        {
+            "spdxElementId": product_id,
+            "relationshipType": "DEPENDS_ON",
+            "relatedSpdxElement": sdk_id,
+        }
+    )
     for package in debian_packages:
         package_id = spdx_id("Deb", package.name)
         packages.append(
@@ -470,6 +570,7 @@ def create_deterministic_archive(
 def build_release_bundle(
     source_root: Path,
     install_prefix: Path,
+    vmxpi_sdk_root: Path,
     dpkg_inventory_path: Path,
     output_dir: Path,
     commit: str,
@@ -478,6 +579,7 @@ def build_release_bundle(
 ) -> tuple[Path, Path]:
     source_root = source_root.resolve()
     install_prefix = install_prefix.resolve()
+    vmxpi_sdk_root = vmxpi_sdk_root.resolve()
     output_dir = output_dir.resolve()
     if GIT_SHA_RE.fullmatch(commit) is None:
         raise BundleError("source commit must be a full 40-character Git SHA")
@@ -496,6 +598,8 @@ def build_release_bundle(
         "ros_variant": "ros-base",
     }:
         raise BundleError("runtime package profile does not select Ubuntu 22.04/Humble ARM64")
+    if profile.get("external_runtime_dependencies") != VMXPI_EXTERNAL_DEPENDENCY:
+        raise BundleError("runtime package profile does not pin the VMXPi vendor SDK contract")
     application_version = package_version(source_root / "package.xml")
     release_version = release_version or f"{application_version}-dev.{commit[:12]}"
     if (
@@ -514,6 +618,13 @@ def build_release_bundle(
         profile,
         application_version,
     )
+    try:
+        vmxpi_sdk_root.relative_to(source_root)
+    except ValueError:
+        pass
+    else:
+        raise BundleError("VMXPi vendor SDK root must be outside the Git source tree")
+    sdk_inventory = vmxpi_sdk_inventory(vmxpi_sdk_root)
     repositories = hardware_repositories(source_root)
 
     artifact_name = (
@@ -549,6 +660,8 @@ def build_release_bundle(
             metadata_root / "hardware.repos",
         )
         shutil.copy2(source_root / "package.xml", metadata_root / "package.xml")
+        sdk_inventory_path = metadata_root / "vmxpi-sdk-inventory.json"
+        write_json(sdk_inventory_path, sdk_inventory)
         inventory_lines = [
             f"{package.name}\t{package.version}\t{package.architecture}"
             for package in debian_packages
@@ -565,6 +678,7 @@ def build_release_bundle(
             epoch,
             debian_packages,
             repositories,
+            sdk_inventory,
         )
         write_json(metadata_root / "sbom.spdx.json", sbom)
         rollback = {
@@ -608,6 +722,7 @@ def build_release_bundle(
                 "dpkg_inventory_sha256": sha256_file(
                     metadata_root / "dpkg-inventory.tsv"
                 ),
+                "vmxpi_sdk_inventory_sha256": sha256_file(sdk_inventory_path),
             },
             "sbom": "metadata/sbom.spdx.json",
             "rollback": "metadata/rollback.json",
@@ -654,6 +769,12 @@ def main() -> int:
     )
     parser.add_argument("--install-prefix", type=Path, required=True)
     parser.add_argument(
+        "--vmxpi-sdk-root",
+        type=Path,
+        required=True,
+        help="root containing include/vmxpi and lib/vmxpi from the build host",
+    )
+    parser.add_argument(
         "--dpkg-inventory",
         type=Path,
         required=True,
@@ -679,6 +800,7 @@ def main() -> int:
         archive, checksum = build_release_bundle(
             source_root=source_root,
             install_prefix=arguments.install_prefix,
+            vmxpi_sdk_root=arguments.vmxpi_sdk_root,
             dpkg_inventory_path=arguments.dpkg_inventory,
             output_dir=arguments.output_dir,
             commit=commit,

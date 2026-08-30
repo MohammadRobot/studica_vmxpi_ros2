@@ -177,6 +177,16 @@ archive, checksums, SPDX SBOM, and rollback metadata. See
 provide a reproducible operating-system image, repository snapshot, artifact
 signature, or authorized activation path.
 
+The vendor VMXPi C++ HAL is an unmanaged platform dependency rather than a
+Debian package. A read-only check on 2026-08-30 found 24 headers beneath
+`/usr/local/include/vmxpi` and the AArch64 runtime library
+`/usr/local/lib/vmxpi/libvmxpi_hal_cpp.so`. The library had GNU build ID
+`6e113fab3539d6478f2b3f089eb6143b8b2bc5e2` and SHA-256
+`681fcdc82367e2c78b4b9f1526c0e387457519daca9d234a6489a2a3cbdcad4c`, but
+exposed no reliable SDK package version. Release construction therefore
+content-addresses the required headers and library, records that inventory in
+the SBOM, and never assumes the vendor SDK is covered by the APT inventory.
+
 ## Phase-1 platform decision
 
 The selected production baseline for now is Ubuntu 22.04 arm64 with ROS 2

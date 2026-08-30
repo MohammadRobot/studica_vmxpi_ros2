@@ -53,12 +53,14 @@ class ReleaseFixture:
     def __init__(self, root):
         self.root = Path(root)
         self.install = self.root / "install"
+        self.sdk_root = self.root / "vmxpi-sdk"
         self.output = self.root / "output"
         self.inventory = self.root / "dpkg-inventory.tsv"
         self.profile = BUILDER.read_json(
             ROOT / "deployment" / "vmxpi-runtime-packages-v1.json"
         )
         self._write_install()
+        self._write_sdk()
         self._write_inventory()
 
     def _write_install(self):
@@ -91,6 +93,14 @@ class ReleaseFixture:
         cmake_file.parent.mkdir()
         cmake_file.write_text("# build-only fixture\n", encoding="utf-8")
 
+    def _write_sdk(self):
+        header = self.sdk_root / BUILDER.VMXPI_SDK_HEADER
+        header.parent.mkdir(parents=True)
+        header.write_text("// VMXPi SDK fixture\n", encoding="utf-8")
+        write_fake_aarch64_elf(
+            self.sdk_root / BUILDER.VMXPI_SDK_LIBRARY
+        )
+
     def _write_inventory(self):
         package_names = BUILDER.enabled_apt_packages(self.profile) | {"base-files"}
         lines = [f"{name}\t1.0-1\tarm64" for name in sorted(package_names)]
@@ -100,6 +110,7 @@ class ReleaseFixture:
         return BUILDER.build_release_bundle(
             source_root=ROOT,
             install_prefix=self.install,
+            vmxpi_sdk_root=self.sdk_root,
             dpkg_inventory_path=self.inventory,
             output_dir=output or self.output,
             commit=COMMIT,
@@ -130,6 +141,7 @@ class ReleaseBundleTest(unittest.TestCase):
             self.assertEqual(metadata["channel"], "development")
             self.assertFalse(metadata["activation_authorized"])
             self.assertEqual(metadata["source"]["commit"], COMMIT)
+            self.assertIn("vmxpi_sdk_inventory_sha256", metadata["inputs"])
             self.assertEqual(
                 metadata["install"]["ros_packages"],
                 fixture.profile["overlay_ros_packages"],
@@ -151,6 +163,24 @@ class ReleaseBundleTest(unittest.TestCase):
                 release_root.joinpath("metadata/sbom.spdx.json").read_text()
             )
             self.assertEqual(sbom["spdxVersion"], "SPDX-2.3")
+            sdk_inventory = json.loads(
+                release_root.joinpath(
+                    "metadata/vmxpi-sdk-inventory.json"
+                ).read_text()
+            )
+            self.assertEqual(
+                sdk_inventory["profile"],
+                BUILDER.VMXPI_SDK_PROFILE,
+            )
+            self.assertTrue(
+                sdk_inventory["content_identity"].startswith("sha256:")
+            )
+            self.assertTrue(
+                any(
+                    package["name"] == "studica-vmxpi-hal-cpp"
+                    for package in sbom["packages"]
+                )
+            )
             self.assertTrue(release_root.joinpath("metadata/DO_NOT_ACTIVATE").is_file())
 
             for line in release_root.joinpath("SHA256SUMS").read_text().splitlines():
@@ -212,6 +242,43 @@ class ReleaseBundleTest(unittest.TestCase):
             with self.assertRaisesRegex(BUILDER.BundleError, "symlink escapes"):
                 fixture.build()
 
+    def test_missing_or_non_aarch64_vmxpi_sdk_is_rejected(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            fixture = ReleaseFixture(temporary)
+            fixture.sdk_root.joinpath(BUILDER.VMXPI_SDK_LIBRARY).unlink()
+            with self.assertRaisesRegex(BUILDER.BundleError, "runtime library is missing"):
+                fixture.build()
+
+        with tempfile.TemporaryDirectory() as temporary:
+            fixture = ReleaseFixture(temporary)
+            library = fixture.sdk_root / BUILDER.VMXPI_SDK_LIBRARY
+            image = bytearray(library.read_bytes())
+            struct.pack_into("<H", image, 18, 62)
+            library.write_bytes(image)
+            with self.assertRaisesRegex(BUILDER.BundleError, "not AArch64"):
+                fixture.build()
+
+        with tempfile.TemporaryDirectory() as temporary:
+            fixture = ReleaseFixture(temporary)
+            outside = fixture.root / "outside-sdk-header.h"
+            outside.write_text("// outside SDK root\n", encoding="utf-8")
+            fixture.sdk_root.joinpath(
+                "include/vmxpi/escaping.h"
+            ).symlink_to(outside)
+            with self.assertRaisesRegex(BUILDER.BundleError, "path escapes its root"):
+                fixture.build()
+
+    def test_unexpected_non_aarch64_elf_is_rejected(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            fixture = ReleaseFixture(temporary)
+            binary = fixture.install / "lib/unexpected_plugin.so"
+            write_fake_aarch64_elf(binary)
+            image = bytearray(binary.read_bytes())
+            struct.pack_into("<H", image, 18, 62)
+            binary.write_bytes(image)
+            with self.assertRaisesRegex(BUILDER.BundleError, "non-AArch64 ELF"):
+                fixture.build()
+
     def test_builder_help_and_production_cmake_gate_are_present(self):
         help_result = subprocess.run(
             [sys.executable, str(BUILDER_PATH), "--help"],
@@ -221,6 +288,7 @@ class ReleaseBundleTest(unittest.TestCase):
         )
         self.assertEqual(help_result.returncode, 0, help_result.stderr)
         self.assertIn("--dpkg-inventory", help_result.stdout)
+        self.assertIn("--vmxpi-sdk-root", help_result.stdout)
         cmake = ROOT.joinpath("CMakeLists.txt").read_text(encoding="utf-8")
         self.assertIn("STUDICA_PRODUCTION_INSTALL", cmake)
         self.assertIn("requires the VMXPi hardware interface", cmake)
