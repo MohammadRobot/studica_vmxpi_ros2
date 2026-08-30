@@ -196,7 +196,11 @@ def verify_release_artifacts(
                 raise VerificationError(f"archive contains a device or FIFO: {name}")
             if not (member.isdir() or member.isfile() or member.issym() or member.islnk()):
                 raise VerificationError(f"archive contains an unsupported member: {name}")
-            if member.mode & 0o002:
+            # POSIX ignores permission bits on symbolic links, and tar writers
+            # conventionally record them as 0777.  The target is constrained
+            # to the release root below; regular files and directories must
+            # still never be world-writable.
+            if not (member.issym() or member.islnk()) and member.mode & 0o002:
                 raise VerificationError(f"archive member is world-writable: {name}")
             if member.uid != 0 or member.gid != 0:
                 raise VerificationError(f"archive member ownership is not root: {name}")

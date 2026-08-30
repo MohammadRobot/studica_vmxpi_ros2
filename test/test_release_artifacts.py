@@ -35,6 +35,19 @@ class ReleaseArtifactVerificationTest(unittest.TestCase):
             self.assertEqual(result["archive"], archive.name)
             self.assertEqual(result["source_commit"], COMMIT)
 
+    def test_safe_internal_symlink_mode_is_not_treated_as_writable_file(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            fixture = ReleaseFixture(temporary)
+            fixture.install.joinpath("lib/libfixture-alias.so").symlink_to(
+                "libstudica_drivers.so"
+            )
+            fixture.build()
+            result = VERIFIER.verify_release_artifacts(
+                fixture.output,
+                expected_commit=COMMIT,
+            )
+            self.assertEqual(result["source_commit"], COMMIT)
+
     def test_external_checksum_mismatch_is_rejected(self):
         with tempfile.TemporaryDirectory() as temporary:
             fixture = ReleaseFixture(temporary)
