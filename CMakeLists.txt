@@ -441,14 +441,21 @@ if(BUILD_TESTING)
     COMMAND ${Python3_EXECUTABLE} -m pytest -q
       ${CMAKE_CURRENT_SOURCE_DIR}/examples/python/tests/test_python_examples.py
   )
+  set(_mock_runtime_arguments --mode mock)
+  if(STUDICA_PRODUCTION_INSTALL)
+    # Production artifacts intentionally contain only their qualified hardware
+    # profile. Exercise that installed profile instead of the teaching default.
+    list(APPEND _mock_runtime_arguments --robot-profile stack_4wd)
+  endif()
   ament_add_test(
     validate_mock_runtime
     GENERATE_RESULT_FOR_RETURN_CODE_ZERO
     TIMEOUT 90
     COMMAND ${Python3_EXECUTABLE}
       ${CMAKE_CURRENT_SOURCE_DIR}/test/test_runtime_contract.py
-      --mode mock
+      ${_mock_runtime_arguments}
   )
+  unset(_mock_runtime_arguments)
   ament_add_test(
     validate_hardware_supervisor_runtime
     GENERATE_RESULT_FOR_RETURN_CODE_ZERO

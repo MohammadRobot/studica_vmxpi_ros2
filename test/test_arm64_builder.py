@@ -164,6 +164,9 @@ class Arm64BuilderTest(unittest.TestCase):
         )
         self.assertIn("ADD --checksum=sha256:f096a197", dockerfile)
         self.assertIn("ADD --checksum=sha256:941ea864", dockerfile)
+        self.assertIn("chmod 0644", dockerfile)
+        cmake = (ROOT / "CMakeLists.txt").read_text(encoding="utf-8")
+        self.assertIn("--robot-profile stack_4wd", cmake)
 
     def test_imported_hardware_checkout_must_match_commit_origin_and_cleanliness(self):
         with tempfile.TemporaryDirectory() as temporary:

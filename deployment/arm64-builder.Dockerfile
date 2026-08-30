@@ -68,7 +68,10 @@ COPY deployment/build_arm64_release_in_container.sh \
   /usr/local/bin/build-studica-arm64-release
 COPY deployment/prepare_arm64_release_sources.sh \
   /usr/local/bin/prepare-studica-arm64-sources
-RUN chmod 0755 \
+RUN chmod 0644 \
+      /opt/studica/ros-schema/package_common.xsd \
+      /opt/studica/ros-schema/package_format3.xsd \
+    && chmod 0755 \
       /usr/local/bin/build-studica-arm64-release \
       /usr/local/bin/prepare-studica-arm64-sources \
     && mkdir -p \

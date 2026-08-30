@@ -258,6 +258,7 @@ def validate_builder(root: Path, manifest: dict[str, Any]) -> list[str]:
             "ros-infrastructure/rep/11ca24a41f31480dfb9562ba99f2a5b93d3ebda5/xsd/",
             "/opt/studica/ros-schema/package_format3.xsd",
             "/opt/studica/ros-schema/package_common.xsd",
+            "chmod 0644",
         ),
         "offline ROS XML schema inputs",
         failures,

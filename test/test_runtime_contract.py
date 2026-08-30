@@ -430,6 +430,7 @@ def main():
     parser.add_argument(
         "--mode", choices=("mock", "gz", "mapping", "navigation"), required=True
     )
+    parser.add_argument("--robot-profile", default="class_4wd")
     parser.add_argument("--allow-skip", action="store_true")
     args = parser.parse_args()
 
@@ -472,6 +473,7 @@ def main():
             "use_monitoring:=false",
             "use_foxglove:=false",
             "use_joystick:=false",
+            f"robot_profile:={args.robot_profile}",
         ]
     elif args.mode == "gz":
         launch_arguments = [
