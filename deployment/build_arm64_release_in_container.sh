@@ -66,8 +66,11 @@ cmake \
   -DCMAKE_INSTALL_PREFIX="${ydlidar_prefix}" \
   -DBUILD_EXAMPLES=OFF \
   -DBUILD_TEST=OFF \
+  -DSWIG_FOUND=FALSE \
+  -DPYTHONLIBS_FOUND=FALSE \
   -DCMAKE_DISABLE_FIND_PACKAGE_SWIG=TRUE \
-  -DCMAKE_DISABLE_FIND_PACKAGE_PythonInterp=TRUE
+  -DCMAKE_DISABLE_FIND_PACKAGE_PythonInterp=TRUE \
+  -DCMAKE_DISABLE_FIND_PACKAGE_PythonLibs=TRUE
 cmake --build "${workspace}/ydlidar-sdk-build" --parallel "$(nproc)"
 cmake --install "${workspace}/ydlidar-sdk-build"
 
