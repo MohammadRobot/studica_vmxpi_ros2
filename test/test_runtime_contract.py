@@ -248,7 +248,7 @@ def verify_arm_and_supervised_twist(env):
 
 def verify_conflicting_sources_stop_motion(env):
     publishers = []
-    for speed in (0.1, -0.1):
+    for index, speed in enumerate((0.1, -0.1), start=1):
         publishers.append(
             subprocess.Popen(
                 [
@@ -257,6 +257,8 @@ def verify_conflicting_sources_stop_motion(env):
                     "pub",
                     "-r",
                     "20",
+                    "--node-name",
+                    f"runtime_conflict_publisher_{index}",
                     "/cmd_vel",
                     "geometry_msgs/msg/Twist",
                     f"{{linear: {{x: {speed}}}}}",
@@ -270,9 +272,18 @@ def verify_conflicting_sources_stop_motion(env):
     try:
         deadline = time.monotonic() + 8.0
         publisher_count = 0
+        info = ""
         while time.monotonic() < deadline:
             info = run_cli(
-                ["ros2", "topic", "info", "/cmd_vel", "--no-daemon"],
+                [
+                    "ros2",
+                    "topic",
+                    "info",
+                    "/cmd_vel",
+                    "--no-daemon",
+                    "--spin-time",
+                    "2",
+                ],
                 env,
                 check=False,
             ).stdout
@@ -282,7 +293,11 @@ def verify_conflicting_sources_stop_motion(env):
                 break
             time.sleep(0.2)
         if publisher_count < 2:
-            raise RuntimeError("Competing /cmd_vel publishers were not discovered")
+            process_states = [publisher.poll() for publisher in publishers]
+            raise RuntimeError(
+                "Competing /cmd_vel publishers were not discovered; "
+                f"count={publisher_count}, process_states={process_states}:\n{info}"
+            )
         time.sleep(0.2)
         message = echo_once("/robot_base_controller/cmd_vel", env)
         if abs(float(message["twist"]["linear"]["x"])) > 1e-9:

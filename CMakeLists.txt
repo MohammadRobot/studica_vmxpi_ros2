@@ -450,7 +450,10 @@ if(BUILD_TESTING)
   ament_add_test(
     validate_mock_runtime
     GENERATE_RESULT_FOR_RETURN_CODE_ZERO
-    TIMEOUT 90
+    # The VMXPi development builder intentionally runs with one CPU. Leave
+    # enough wall time for fresh no-daemon DDS discovery and the complete
+    # fail-safe motion contract without relaxing any internal deadline.
+    TIMEOUT 150
     COMMAND ${Python3_EXECUTABLE}
       ${CMAKE_CURRENT_SOURCE_DIR}/test/test_runtime_contract.py
       ${_mock_runtime_arguments}
