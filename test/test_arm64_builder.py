@@ -194,7 +194,6 @@ class Arm64BuilderTest(unittest.TestCase):
         ).read_text(encoding="utf-8")
         for variable in (
             "HOME",
-            "PYTHONDONTWRITEBYTECODE",
             "PYTHONPYCACHEPREFIX",
             "ROS_LOG_DIR",
             "ROS_LOCALHOST_ONLY",

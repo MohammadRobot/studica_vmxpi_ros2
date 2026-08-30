@@ -234,7 +234,6 @@ def validate_builder(root: Path, manifest: dict[str, Any]) -> list[str]:
             'export CMAKE_BUILD_PARALLEL_LEVEL="${build_workers}"',
             'export CTEST_PARALLEL_LEVEL="${build_workers}"',
             'export MAKEFLAGS="-j${build_workers}"',
-            "export PYTHONDONTWRITEBYTECODE=1",
             'export PYTHONPYCACHEPREFIX="${workspace}/pycache"',
             'export ROS_LOG_DIR="${workspace}/log/ros"',
             "export ROS_LOCALHOST_ONLY=1",

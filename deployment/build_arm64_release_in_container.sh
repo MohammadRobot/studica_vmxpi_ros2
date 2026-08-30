@@ -49,7 +49,6 @@ export CMAKE_BUILD_PARALLEL_LEVEL="${build_workers}"
 export CTEST_PARALLEL_LEVEL="${build_workers}"
 export LD_LIBRARY_PATH="/usr/local/lib/vmxpi${LD_LIBRARY_PATH:+:${LD_LIBRARY_PATH}}"
 export MAKEFLAGS="-j${build_workers}"
-export PYTHONDONTWRITEBYTECODE=1
 export PYTHONPYCACHEPREFIX="${workspace}/pycache"
 export ROS_LOG_DIR="${workspace}/log/ros"
 export ROS_LOCALHOST_ONLY=1
