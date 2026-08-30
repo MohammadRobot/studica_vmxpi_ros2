@@ -171,9 +171,50 @@ def validate_dpkg_inventory(
     packages: list[DebianPackage], profile: dict[str, Any]
 ) -> None:
     installed = {package.name for package in packages}
-    missing = sorted(enabled_apt_packages(profile) - installed)
+    enabled = enabled_apt_packages(profile)
+    missing = sorted(enabled - installed)
     if missing:
         raise BundleError(f"Debian inventory is missing enabled runtime packages: {missing}")
+
+    documented_tools = profile.get("documented_transitive_build_tools")
+    if not isinstance(documented_tools, dict) or not documented_tools:
+        raise BundleError(
+            "runtime profile must document unavoidable transitive build tools"
+        )
+    invalid_tool_records: list[str] = []
+    for name, record in documented_tools.items():
+        if (
+            not isinstance(name, str)
+            or not name
+            or not isinstance(record, dict)
+            or not isinstance(record.get("reason"), str)
+            or not record["reason"]
+            or not isinstance(record.get("required_by"), list)
+            or not record["required_by"]
+            or any(
+                not isinstance(dependency, str) or not dependency
+                for dependency in record["required_by"]
+            )
+        ):
+            invalid_tool_records.append(str(name))
+    if invalid_tool_records:
+        raise BundleError(
+            "runtime profile has invalid transitive build-tool records: "
+            f"{sorted(invalid_tool_records)}"
+        )
+    documented = set(documented_tools)
+    directly_enabled = sorted(documented & enabled)
+    if directly_enabled:
+        raise BundleError(
+            "transitive build tools must not be directly requested: "
+            f"{directly_enabled}"
+        )
+    missing_documented = sorted(documented - installed)
+    if missing_documented:
+        raise BundleError(
+            "Debian inventory is missing documented ROS transitive build tools: "
+            f"{missing_documented}"
+        )
 
     prohibited = set(profile["prohibited_apt_packages"])
     prohibited_prefixes = tuple(profile["prohibited_apt_prefixes"])

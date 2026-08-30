@@ -115,7 +115,6 @@
   },
   "prohibited_apt_packages": [
     "build-essential",
-    "cmake",
     "git",
     "ros-humble-desktop",
     "ros-humble-desktop-full",
@@ -126,6 +125,21 @@
     "xorg",
     "xrdp"
   ],
+  "documented_transitive_build_tools": {
+    "cmake": {
+      "reason": "ROS Humble binary runtime packages depend on ament-cmake, which depends on CMake; removing it also removes the ROS control runtime.",
+      "required_by": [
+        "ros-humble-ament-cmake",
+        "ros-humble-ament-cmake-core"
+      ]
+    },
+    "cmake-data": {
+      "reason": "CMake data files are an inseparable dependency of the CMake package required transitively by ROS Humble binary packages.",
+      "required_by": [
+        "cmake"
+      ]
+    }
+  },
   "prohibited_apt_prefixes": [
     "ros-humble-gazebo-",
     "ros-humble-ros-gz-",

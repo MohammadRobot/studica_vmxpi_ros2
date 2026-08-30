@@ -55,6 +55,14 @@ class ProductionManifestTest(unittest.TestCase):
             VALIDATOR.EXPECTED_EXTERNAL_RUNTIME_DEPENDENCIES,
         )
 
+    def test_ros_cmake_dependency_is_documented_but_not_requested(self):
+        tools = self.manifest["documented_transitive_build_tools"]
+        self.assertEqual(tools, VALIDATOR.EXPECTED_TRANSITIVE_BUILD_TOOLS)
+        enabled = set(VALIDATOR.enabled_apt_packages(self.manifest))
+        prohibited = set(self.manifest["prohibited_apt_packages"])
+        self.assertTrue(set(tools).isdisjoint(enabled))
+        self.assertTrue(set(tools).isdisjoint(prohibited))
+
     def test_optional_foxglove_is_off_by_default(self):
         robot_launch = ROOT.joinpath(
             "bringup", "launch", "robot.launch.py"

@@ -103,7 +103,11 @@ class ReleaseFixture:
         )
 
     def _write_inventory(self):
-        package_names = BUILDER.enabled_apt_packages(self.profile) | {"base-files"}
+        package_names = (
+            BUILDER.enabled_apt_packages(self.profile)
+            | set(self.profile["documented_transitive_build_tools"])
+            | {"base-files"}
+        )
         lines = [f"{name}\t1.0-1\tarm64" for name in sorted(package_names)]
         self.inventory.write_text("\n".join(lines) + "\n", encoding="utf-8")
 
@@ -211,6 +215,21 @@ class ReleaseBundleTest(unittest.TestCase):
                 "\n".join(sorted(lines)) + "\n", encoding="utf-8"
             )
             with self.assertRaisesRegex(BUILDER.BundleError, "non-production packages"):
+                fixture.build()
+
+    def test_missing_documented_ros_transitive_tool_is_rejected(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            fixture = ReleaseFixture(temporary)
+            lines = fixture.inventory.read_text(encoding="utf-8").splitlines()
+            fixture.inventory.write_text(
+                "\n".join(line for line in lines if not line.startswith("cmake\t"))
+                + "\n",
+                encoding="utf-8",
+            )
+            with self.assertRaisesRegex(
+                BUILDER.BundleError,
+                "missing documented ROS transitive build tools",
+            ):
                 fixture.build()
 
     def test_unpinned_builder_image_is_rejected(self):

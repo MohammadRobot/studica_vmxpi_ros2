@@ -159,7 +159,14 @@ The first machine-readable package boundary is
 Server base, the headless Humble control runtime, Bluetooth joystick support,
 and the currently installed camera and LiDAR options. Foxglove and on-robot
 navigation are disabled in this baseline. Desktop, simulation, graphical, and
-build packages are explicitly prohibited.
+directly requested developer packages are explicitly prohibited. Ubuntu's ROS
+Humble binary packages declare a runtime dependency on `ament-cmake`, which in
+turn requires `cmake` and `cmake-data`. An APT removal simulation on the native
+ARM64 inventory showed that removing CMake would also remove 157 ROS packages,
+including `rclcpp`, `controller_manager`, and the control stack. Profile v1
+therefore records these two dormant packages as audited transitive exceptions.
+They start no process or service and add no steady-state CPU or RAM load;
+compilers, Git, IDEs, and developer processes remain outside the robot image.
 
 Validate the manifest and print its enabled APT package names on the development
 PC with:

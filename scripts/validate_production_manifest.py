@@ -51,6 +51,25 @@ EXPECTED_EXTERNAL_RUNTIME_DEPENDENCIES = {
         "supplier": "Studica",
     }
 }
+EXPECTED_TRANSITIVE_BUILD_TOOLS = {
+    "cmake": {
+        "reason": (
+            "ROS Humble binary runtime packages depend on ament-cmake, which depends "
+            "on CMake; removing it also removes the ROS control runtime."
+        ),
+        "required_by": [
+            "ros-humble-ament-cmake",
+            "ros-humble-ament-cmake-core",
+        ],
+    },
+    "cmake-data": {
+        "reason": (
+            "CMake data files are an inseparable dependency of the CMake package "
+            "required transitively by ROS Humble binary packages."
+        ),
+        "required_by": ["cmake"],
+    },
+}
 APT_BUNDLES = (
     "dependencies/apt/development-core.txt",
     "dependencies/apt/development-desktop.txt",
@@ -386,6 +405,27 @@ def validate_manifest(root: Path, manifest: dict[str, Any]) -> list[str]:
         "prohibited_apt_prefixes",
         failures,
     )
+    transitive_build_tools = manifest.get("documented_transitive_build_tools")
+    if transitive_build_tools != EXPECTED_TRANSITIVE_BUILD_TOOLS:
+        failures.append(
+            "documented_transitive_build_tools must record the approved ROS Humble "
+            "CMake dependency exception"
+        )
+        transitive_build_tools = {}
+    direct_transitive_tools = sorted(set(enabled_apt) & set(transitive_build_tools))
+    if direct_transitive_tools:
+        failures.append(
+            "transitive build tools must not be directly requested: "
+            f"{direct_transitive_tools}"
+        )
+    prohibited_transitive_tools = sorted(
+        set(prohibited) & set(transitive_build_tools)
+    )
+    if prohibited_transitive_tools:
+        failures.append(
+            "documented transitive build tools cannot also be prohibited: "
+            f"{prohibited_transitive_tools}"
+        )
     for package in enabled_apt:
         if package in prohibited:
             failures.append(f"enabled package is prohibited: {package}")
