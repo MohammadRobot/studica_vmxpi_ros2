@@ -243,6 +243,7 @@ def validate_builder(root: Path, manifest: dict[str, Any]) -> list[str]:
             "--executor sequential",
             "--parallel-workers 1",
             "--merge-install",
+            'colcon --log-base "${workspace}/log" test-result',
             "--builder-image-id",
             "build_release_bundle.py",
         ),
@@ -258,6 +259,10 @@ def validate_builder(root: Path, manifest: dict[str, Any]) -> list[str]:
     if container_script.count("--merge-install") != 2:
         failures.append(
             "container builder must use the merged install layout for both build and test"
+        )
+    if container_script.count('colcon --log-base "${workspace}/log"') != 3:
+        failures.append(
+            "container builder must keep build, test, and test-result logs writable"
         )
     require_text(
         dockerfile,

@@ -183,6 +183,10 @@ class Arm64BuilderTest(unittest.TestCase):
             ROOT / "deployment/build_arm64_release_in_container.sh"
         ).read_text(encoding="utf-8")
         self.assertEqual(container_script.count("--merge-install"), 2)
+        self.assertEqual(
+            container_script.count('colcon --log-base "${workspace}/log"'),
+            3,
+        )
 
     def test_offline_tests_have_writable_state_and_pinned_ros_schema(self):
         container_script = (

@@ -121,7 +121,9 @@ colcon --log-base "${workspace}/log" test \
     studica_vmxpi_ros2 \
   --event-handlers console_direct+ \
   --return-code-on-test-failure
-colcon test-result --test-result-base "${workspace}/build" --verbose
+colcon --log-base "${workspace}/log" test-result \
+  --test-result-base "${workspace}/build" \
+  --verbose
 python3 "${source_root}/scripts/verify_hardware_checkout.py" \
   --workspace "${prepared_root}"
 
