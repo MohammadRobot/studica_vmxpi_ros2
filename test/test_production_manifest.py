@@ -43,6 +43,12 @@ class ProductionManifestTest(unittest.TestCase):
         VALIDATOR.validate_dependency_boundary(ROOT, failures)
         self.assertEqual(failures, [])
 
+    def test_release_overlay_contains_only_qualified_ros_packages(self):
+        self.assertEqual(
+            set(self.manifest["overlay_ros_packages"]),
+            VALIDATOR.EXPECTED_OVERLAY_ROS_PACKAGES,
+        )
+
     def test_optional_foxglove_is_off_by_default(self):
         robot_launch = ROOT.joinpath(
             "bringup", "launch", "robot.launch.py"

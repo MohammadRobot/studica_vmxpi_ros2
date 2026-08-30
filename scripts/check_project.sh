@@ -33,6 +33,7 @@ python3 -m py_compile \
   "${repo_root}/scripts/check_classroom.py" \
   "${repo_root}/scripts/check_docs.py" \
   "${repo_root}/scripts/check_release.py" \
+  "${repo_root}/scripts/build_release_bundle.py" \
   "${repo_root}/scripts/validate_production_manifest.py" \
   "${repo_root}/scripts/validate_profiles.py"
 

@@ -47,6 +47,65 @@ The initial installation layout is:
 The release builder, not the robot, compiles source. The robot never runs
 `git pull` as an install or boot action.
 
+## Development ARM64 bundle
+
+The checked-in builder creates the first application artifact without
+installing or activating it. Build in a clean Ubuntu 22.04 arm64 hardware
+workspace using the pinned `hardware.repos` sources. Use a merged, copied
+install—not `--symlink-install`—and select the production filesystem profile:
+
+```bash
+source /opt/ros/humble/setup.bash
+colcon build \
+  --base-paths src \
+  --merge-install \
+  --cmake-args \
+    -DCMAKE_BUILD_TYPE=Release \
+    -DSTUDICA_PRODUCTION_INSTALL=ON
+```
+
+The production CMake profile fails unless the VMXPi hardware interface is
+present. It excludes simulation launches, maps, RViz, examples, developer
+documentation, and build tools. The release builder also rejects symlinked
+developer installs, unexpected ROS packages, non-AArch64 hardware binaries,
+world-writable files, escaping symlinks, and credential/cache paths.
+It removes copied headers, static libraries, libtool archives, and CMake package
+metadata from the staged runtime and records the removed paths in
+`metadata/release.json`; the validated input install remains unchanged.
+
+Export the complete package inventory from the matching minimal target root
+filesystem, after build-only packages have been removed:
+
+```bash
+dpkg-query -W -f='${binary:Package}\t${Version}\t${Architecture}\n' \
+  | LC_ALL=C sort > dpkg-inventory.tsv
+```
+
+Then build the deterministic archive from a clean Git commit:
+
+```bash
+./scripts/build_release_bundle.py \
+  --install-prefix <MERGED_ARM64_INSTALL> \
+  --dpkg-inventory dpkg-inventory.tsv \
+  --output-dir "$STUDICA_WS/release-artifacts"
+```
+
+The output directory must be outside the Git repository so generated binaries
+cannot dirty or accidentally enter the source release.
+
+The archive contains the application overlay under
+`/opt/studica/releases/<version>/install`, the exact package and source
+inventories, SPDX 2.3 SBOM, rollback contract, internal `SHA256SUMS`, and an
+external archive checksum. Identical inputs and `SOURCE_DATE_EPOCH` produce
+identical archive bytes.
+
+This phase intentionally emits only a `development` artifact with
+`activation_authorized: false` and a `DO_NOT_ACTIVATE` marker. It does not
+create `/opt/studica/current`, install systemd units, sign the artifact, or
+authorize robot motion. Beta/stable promotion remains blocked until the
+physical drivetrain gate, signed-update verifier, and interruption rollback
+tests pass.
+
 ## Channels and rollout
 
 | Channel | Audience | Promotion requirement |

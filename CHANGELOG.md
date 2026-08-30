@@ -8,6 +8,9 @@
   joystick support while excluding desktop, simulation, GUI, and build tooling.
 - Split the headless robot-core ROS dependency contract from explicit classroom
   desktop and Gazebo Harmonic APT bundles, with Foxglove disabled by default.
+- Added a hardware-gated production CMake install profile and deterministic
+  ARM64 development release builder with exact inventories, SHA-256 checksums,
+  SPDX 2.3 SBOM, rollback metadata, and explicit activation denial.
 - Added a read-only, machine-readable VMXPi production runtime audit with a
   versioned minimal-service/package/port/SSH profile, contract tests, a measured
   physical-robot idle baseline, and a staged appliance-image migration plan.

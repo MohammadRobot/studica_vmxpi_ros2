@@ -169,10 +169,13 @@ PC with:
 ./scripts/validate_production_manifest.py --print-enabled-apt
 ```
 
-This manifest defines the desired package boundary; it is not yet a production
-image recipe. The image builder must additionally lock the Ubuntu and ROS
-repository snapshots and exact binary versions, install the pinned source
-overlay, emit an SBOM, and sign the resulting artifact.
+This manifest defines the desired package boundary. The development release
+builder now requires an exact target-root package inventory, a clean pinned
+source overlay, and an ARM64 production install; it emits a deterministic
+archive, checksums, SPDX SBOM, and rollback metadata. See
+[Release process](RELEASE_PROCESS.md#development-arm64-bundle). It does not yet
+provide a reproducible operating-system image, repository snapshot, artifact
+signature, or authorized activation path.
 
 ## Phase-1 platform decision
 
@@ -299,9 +302,10 @@ Recovery-clone work is temporarily deferred. Until it resumes, do not harden
 the live image, remove live packages, or install systemd robot units. The
 bootable clone remains a release requirement before any of those operations.
 
-1. Turn the checked-in Ubuntu 22.04/Humble package manifest into a reproducible
-   image recipe with locked binary repositories.
-2. Split the classroom package from the robot runtime dependency graph.
+1. Build the first development ARM64 application artifact in a clean hardware
+   build environment and archive its inventory, checksums, and SBOM.
+2. Turn the Ubuntu 22.04/Humble package manifest into a reproducible operating-
+   system image recipe with locked binary repositories.
 3. Diagnose and pass the charged lifted-wheel tracking failure.
 4. Implement and test the systemd service chain and safe shutdown behavior in
    an offline fixture; do not activate it on the robot before the hardware gate.

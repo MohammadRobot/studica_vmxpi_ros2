@@ -1,0 +1,12 @@
+{
+  "schema_version": 1,
+  "profile": "vmxpi-production-install-v1",
+  "platform": {
+    "os_id": "ubuntu",
+    "version_id": "22.04",
+    "architecture": "arm64",
+    "ros_distro": "humble"
+  },
+  "hardware_profile": "stack_4wd",
+  "production_install": true
+}

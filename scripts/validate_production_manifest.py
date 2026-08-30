@@ -31,6 +31,16 @@ REQUIRED_SOURCE_PACKAGES = {
     "studica_ros2_control",
     "studica_vmxpi_ros2",
 }
+EXPECTED_OVERLAY_ROS_PACKAGES = {
+    "orbbec_camera",
+    "orbbec_camera_msgs",
+    "orbbec_description",
+    "studica_drivers",
+    "studica_robot_monitor",
+    "studica_ros2_control",
+    "studica_vmxpi_ros2",
+    "ydlidar_ros2_driver",
+}
 APT_BUNDLES = (
     "dependencies/apt/development-core.txt",
     "dependencies/apt/development-desktop.txt",
@@ -226,6 +236,30 @@ def validate_manifest(root: Path, manifest: dict[str, Any]) -> list[str]:
         if platform.get(key) != audit_platform.get(key):
             failures.append(f"package and audit profiles disagree on platform.{key}")
 
+    production_marker_path = (
+        root / "deployment" / "vmxpi-production-install-v1.json.in"
+    )
+    try:
+        production_marker = json.loads(
+            production_marker_path.read_text(encoding="utf-8")
+        )
+    except (OSError, json.JSONDecodeError) as error:
+        failures.append(f"cannot read production install marker: {error}")
+        production_marker = {}
+    expected_marker_platform = {
+        "os_id": platform.get("os_id"),
+        "version_id": platform.get("version_id"),
+        "architecture": platform.get("architecture"),
+        "ros_distro": platform.get("ros_distro"),
+    }
+    if (
+        production_marker.get("profile") != "vmxpi-production-install-v1"
+        or production_marker.get("production_install") is not True
+        or production_marker.get("hardware_profile") != "stack_4wd"
+        or production_marker.get("platform") != expected_marker_platform
+    ):
+        failures.append("production install marker does not match the runtime profile")
+
     base_image = manifest.get("base_image")
     if base_image != {"family": "ubuntu-server", "install_mode": "minimal"}:
         failures.append("base_image must select the minimal Ubuntu Server base")
@@ -255,6 +289,16 @@ def validate_manifest(root: Path, manifest: dict[str, Any]) -> list[str]:
     )
     enabled_source = list(required_source)
     all_declared_source = list(required_source)
+
+    overlay_ros_packages = package_list(
+        manifest.get("overlay_ros_packages"),
+        "overlay_ros_packages",
+        failures,
+    )
+    if set(overlay_ros_packages) != EXPECTED_OVERLAY_ROS_PACKAGES:
+        failures.append(
+            "overlay_ros_packages must contain only the qualified hardware overlay"
+        )
 
     features = manifest.get("features")
     if not isinstance(features, dict) or not features:

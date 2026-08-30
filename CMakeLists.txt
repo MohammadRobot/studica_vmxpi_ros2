@@ -1,6 +1,11 @@
 cmake_minimum_required(VERSION 3.16)
 project(studica_vmxpi_ros2 LANGUAGES CXX)
 include(CTest)
+option(
+  STUDICA_PRODUCTION_INSTALL
+  "Install only the VMXPi production runtime assets"
+  OFF
+)
 
 if(CMAKE_CXX_COMPILER_ID MATCHES "(GNU|Clang)")
   add_compile_options(-Wall -Wextra)
@@ -61,6 +66,13 @@ else()
     set(VMXPI_LIBRARIES "")
     set(VMXPI_INCLUDE_DIRS "")
   endif()
+endif()
+
+if(STUDICA_PRODUCTION_INSTALL AND NOT VMXPI_FOUND)
+  message(FATAL_ERROR
+    "STUDICA_PRODUCTION_INSTALL requires the VMXPi hardware interface. "
+    "Build it in the qualified ARM64 hardware workspace."
+  )
 endif()
 
 # find dependencies
@@ -177,47 +189,96 @@ install(
   DIRECTORY hardware/include/
   DESTINATION include/studica_vmxpi_ros2
 )
-install(
-  DIRECTORY description
-  DESTINATION share/studica_vmxpi_ros2
-)
-install(
-  DIRECTORY bringup/launch bringup/config
-  DESTINATION share/studica_vmxpi_ros2
-  PATTERN "__pycache__" EXCLUDE
-  PATTERN "*.pyc" EXCLUDE
-)
-install(
-  DIRECTORY docs
-  DESTINATION share/studica_vmxpi_ros2
-)
-install(
-  DIRECTORY foxglove
-  DESTINATION share/studica_vmxpi_ros2
-)
-install(
-  DIRECTORY maps
-  DESTINATION share/studica_vmxpi_ros2
-)
-install(
-  DIRECTORY dependencies deployment examples
-  DESTINATION share/studica_vmxpi_ros2
-  PATTERN "__pycache__" EXCLUDE
-  PATTERN "*.pyc" EXCLUDE
-)
-install(PROGRAMS
-  scripts/audit_vmxpi_runtime.py
-  scripts/configure_cyclonedds.py
-  scripts/create_profile.sh
-  scripts/depth_to_pointcloud.py
-  scripts/install_git_hooks.sh
-  scripts/point_cloud_filter.py
-  scripts/run_waypoint_route.py
-  scripts/check_project.sh
-  scripts/validate_production_manifest.py
-  scripts/validate_profiles.py
-  DESTINATION lib/${PROJECT_NAME}
-)
+if(STUDICA_PRODUCTION_INSTALL)
+  install(
+    DIRECTORY
+      description/meshes
+      description/ros2_control
+      description/urdf
+    DESTINATION share/studica_vmxpi_ros2/description
+  )
+  install(
+    DIRECTORY description/robot/urdf
+    DESTINATION share/studica_vmxpi_ros2/description/robot
+  )
+  install(
+    FILES
+      bringup/launch/_camera_hw.launch.py
+      bringup/launch/_classroom_launch.py
+      bringup/launch/_launch_gz.py
+      bringup/launch/_launch_helpers.py
+      bringup/launch/_launch_sensors.py
+      bringup/launch/_lidar_hw.launch.py
+      bringup/launch/_robot_runtime.launch.py
+      bringup/launch/bringup.launch.py
+      bringup/launch/profile_validation.py
+      bringup/launch/robot.launch.py
+    DESTINATION share/studica_vmxpi_ros2/launch
+  )
+  install(
+    FILES
+      bringup/config/dualshock4_teleop.yaml
+      bringup/config/hardware_imu_odometry.yaml
+    DESTINATION share/studica_vmxpi_ros2/config
+  )
+  install(
+    DIRECTORY bringup/config/profiles/stack_4wd
+    DESTINATION share/studica_vmxpi_ros2/config/profiles
+  )
+  install(
+    FILES deployment/vmxpi-production-install-v1.json.in
+    DESTINATION share/studica_vmxpi_ros2/deployment
+    RENAME vmxpi-production-install-v1.json
+  )
+  install(PROGRAMS
+    scripts/audit_vmxpi_runtime.py
+    scripts/point_cloud_filter.py
+    DESTINATION lib/${PROJECT_NAME}
+  )
+else()
+  install(
+    DIRECTORY description
+    DESTINATION share/studica_vmxpi_ros2
+  )
+  install(
+    DIRECTORY bringup/launch bringup/config
+    DESTINATION share/studica_vmxpi_ros2
+    PATTERN "__pycache__" EXCLUDE
+    PATTERN "*.pyc" EXCLUDE
+  )
+  install(
+    DIRECTORY docs
+    DESTINATION share/studica_vmxpi_ros2
+  )
+  install(
+    DIRECTORY foxglove
+    DESTINATION share/studica_vmxpi_ros2
+  )
+  install(
+    DIRECTORY maps
+    DESTINATION share/studica_vmxpi_ros2
+  )
+  install(
+    DIRECTORY dependencies deployment examples
+    DESTINATION share/studica_vmxpi_ros2
+    PATTERN "__pycache__" EXCLUDE
+    PATTERN "*.pyc" EXCLUDE
+  )
+  install(PROGRAMS
+    scripts/audit_vmxpi_runtime.py
+    scripts/build_release_bundle.py
+    scripts/configure_cyclonedds.py
+    scripts/create_profile.sh
+    scripts/depth_to_pointcloud.py
+    scripts/install_git_hooks.sh
+    scripts/point_cloud_filter.py
+    scripts/run_waypoint_route.py
+    scripts/check_project.sh
+    scripts/validate_production_manifest.py
+    scripts/validate_profiles.py
+    DESTINATION lib/${PROJECT_NAME}
+  )
+endif()
 
 add_executable(topic_adapter_node src/topic_adapter_node.cpp)
 ament_target_dependencies(
@@ -351,6 +412,13 @@ if(BUILD_TESTING)
     GENERATE_RESULT_FOR_RETURN_CODE_ZERO
     COMMAND ${Python3_EXECUTABLE}
       ${CMAKE_CURRENT_SOURCE_DIR}/test/test_production_manifest.py
+      ${CMAKE_CURRENT_SOURCE_DIR}
+  )
+  ament_add_test(
+    validate_release_bundle
+    GENERATE_RESULT_FOR_RETURN_CODE_ZERO
+    COMMAND ${Python3_EXECUTABLE}
+      ${CMAKE_CURRENT_SOURCE_DIR}/test/test_release_bundle.py
       ${CMAKE_CURRENT_SOURCE_DIR}
   )
   ament_add_test(

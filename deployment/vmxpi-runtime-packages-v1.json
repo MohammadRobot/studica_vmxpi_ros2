@@ -53,6 +53,16 @@
     "studica_ros2_control",
     "studica_vmxpi_ros2"
   ],
+  "overlay_ros_packages": [
+    "orbbec_camera",
+    "orbbec_camera_msgs",
+    "orbbec_description",
+    "studica_drivers",
+    "studica_robot_monitor",
+    "studica_ros2_control",
+    "studica_vmxpi_ros2",
+    "ydlidar_ros2_driver"
+  ],
   "features": {
     "bluetooth_joystick": {
       "enabled": true,
