@@ -174,6 +174,40 @@ authorize robot motion. Beta/stable promotion remains blocked until the
 physical drivetrain gate, signed-update verifier, and interruption rollback
 tests pass.
 
+## Inactive robot staging
+
+The maintainer-side inactive installer may place a verified development bundle
+on a bench VMXPi before activation is authorized. This is an installation
+transport test, not a motion or runtime test. The artifact directory must
+contain exactly one `.tar.gz` and its `.tar.gz.sha256`, and the operator must
+provide the exact 40-character source commit:
+
+```bash
+sudo ./scripts/install_inactive_release.py install \
+  --artifact-dir /path/to/verified-artifact \
+  --expected-commit <FULL_GIT_COMMIT>
+
+sudo ./scripts/install_inactive_release.py status
+```
+
+The installer copies the input to a private local staging area, re-verifies the
+external and internal checksums, provenance, platform, development channel,
+and activation denial, and extracts without following archive symlinks. It
+then atomically renames the payload to
+`/opt/studica/releases/<version>` and records the result beneath
+`/var/lib/studica/update-state/inactive-releases/`.
+
+The contract is `deployment/inactive-release-install-v1.json`. It explicitly
+preserves `/opt/studica/current` and the `previous-release` rollback state. It
+does not install or start a service, invoke ROS, write a motor command, or
+provide an activation command. An interrupted extraction can leave a hidden
+staging directory; `status` reports it and never deletes it automatically.
+
+This development path validates checksums and recorded builder provenance but
+does not verify a cryptographic publisher signature. It is restricted to a
+maintainer-controlled bench robot until signed update metadata and key
+management are implemented.
+
 ## Channels and rollout
 
 | Channel | Audience | Promotion requirement |

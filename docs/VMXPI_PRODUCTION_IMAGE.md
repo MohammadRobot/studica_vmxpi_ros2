@@ -337,10 +337,9 @@ Recovery-clone work is temporarily deferred. Until it resumes, do not harden
 the live image, remove live packages, or install systemd robot units. The
 bootable clone remains a release requirement before any of those operations.
 
-1. Provision the documented ephemeral ARM64 Docker worker with a qualified,
-   licensed VMXPi SDK input, run the protected manual workflow, and archive the
-   first verified development artifact, inventory, checksums, SBOM, workflow
-   record, and builder image ID.
+1. Stage the verified development artifact with the inactive-only installer
+   and preserve evidence that `/opt/studica/current`, rollback state, systemd,
+   and ROS processes were unchanged.
 2. Turn the Ubuntu 22.04/Humble package manifest into a reproducible operating-
    system image recipe with locked binary repositories.
 3. Diagnose and pass the charged lifted-wheel tracking failure.

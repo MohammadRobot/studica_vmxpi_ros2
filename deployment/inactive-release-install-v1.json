@@ -1,0 +1,48 @@
+{
+  "schema_version": 1,
+  "profile": "studica-inactive-install-v1",
+  "purpose": "Verify and stage a development release without activating robot software",
+  "accepted_artifact": {
+    "channel": "development",
+    "platform": {
+      "architecture": "arm64",
+      "os_id": "ubuntu",
+      "version_id": "22.04",
+      "ros_distro": "humble"
+    },
+    "external_sha256_required": true,
+    "internal_sha256_required": true,
+    "full_source_commit_required": true,
+    "cryptographic_signature_required": false,
+    "activation_authorized": false,
+    "do_not_activate_marker_required": true
+  },
+  "allowed_writes": [
+    "/opt/studica/.inactive-install.lock",
+    "/opt/studica/.inactive-install-*",
+    "/opt/studica/releases/.<version>.*",
+    "/opt/studica/releases/<version>",
+    "/var/lib/studica/update-state/inactive-releases/<version>.json"
+  ],
+  "preserved_paths": [
+    "/opt/studica/current",
+    "/var/lib/studica/update-state/previous-release"
+  ],
+  "prohibited_actions": [
+    "activate-release",
+    "create-or-change-current-link",
+    "create-or-change-previous-release-state",
+    "install-systemd-unit",
+    "start-or-restart-service",
+    "start-ros-process",
+    "write-motor-output",
+    "git-pull"
+  ],
+  "interruption_behavior": {
+    "atomic_release_rename": true,
+    "hidden_incomplete_staging_reported_by_status": true,
+    "automatic_deletion_of_incomplete_staging": false,
+    "automatic_activation": false,
+    "automatic_rollback": false
+  }
+}
