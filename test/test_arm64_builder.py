@@ -194,12 +194,20 @@ class Arm64BuilderTest(unittest.TestCase):
         ).read_text(encoding="utf-8")
         for variable in (
             "HOME",
+            "PYTHONDONTWRITEBYTECODE",
             "PYTHONPYCACHEPREFIX",
             "ROS_LOG_DIR",
             "ROS_LOCALHOST_ONLY",
             "XML_CATALOG_FILES",
         ):
             self.assertIn(f"export {variable}=", container_script)
+        self.assertIn(
+            'find "${workspace}/install" -xdev -depth',
+            container_script,
+        )
+        self.assertIn("-type d -name '__pycache__'", container_script)
+        self.assertIn("-name '*.pyc'", container_script)
+        self.assertIn("-name '*.pyo'", container_script)
         dependencies = (
             ROOT / "dependencies/apt/development-core.txt"
         ).read_text(encoding="utf-8")
