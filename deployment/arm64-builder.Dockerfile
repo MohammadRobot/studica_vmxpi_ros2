@@ -28,6 +28,14 @@ RUN dpkg -i /tmp/ros2-apt-source.deb \
 FROM ros-apt-base AS build-env
 
 COPY dependencies/apt/development-core.txt /opt/studica/development-core.txt
+COPY deployment/ros-package-schema-catalog.xml \
+  /opt/studica/ros-schema/catalog.xml
+ADD --checksum=sha256:f096a197ed6d7878984bb2501a55f7f1bd4895d254399fb7857e154bfb644f41 \
+  https://raw.githubusercontent.com/ros-infrastructure/rep/11ca24a41f31480dfb9562ba99f2a5b93d3ebda5/xsd/package_format3.xsd \
+  /opt/studica/ros-schema/package_format3.xsd
+ADD --checksum=sha256:941ea8645344f3c4b7b9d7e68799898309d65a18225fa9cbef4169d95d1a3211 \
+  https://raw.githubusercontent.com/ros-infrastructure/rep/11ca24a41f31480dfb9562ba99f2a5b93d3ebda5/xsd/package_common.xsd \
+  /opt/studica/ros-schema/package_common.xsd
 RUN apt-get -o Acquire::Retries=3 update \
     && sed -e '/^[[:space:]]*#/d' -e '/^[[:space:]]*$/d' \
       /opt/studica/development-core.txt > /tmp/development-packages.txt \

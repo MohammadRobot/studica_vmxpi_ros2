@@ -112,6 +112,7 @@ def validate_builder(root: Path, manifest: dict[str, Any]) -> list[str]:
 
     dockerfile_path = root / "deployment/arm64-builder.Dockerfile"
     dockerignore_path = root / "deployment/arm64-builder.Dockerfile.dockerignore"
+    schema_catalog_path = root / "deployment/ros-package-schema-catalog.xml"
     host_script_path = root / "scripts/build_arm64_release.sh"
     prepare_script_path = root / "deployment/prepare_arm64_release_sources.sh"
     container_script_path = root / "deployment/build_arm64_release_in_container.sh"
@@ -122,6 +123,7 @@ def validate_builder(root: Path, manifest: dict[str, Any]) -> list[str]:
     try:
         dockerfile = dockerfile_path.read_text(encoding="utf-8")
         dockerignore = dockerignore_path.read_text(encoding="utf-8")
+        schema_catalog = schema_catalog_path.read_text(encoding="utf-8")
         host_script = host_script_path.read_text(encoding="utf-8")
         prepare_script = prepare_script_path.read_text(encoding="utf-8")
         container_script = container_script_path.read_text(encoding="utf-8")
@@ -164,6 +166,7 @@ def validate_builder(root: Path, manifest: dict[str, Any]) -> list[str]:
             "**",
             "!deployment/build_arm64_release_in_container.sh",
             "!deployment/prepare_arm64_release_sources.sh",
+            "!deployment/ros-package-schema-catalog.xml",
             "!deployment/vmxpi-runtime-packages-v1.json",
             "!dependencies/apt/development-core.txt",
             "!dependencies/hardware.repos",
@@ -224,6 +227,11 @@ def validate_builder(root: Path, manifest: dict[str, Any]) -> list[str]:
             "-DCMAKE_DISABLE_FIND_PACKAGE_PythonInterp=TRUE",
             "-DCMAKE_DISABLE_FIND_PACKAGE_PythonLibs=TRUE",
             'export LIBRARY_PATH="${ydlidar_prefix}/lib',
+            'export HOME="${workspace}/home"',
+            'export PYTHONPYCACHEPREFIX="${workspace}/pycache"',
+            'export ROS_LOG_DIR="${workspace}/log/ros"',
+            "export ROS_LOCALHOST_ONLY=1",
+            'export XML_CATALOG_FILES="/opt/studica/ros-schema/catalog.xml"',
             "-DSTUDICA_PRODUCTION_INSTALL=ON",
             "--merge-install",
             "--builder-image-id",
@@ -242,6 +250,31 @@ def validate_builder(root: Path, manifest: dict[str, Any]) -> list[str]:
         failures.append(
             "container builder must use the merged install layout for both build and test"
         )
+    require_text(
+        dockerfile,
+        (
+            "f096a197ed6d7878984bb2501a55f7f1bd4895d254399fb7857e154bfb644f41",
+            "941ea8645344f3c4b7b9d7e68799898309d65a18225fa9cbef4169d95d1a3211",
+            "ros-infrastructure/rep/11ca24a41f31480dfb9562ba99f2a5b93d3ebda5/xsd/",
+            "/opt/studica/ros-schema/package_format3.xsd",
+            "/opt/studica/ros-schema/package_common.xsd",
+        ),
+        "offline ROS XML schema inputs",
+        failures,
+    )
+    require_text(
+        schema_catalog,
+        (
+            "http://download.ros.org/schema/package_format3.xsd",
+            "file:///opt/studica/ros-schema/package_format3.xsd",
+        ),
+        "offline ROS XML schema catalog",
+        failures,
+    )
+    if "ros-humble-ros2launch" not in (
+        root / "dependencies/apt/development-core.txt"
+    ).read_text(encoding="utf-8"):
+        failures.append("ARM64 development image must include ros2 launch for runtime tests")
     require_text(
         release_builder,
         (

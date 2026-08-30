@@ -143,6 +143,28 @@ class Arm64BuilderTest(unittest.TestCase):
         ).read_text(encoding="utf-8")
         self.assertEqual(container_script.count("--merge-install"), 2)
 
+    def test_offline_tests_have_writable_state_and_pinned_ros_schema(self):
+        container_script = (
+            ROOT / "deployment/build_arm64_release_in_container.sh"
+        ).read_text(encoding="utf-8")
+        for variable in (
+            "HOME",
+            "PYTHONPYCACHEPREFIX",
+            "ROS_LOG_DIR",
+            "ROS_LOCALHOST_ONLY",
+            "XML_CATALOG_FILES",
+        ):
+            self.assertIn(f"export {variable}=", container_script)
+        dependencies = (
+            ROOT / "dependencies/apt/development-core.txt"
+        ).read_text(encoding="utf-8")
+        self.assertIn("ros-humble-ros2launch", dependencies.splitlines())
+        dockerfile = (ROOT / "deployment/arm64-builder.Dockerfile").read_text(
+            encoding="utf-8"
+        )
+        self.assertIn("ADD --checksum=sha256:f096a197", dockerfile)
+        self.assertIn("ADD --checksum=sha256:941ea864", dockerfile)
+
     def test_imported_hardware_checkout_must_match_commit_origin_and_cleanliness(self):
         with tempfile.TemporaryDirectory() as temporary:
             workspace = Path(temporary) / "workspace"

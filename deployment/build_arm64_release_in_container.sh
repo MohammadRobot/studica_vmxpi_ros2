@@ -38,10 +38,15 @@ source_setup_file() {
 [[ "${STUDICA_BUILDER_IMAGE_ID:-}" =~ ^sha256:[0-9a-f]{64}$ ]] || die \
   "STUDICA_BUILDER_IMAGE_ID must be an immutable Docker image ID"
 
-mkdir -p "${workspace}/build" "${workspace}/install" "${workspace}/log" \
-  "${workspace}/vendor"
+mkdir -p "${workspace}/build" "${workspace}/home" "${workspace}/install" \
+  "${workspace}/log/ros" "${workspace}/pycache" "${workspace}/vendor"
 export GIT_OPTIONAL_LOCKS=0
+export HOME="${workspace}/home"
 export LD_LIBRARY_PATH="/usr/local/lib/vmxpi${LD_LIBRARY_PATH:+:${LD_LIBRARY_PATH}}"
+export PYTHONPYCACHEPREFIX="${workspace}/pycache"
+export ROS_LOG_DIR="${workspace}/log/ros"
+export ROS_LOCALHOST_ONLY=1
+export XML_CATALOG_FILES="/opt/studica/ros-schema/catalog.xml"
 
 [[ "$(git -C "${source_root}" rev-parse HEAD)" == \
   "$(tr -d '\n' < "${prepared_root}/source-commit")" ]] || die \
