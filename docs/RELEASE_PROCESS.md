@@ -208,6 +208,9 @@ does not verify a cryptographic publisher signature. It is restricted to a
 maintainer-controlled bench robot until signed update metadata and key
 management are implemented.
 
+The first VMXPi inactive-staging execution is recorded in
+[Inactive release staging evidence: 2026-08-30](INACTIVE_RELEASE_STAGING_2026-08-30.md).
+
 ## Channels and rollout
 
 | Channel | Audience | Promotion requirement |
