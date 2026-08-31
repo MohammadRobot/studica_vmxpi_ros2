@@ -74,6 +74,7 @@ class Snapshot:
     failed_units: tuple[str, ...]
     installed_packages: tuple[str, ...]
     listeners: tuple[Listener, ...]
+    wifi_power_save: dict[str, str]
     ufw_enabled: bool | None
     sshd_settings: dict[str, str]
     process_markers: tuple[str, ...]
@@ -121,6 +122,7 @@ def load_profile(path: Path) -> dict[str, Any]:
         "allowed_public_tcp_ports",
         "allowed_public_udp_ports",
         "generic_hostnames",
+        "network",
         "required_sshd_settings",
         "thresholds",
     }
@@ -131,6 +133,19 @@ def load_profile(path: Path) -> dict[str, Any]:
         raise ValueError(
             f"unsupported runtime profile schema {profile['schema_version']!r}"
         )
+    network = profile["network"]
+    if not isinstance(network, dict):
+        raise ValueError("runtime profile network contract must be an object")
+    wifi_interfaces = network.get("wifi_interfaces")
+    if (
+        not isinstance(wifi_interfaces, list)
+        or not wifi_interfaces
+        or any(not isinstance(interface, str) or not interface for interface in wifi_interfaces)
+        or len(set(wifi_interfaces)) != len(wifi_interfaces)
+    ):
+        raise ValueError("runtime profile Wi-Fi interface list is invalid")
+    if network.get("required_wifi_power_save") != "disable":
+        raise ValueError("runtime profile must explicitly disable Wi-Fi power saving")
     return profile
 
 
@@ -202,6 +217,20 @@ def parse_sshd_settings(text: str) -> dict[str, str]:
         if len(fields) == 2:
             settings[fields[0].lower()] = fields[1].strip().lower()
     return settings
+
+
+def normalize_nmcli_power_save(text: str) -> str:
+    """Normalize NetworkManager enum output across Ubuntu nmcli versions."""
+    value = text.strip().lower()
+    if "disable" in value or value == "2":
+        return "disable"
+    if "enable" in value or value == "3":
+        return "enable"
+    if "ignore" in value or value == "1":
+        return "ignore"
+    if "default" in value or value == "0":
+        return "default"
+    return value or "unavailable"
 
 
 def parse_sshd_config(path: Path, requested_settings: Iterable[str]) -> dict[str, str]:
@@ -359,6 +388,42 @@ def collect_snapshot(profile: dict[str, Any], required_units: Iterable[str]) -> 
         ufw_enabled = None
         errors.append(f"UFW configuration probe: {error}")
 
+    wifi_power_save: dict[str, str] = {}
+    for interface in profile["network"]["wifi_interfaces"]:
+        if not Path("/sys/class/net", interface).is_dir():
+            wifi_power_save[interface] = "unavailable"
+            errors.append(f"Wi-Fi interface is missing: {interface}")
+            continue
+        try:
+            connection_result = run_command(
+                ["nmcli", "-g", "GENERAL.CONNECTION", "device", "show", interface]
+            )
+            connection = connection_result.stdout.strip()
+            if connection_result.returncode != 0 or connection in {"", "--"}:
+                wifi_power_save[interface] = "unavailable"
+                errors.append(f"active Wi-Fi connection probe failed: {interface}")
+                continue
+            power_result = run_command(
+                [
+                    "nmcli",
+                    "-g",
+                    "802-11-wireless.powersave",
+                    "connection",
+                    "show",
+                    connection,
+                ]
+            )
+            if power_result.returncode != 0:
+                wifi_power_save[interface] = "unavailable"
+                errors.append(f"Wi-Fi power-save probe failed: {interface}")
+                continue
+            wifi_power_save[interface] = normalize_nmcli_power_save(
+                power_result.stdout
+            )
+        except (OSError, subprocess.TimeoutExpired) as error:
+            wifi_power_save[interface] = "unavailable"
+            errors.append(f"Wi-Fi power-save probe {interface}: {error}")
+
     sshd_binary = shutil.which("sshd") or "/usr/sbin/sshd"
     try:
         sshd_result = run_command([sshd_binary, "-T"])
@@ -432,6 +497,7 @@ def collect_snapshot(profile: dict[str, Any], required_units: Iterable[str]) -> 
         failed_units=failed_units,
         installed_packages=tuple(sorted(installed_packages)),
         listeners=listeners,
+        wifi_power_save=wifi_power_save,
         ufw_enabled=ufw_enabled,
         sshd_settings=sshd_settings,
         process_markers=tuple(sorted(process_markers)),
@@ -548,6 +614,19 @@ def evaluate_snapshot(
             )
         )
 
+    required_power_save = profile["network"]["required_wifi_power_save"]
+    for interface in profile["network"]["wifi_interfaces"]:
+        observed = snapshot.wifi_power_save.get(interface, "unavailable")
+        if observed != required_power_save:
+            findings.append(
+                Finding(
+                    f"wifi-power-save:{interface}",
+                    "ERROR",
+                    f"Wi-Fi power saving on {interface} must be "
+                    f"{required_power_save!r}, found {observed!r}",
+                )
+            )
+
     for setting, expected in profile["required_sshd_settings"].items():
         observed = snapshot.sshd_settings.get(setting)
         if observed != expected:
@@ -642,6 +721,11 @@ def print_human(snapshot: Snapshot, profile: dict[str, Any], findings: list[Find
     firewall = "enabled" if snapshot.ufw_enabled else "disabled or unavailable"
     print("Public network listeners: " + (", ".join(public_listeners) or "none"))
     print(f"Host firewall: {firewall}")
+    wifi_power = ", ".join(
+        f"{interface}={state}"
+        for interface, state in sorted(snapshot.wifi_power_save.items())
+    )
+    print("Wi-Fi power saving: " + (wifi_power or "no managed interface"))
     if findings:
         print("Findings:")
         for finding in findings:

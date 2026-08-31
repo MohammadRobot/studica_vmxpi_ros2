@@ -91,6 +91,12 @@
     "ubuntu",
     "vmx"
   ],
+  "network": {
+    "wifi_interfaces": [
+      "wlan0"
+    ],
+    "required_wifi_power_save": "disable"
+  },
   "required_sshd_settings": {
     "passwordauthentication": "no",
     "permitrootlogin": "no",

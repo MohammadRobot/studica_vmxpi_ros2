@@ -35,6 +35,13 @@ ros2 pkg prefix rmw_cyclonedds_cpp
 Connect both machines to one trusted network. Use Wi-Fi on both or Ethernet on
 both; avoid changing routes during robot operation.
 
+For a production robot, the active NetworkManager Wi-Fi profile must explicitly
+disable power saving. Do not rely on the distribution or driver default: it can
+change across images and can add latency to SSH, DDS, and update traffic. Apply
+and reconnect a qualified profile only during a maintenance window with local
+console recovery available. The reference POC image is not changed by this
+requirement; the setting belongs in the reproducible production image recipe.
+
 On the PC and VMXPi:
 
 ```bash

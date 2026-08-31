@@ -54,6 +54,7 @@ class VmxpiRuntimeAuditTest(unittest.TestCase):
             failed_units=(),
             installed_packages=(),
             listeners=(AUDIT.Listener("tcp", "0.0.0.0", 22),),
+            wifi_power_save={"wlan0": "disable"},
             ufw_enabled=True,
             sshd_settings={
                 "passwordauthentication": "no",
@@ -74,6 +75,8 @@ class VmxpiRuntimeAuditTest(unittest.TestCase):
         self.assertIn("xrdp.service", raw["prohibited_active_units"])
         self.assertIn("ros-humble-desktop", raw["prohibited_installed_packages"])
         self.assertEqual(raw["platform"]["version_id"], "22.04")
+        self.assertEqual(raw["network"]["wifi_interfaces"], ["wlan0"])
+        self.assertEqual(raw["network"]["required_wifi_power_save"], "disable")
 
     def test_clean_appliance_snapshot_passes(self):
         self.assertEqual(
@@ -96,6 +99,7 @@ class VmxpiRuntimeAuditTest(unittest.TestCase):
                 AUDIT.Listener("tcp", "*", 3389),
                 AUDIT.Listener("udp", "0.0.0.0", 7400),
             ),
+            wifi_power_save={"wlan0": "enable"},
             ufw_enabled=False,
             sshd_settings={
                 "passwordauthentication": "yes",
@@ -120,6 +124,7 @@ class VmxpiRuntimeAuditTest(unittest.TestCase):
             "public-tcp:3389",
             "public-udp:7400",
             "firewall-disabled",
+            "wifi-power-save:wlan0",
             "sshd:passwordauthentication",
             "sshd:permitrootlogin",
             "sshd:x11forwarding",
@@ -148,6 +153,12 @@ class VmxpiRuntimeAuditTest(unittest.TestCase):
         )[0]
         self.assertEqual(udp.protocol, "udp")
         self.assertTrue(udp.public)
+
+    def test_nmcli_power_save_values_are_normalized(self):
+        self.assertEqual(AUDIT.normalize_nmcli_power_save("disable\n"), "disable")
+        self.assertEqual(AUDIT.normalize_nmcli_power_save("2 (disable)"), "disable")
+        self.assertEqual(AUDIT.normalize_nmcli_power_save("3"), "enable")
+        self.assertEqual(AUDIT.normalize_nmcli_power_save("default"), "default")
 
     def test_sshd_config_fallback_resolves_include_and_defaults(self):
         with tempfile.TemporaryDirectory() as temporary_dir:

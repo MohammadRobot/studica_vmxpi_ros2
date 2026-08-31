@@ -104,6 +104,15 @@ NetworkManager workflow is qualified. `irqbalance`, filesystem trim, temporary
 file cleanup, log rotation, and one console are small reliability services, not
 desktop applications.
 
+Every production Wi-Fi connection must explicitly disable 802.11 power saving;
+inheriting NetworkManager's `default` is not accepted for robot control, update,
+or support traffic. Prefer Ethernet for installation and updates. When Wi-Fi is
+required, keep the support PC and robot on the same managed subnet and reuse one
+keepalive-enabled SSH connection instead of opening many short sessions. The
+runtime audit enforces the explicit power-saving setting. Evidence from the
+reference robot is in
+[VMXPi SSH connectivity audit: 2026-08-31](SSH_CONNECTIVITY_AUDIT_2026-08-31.md).
+
 The following are absent or disabled in the target image:
 
 - GDM, Xorg, Wayland desktops, XRDP, VNC, and desktop portals;
