@@ -93,27 +93,38 @@ The `stack_4wd` profile defaults to:
 hardware:
   feedback_warn_timeout_ms: 100
   feedback_error_timeout_ms: 250
+  titan_encoder_cpr: 732
+  controller_temperature_safety_enabled: false
   controller_temp_error_timeout_ms: 3000
 ```
 
 Encoder/RPM feedback is expected much faster than Titan temperature, which is
 broadcast at approximately 1 Hz. The two timeouts must remain separate.
 
+For the 75001 Maverick motor, Titan's internal S-curve controller is explicitly
+programmed to 732 CPR on every hardware activation while output is disabled.
+ROS odometry independently uses 1464 quadrature counts per output-shaft
+revolution; the two values intentionally follow different counting conventions.
+
 Stale encoder data at rest produces health information without creating motion.
 Stale data while a wheel is commanded is unsafe: all motors are zeroed and the
-fault is latched. Stale temperature while moving receives the same fail-safe
-response.
+fault is latched. Temperature faults receive the same fail-safe response only
+when `controller_temperature_safety_enabled` is `true`.
 
 ## Titan temperature units
 
 The Titan `MCU_TEMP` frame provides whole and hundredths bytes without a unit
-flag. The upstream API decodes the numeric payload directly, but physical
-testing confirms firmware 2.0.5 emits Fahrenheit-like values. The driver uses
-the probed firmware version to convert exactly 2.0.5 to Celsius. It deliberately
-does not extrapolate that workaround to an untested version; an unknown high
-payload therefore remains blocked by the startup safety gate. Published state,
-diagnostics, the configured 80 °C limit, and dashboards all use normalized °C.
-Unit tests cover the firmware conversion and temperature-limit decisions.
+flag. Hardware observations from firmware 2.0.5 have produced incompatible unit
+behaviour, so the `stack_4wd` profile explicitly marks this telemetry untrusted.
+The raw decoded value and age remain published, and the
+`temperature_safety_enabled` state interface is `0`, but the value is excluded
+from startup authorization, `drive_healthy`, and fault latching. Diagnostics
+report this condition as a warning instead of presenting the value as healthy.
+
+Temperature gating defaults to enabled for other profiles. It may only be
+disabled for a documented controller/firmware defect with independent E-stop,
+feedback-freshness, command-timeout, and supervised operating controls in
+place.
 
 ## Latched fault causes
 
@@ -122,8 +133,8 @@ Unit tests cover the firmware conversion and temperature-limit decisions.
 | non-finite wheel command | zero all channels | fix publisher; reactivate |
 | unsupported required PID | keep output disabled | supported Titan firmware |
 | target CAN write failure | best-effort zero all | repair CAN; reactivate |
-| overtemperature | zero all channels | cool/inspect; reactivate |
-| stale temperature while moving | zero all channels | restore telemetry; reactivate |
+| overtemperature (when enabled) | zero all channels | cool/inspect; reactivate |
+| stale temperature while moving (when enabled) | zero all channels | restore telemetry; reactivate |
 | stale encoder/RPM while moving | zero all channels | restore feedback; reactivate |
 
 Normal feedback recovery does not clear the latch. This prevents intermittent

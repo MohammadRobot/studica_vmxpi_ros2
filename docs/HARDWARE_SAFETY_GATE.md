@@ -227,12 +227,17 @@ interfaces for read-only diagnostics:
 | `input_valid` | `1` only when both DIO reads succeeded |
 | `estop_ok` | `1` only when the active-low E-stop status contact is closed |
 | `enable_active` | `1` while the active-low local Start button requests enable |
-| `drive_healthy` | `1` when PID, temperature, feedback, and fault state permit motion |
+| `drive_healthy` | `1` when PID, feedback, fault state, and every enabled health check permit motion |
 | `motion_enabled` | `1` only while the hardware gate authorizes Titan output |
 | `gate_state` | `0` waiting, `1` ready, `2` enabled, `3` fault-latched |
 | `fault_reason` | `0` none, `1` input, `2` E-stop, `3` drive, `4` time |
 
 These interfaces are observability only and do not accept commands.
+
+The `titan_controller/temperature_safety_enabled` state interface separately
+reports whether controller temperature participates in the gate. A value of
+`0` preserves raw temperature telemetry for diagnosis while excluding the
+known-unreliable signal from motion authorization and fault latching.
 
 In hardware mode, `studica_robot_monitor` decodes them into the
 `Robot/Control/HardwareSafety` diagnostic. Missing, malformed, input-invalid,

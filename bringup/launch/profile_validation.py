@@ -454,6 +454,17 @@ def validate_profile_files(
         errors.append(
             f"{profile_name}: {profile_path} max_wheel_angular_velocity_rad_s must be > 0"
         )
+    titan_encoder_cpr = hw_cfg.get("titan_encoder_cpr", 0)
+    if (
+        not isinstance(titan_encoder_cpr, int)
+        or isinstance(titan_encoder_cpr, bool)
+        or titan_encoder_cpr < 0
+        or titan_encoder_cpr > 65535
+    ):
+        errors.append(
+            f"{profile_name}: {profile_path} hardware.titan_encoder_cpr "
+            "must be an int in [0, 65535]"
+        )
     for channel_name, channel in (
         ("estop_ok_dio_channel", estop_channel),
         ("local_enable_dio_channel", enable_channel),
@@ -495,7 +506,19 @@ def validate_profile_files(
         errors.append(
             f"{profile_name}: {profile_path} hardware.wheel_radius_calibrated must be bool"
         )
+    if "controller_temperature_safety_enabled" in hw_cfg and not isinstance(
+        hw_cfg["controller_temperature_safety_enabled"], bool
+    ):
+        errors.append(
+            f"{profile_name}: {profile_path} "
+            "hardware.controller_temperature_safety_enabled must be bool"
+        )
     if control_mode == "velocity_pid":
+        if titan_encoder_cpr == 0:
+            errors.append(
+                f"{profile_name}: {profile_path} velocity_pid mode requires "
+                "hardware.titan_encoder_cpr > 0"
+            )
         pid_cfg = hw_cfg.get("pid")
         if not isinstance(pid_cfg, dict):
             errors.append(f"{profile_name}: {profile_path} hardware.pid must be a mapping")

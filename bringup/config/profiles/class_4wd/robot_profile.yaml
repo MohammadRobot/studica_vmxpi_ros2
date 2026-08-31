@@ -49,6 +49,8 @@ drive:
 hardware:
   can_id: 42
   motor_freq: 15600
+  # Titan's internal S-curve convention for the 75001 Maverick is 732 CPR.
+  titan_encoder_cpr: 732
   ticks_per_rotation: 1464
   lidar_type: x2
   speed_scale: 0.5

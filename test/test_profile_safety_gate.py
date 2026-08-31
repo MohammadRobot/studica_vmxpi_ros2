@@ -43,6 +43,8 @@ def test_stack_4wd_uses_confirmed_safety_channels(tmp_path):
     safety = profile["hardware"]["safety_gate"]
     assert safety["estop_ok_dio_channel"] == 8
     assert safety["local_enable_dio_channel"] == 9
+    assert profile["hardware"]["titan_encoder_cpr"] == 732
+    assert profile["hardware"]["controller_temperature_safety_enabled"] is False
     assert validate(profile, tmp_path) == []
 
 
@@ -91,3 +93,19 @@ def test_invalid_gate_timings_are_rejected(tmp_path, key, value, message):
     profile = deepcopy(load_profile())
     profile["hardware"]["safety_gate"][key] = value
     assert any(message in error for error in validate(profile, tmp_path))
+
+
+def test_temperature_safety_mode_must_be_boolean(tmp_path):
+    profile = deepcopy(load_profile())
+    profile["hardware"]["controller_temperature_safety_enabled"] = "false"
+    assert any(
+        "controller_temperature_safety_enabled must be bool" in error
+        for error in validate(profile, tmp_path)
+    )
+
+
+@pytest.mark.parametrize("value", [0, -1, 65536, 732.0, True])
+def test_velocity_pid_requires_valid_titan_encoder_cpr(tmp_path, value):
+    profile = deepcopy(load_profile())
+    profile["hardware"]["titan_encoder_cpr"] = value
+    assert any("titan_encoder_cpr" in error for error in validate(profile, tmp_path))

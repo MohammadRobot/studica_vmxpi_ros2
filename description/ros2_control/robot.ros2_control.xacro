@@ -23,6 +23,7 @@
           <param name="can_id">${hardware_cfg['can_id']}</param>
           <param name="motor_freq">${hardware_cfg['motor_freq']}</param>
           <param name="ticks_per_rotation">${hardware_cfg['ticks_per_rotation']}</param>
+          <param name="titan_encoder_cpr">${hardware_cfg.get('titan_encoder_cpr', 0)}</param>
           <param name="wheel_radius">${drive_cfg['wheel_radius_m']}</param>
           <param name="speed_scale">${hardware_cfg['speed_scale']}</param>
           <param name="max_wheel_angular_velocity_rad_s">${hardware_cfg['max_wheel_angular_velocity_rad_s']}</param>
@@ -32,6 +33,7 @@
           <param name="pid_require_supported">${pid_cfg.get('require_supported', True)}</param>
           <param name="feedback_warn_timeout_ms">${hardware_cfg.get('feedback_warn_timeout_ms', 100)}</param>
           <param name="feedback_error_timeout_ms">${hardware_cfg.get('feedback_error_timeout_ms', 250)}</param>
+          <param name="controller_temperature_safety_enabled">${hardware_cfg.get('controller_temperature_safety_enabled', True)}</param>
           <param name="controller_temp_error_c">${hardware_cfg.get('controller_temp_error_c', 80.0)}</param>
           <param name="controller_temp_error_timeout_ms">${hardware_cfg.get('controller_temp_error_timeout_ms', 3000)}</param>
           <param name="wheel_radius_calibrated">${hardware_cfg.get('wheel_radius_calibrated', True)}</param>
@@ -138,6 +140,7 @@
         <sensor name="titan_controller">
           <state_interface name="controller_temperature"/>
           <state_interface name="temperature_age"/>
+          <state_interface name="temperature_safety_enabled"/>
           <state_interface name="pid_supported"/>
           <state_interface name="pid_type"/>
           <state_interface name="fault_latched"/>

@@ -202,7 +202,9 @@ Required observations before motor power is enabled:
 - `pid_supported` is true and `pid_type` is `2`;
 - `fault_latched` is false;
 - Titan firmware matches the supported family;
-- controller temperature is plausible and below the configured limit.
+- `temperature_safety_enabled` matches the approved profile; when it is `0`,
+  Titan temperature is a known untrusted diagnostic and must not be reported as
+  a healthy safety input.
 
 ### IMU data convention and physical checks
 

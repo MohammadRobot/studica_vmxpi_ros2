@@ -125,12 +125,14 @@ hardware_interface::CallbackReturn VmxSystemHardware::on_init(
   int can_id = 0;
   int motor_freq = 0;
   int ticks_per_rotation = 0;
+  int titan_encoder_cpr = 0;
   double wheel_radius = 0.0;
 
   if (
     !get_int_param("can_id", can_id) ||
     !get_int_param("motor_freq", motor_freq) ||
     !get_int_param("ticks_per_rotation", ticks_per_rotation) ||
+    !get_int_param("titan_encoder_cpr", titan_encoder_cpr) ||
     !get_double_param("wheel_radius", wheel_radius, true))
   {
     return hardware_interface::CallbackReturn::ERROR;
@@ -148,10 +150,20 @@ hardware_interface::CallbackReturn VmxSystemHardware::on_init(
       static_cast<unsigned>(std::numeric_limits<uint16_t>::max()));
     return hardware_interface::CallbackReturn::ERROR;
   }
+  if (
+    titan_encoder_cpr < 0 ||
+    titan_encoder_cpr > static_cast<int>(std::numeric_limits<uint16_t>::max()))
+  {
+    RCLCPP_ERROR(
+      get_logger(), "titan_encoder_cpr=%d is out of range [0, %u].",
+      titan_encoder_cpr, static_cast<unsigned>(std::numeric_limits<uint16_t>::max()));
+    return hardware_interface::CallbackReturn::ERROR;
+  }
 
   can_id_ = static_cast<uint8_t>(can_id);
   motor_freq_ = static_cast<uint16_t>(motor_freq);
   ticks_per_rotation_ = ticks_per_rotation;
+  titan_encoder_cpr_ = static_cast<uint16_t>(titan_encoder_cpr);
   wheel_radius_ = wheel_radius;
 
   if (!get_double_param("speed_scale", speed_scale_, false)) {
@@ -170,6 +182,9 @@ hardware_interface::CallbackReturn VmxSystemHardware::on_init(
       !get_bool_param("wheel_radius_calibrated", wheel_radius_calibrated_, false) ||
       !get_double_param("feedback_warn_timeout_ms", feedback_warn_timeout_ms, false) ||
       !get_double_param("feedback_error_timeout_ms", feedback_error_timeout_ms, false) ||
+      !get_bool_param(
+        "controller_temperature_safety_enabled",
+        controller_temperature_safety_enabled_, false) ||
       !get_double_param("controller_temp_error_c", controller_temp_error_c_, false) ||
       !get_double_param(
         "controller_temp_error_timeout_ms", controller_temp_error_timeout_ms, false) ||
@@ -221,6 +236,7 @@ hardware_interface::CallbackReturn VmxSystemHardware::on_init(
   feedback_warn_timeout_sec_ = feedback_warn_timeout_ms / 1000.0;
   feedback_error_timeout_sec_ = feedback_error_timeout_ms / 1000.0;
   controller_temp_error_timeout_sec_ = controller_temp_error_timeout_ms / 1000.0;
+  titan_temperature_safety_enabled_ = controller_temperature_safety_enabled_ ? 1.0 : 0.0;
   local_enable_gate_config_.enable_debounce_sec = enable_debounce_ms / 1000.0;
   local_enable_gate_config_.safe_release_sec = safe_release_ms / 1000.0;
   if (speed_scale_ < 0.0) {
@@ -655,6 +671,8 @@ std::vector<hardware_interface::StateInterface> VmxSystemHardware::export_state_
   state_interfaces.emplace_back(
     titan_sensor_name_, "temperature_age", &titan_temperature_age_sec_);
   state_interfaces.emplace_back(
+    titan_sensor_name_, "temperature_safety_enabled", &titan_temperature_safety_enabled_);
+  state_interfaces.emplace_back(
     titan_sensor_name_, "pid_supported", &titan_pid_supported_);
   state_interfaces.emplace_back(
     titan_sensor_name_, "pid_type", &titan_pid_type_);
@@ -708,11 +726,12 @@ bool VmxSystemHardware::drive_healthy() const noexcept
     return false;
   }
   if (
-    !temperature_seen_ ||
+    controller_temperature_safety_enabled_ &&
+    (!temperature_seen_ ||
     !velocity_pid_safety::safe_temperature_sample(
       titan_controller_temperature_c_, controller_temp_error_c_) ||
     !std::isfinite(titan_temperature_age_sec_) ||
-    titan_temperature_age_sec_ > controller_temp_error_timeout_sec_)
+    titan_temperature_age_sec_ > controller_temp_error_timeout_sec_))
   {
     return false;
   }
@@ -939,17 +958,27 @@ hardware_interface::CallbackReturn VmxSystemHardware::on_activate(
       RCLCPP_ERROR(get_logger(), "MCV2 velocity PID is unavailable; Titan activation refused.");
       return hardware_interface::CallbackReturn::ERROR;
     }
+    if (titan_encoder_cpr_ == 0) {
+      RCLCPP_ERROR(
+        get_logger(),
+        "velocity_pid mode requires a non-zero titan_encoder_cpr for the motor model.");
+      return hardware_interface::CallbackReturn::ERROR;
+    }
     for (const int motor : {
         left_front_motor_, left_rear_motor_, right_front_motor_, right_rear_motor_})
     {
       if (motor < 0) {
         continue;
       }
-      if (!titan_driver_->TrySetMotorPIDType(static_cast<uint8_t>(motor), pid_type_) ||
+      if (!titan_driver_->TrySetEncoderResolution(
+          static_cast<uint8_t>(motor), titan_encoder_cpr_) ||
+          !titan_driver_->TrySetMotorPIDType(static_cast<uint8_t>(motor), pid_type_) ||
           !titan_driver_->TrySetSensitivity(static_cast<uint8_t>(motor), pid_sensitivity_))
       {
         RCLCPP_ERROR(
-          get_logger(), "Failed to configure MCV2 PID for Titan motor %d.", motor);
+          get_logger(),
+          "Failed to configure Titan motor %d for MCV2 (encoder CPR=%u).", motor,
+          static_cast<unsigned>(titan_encoder_cpr_));
         stop_all_motors();
         return hardware_interface::CallbackReturn::ERROR;
       }
@@ -960,19 +989,26 @@ hardware_interface::CallbackReturn VmxSystemHardware::on_activate(
   // while outputs are still disabled so a startup frame cannot falsely latch motion.
   if (
     control_mode_ == MotorControlMode::VELOCITY_PID &&
+    controller_temperature_safety_enabled_ &&
     !wait_for_safe_controller_temperature())
   {
     stop_all_motors();
     titan_driver_->TryEnable(false);
     return hardware_interface::CallbackReturn::ERROR;
   }
+  if (!controller_temperature_safety_enabled_) {
+    RCLCPP_WARN(
+      get_logger(),
+      "Titan temperature telemetry is configured as untrusted and is excluded from "
+      "the motion safety gate; raw telemetry remains available for diagnosis.");
+  }
 
   RCLCPP_INFO(
     get_logger(),
     "Titan configured in %s mode but remains disabled pending the local safety gate "
-    "(PID type=%u sensitivity=%u).",
+    "(PID type=%u sensitivity=%u encoder CPR=%u).",
     control_mode_name_.c_str(), static_cast<unsigned>(pid_type_),
-    static_cast<unsigned>(pid_sensitivity_));
+    static_cast<unsigned>(pid_sensitivity_), static_cast<unsigned>(titan_encoder_cpr_));
 
   return hardware_interface::CallbackReturn::SUCCESS;
 }
@@ -1096,7 +1132,8 @@ hardware_interface::return_type VmxSystemHardware::read(
     [](double command) {
       return std::abs(command) > velocity_pid_safety::kMotionCommandEpsilon;
     });
-  if (velocity_pid_safety::temperature_fault(
+  if (controller_temperature_safety_enabled_ &&
+    velocity_pid_safety::temperature_fault(
       robot_moving, temperature_seen_, titan_controller_temperature_c_,
       titan_temperature_age_sec_, controller_temp_error_c_,
       controller_temp_error_timeout_sec_))

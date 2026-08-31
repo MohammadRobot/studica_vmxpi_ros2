@@ -118,6 +118,7 @@ private:
   uint8_t can_id_{0};
   uint16_t motor_freq_{0};
   int ticks_per_rotation_{0};
+  uint16_t titan_encoder_cpr_{0};
   double wheel_radius_{0.0};
   double dist_per_tick_{0.0};
   double speed_scale_{1.0};
@@ -131,6 +132,7 @@ private:
   bool wheel_radius_calibrated_{true};
   double feedback_warn_timeout_sec_{0.1};
   double feedback_error_timeout_sec_{0.25};
+  bool controller_temperature_safety_enabled_{true};
   double controller_temp_error_c_{80.0};
   double controller_temp_error_timeout_sec_{3.0};
   bool fault_latched_{false};
@@ -162,6 +164,7 @@ private:
   std::string safety_sensor_name_{"hardware_safety"};
   double titan_controller_temperature_c_{std::numeric_limits<double>::quiet_NaN()};
   double titan_temperature_age_sec_{std::numeric_limits<double>::infinity()};
+  double titan_temperature_safety_enabled_{1.0};
   double titan_pid_supported_{0.0};
   double titan_pid_type_{0.0};
   double titan_fault_latched_{0.0};
