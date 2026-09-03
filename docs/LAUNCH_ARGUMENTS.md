@@ -92,8 +92,8 @@ ros2 launch studica_vmxpi_ros2 mapping.launch.py mode:=hardware
 
 Hardware mode automatically uses the X2-tuned
 `slam_toolbox_hardware_mapper_params.yaml` and limits normal joystick motion to
-0.08 m/s and 0.25 rad/s. L1 is still required; the optional R1 turbo is limited
-to 0.12 m/s and 0.40 rad/s. The physical profile places scans with calibrated
+0.20 m/s and 0.60 rad/s. L1 is still required; the optional R1 turbo is limited
+to 0.30 m/s and 0.90 rad/s. The physical profile places scans with calibrated
 wheel/IMU odometry, disables continuous scan matching, and permits only strict
 high-confidence loop closure to correct return-to-start drift. Simulation retains
 `slam_toolbox_mapper_params.yaml`.

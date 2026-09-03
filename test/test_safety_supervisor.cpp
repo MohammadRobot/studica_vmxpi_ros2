@@ -13,8 +13,9 @@ namespace safety = studica_vmxpi_ros2::safety_supervisor;
 namespace
 {
 const std::vector<std::string> kHardwareSafetyNames = {
-  "input_valid", "estop_ok", "enable_active", "drive_healthy",
-  "motion_enabled", "gate_state", "fault_reason"};
+  "input_valid", "estop_ok", "start_active", "reset_active", "stop_ok",
+  "drive_healthy", "motion_enabled", "gate_state", "fault_reason",
+  "start_led_on", "stop_led_on"};
 }  // namespace
 
 TEST(SafetyStateMachine, BootsDisarmedAndRequiresAllArmConditions)
@@ -148,17 +149,20 @@ TEST(JoystickDeadmanGate, RequiresReleaseAfterArmAndInvalidState)
 TEST(HardwareSafetyDecode, AcceptsConsistentReadyEnabledAndFaultStates)
 {
   auto ready = safety::decode_hardware_safety(
-    kHardwareSafetyNames, {1.0, 1.0, 0.0, 1.0, 0.0, 1.0, 0.0});
+    kHardwareSafetyNames,
+    {1.0, 1.0, 0.0, 0.0, 1.0, 1.0, 0.0, 1.0, 0.0, 0.0, 1.0});
   EXPECT_TRUE(ready.encoding_valid);
   EXPECT_EQ(ready.gate_state, safety::HardwareGateState::READY);
 
   auto enabled = safety::decode_hardware_safety(
-    kHardwareSafetyNames, {1.0, 1.0, 1.0, 1.0, 1.0, 2.0, 0.0});
+    kHardwareSafetyNames,
+    {1.0, 1.0, 0.0, 0.0, 1.0, 1.0, 1.0, 2.0, 0.0, 1.0, 0.0});
   EXPECT_TRUE(enabled.encoding_valid);
   EXPECT_TRUE(enabled.motion_enabled);
 
   auto fault = safety::decode_hardware_safety(
-    kHardwareSafetyNames, {1.0, 0.0, 1.0, 1.0, 0.0, 3.0, 2.0});
+    kHardwareSafetyNames,
+    {1.0, 0.0, 0.0, 0.0, 1.0, 1.0, 0.0, 3.0, 2.0, 0.0, 1.0});
   EXPECT_TRUE(fault.encoding_valid);
   EXPECT_EQ(fault.fault_reason, safety::HardwareFaultReason::ESTOP_NOT_OK);
 }
@@ -171,21 +175,32 @@ TEST(HardwareSafetyDecode, RejectsMissingDuplicateNonfiniteAndInconsistentState)
   auto duplicate_names = kHardwareSafetyNames;
   duplicate_names.push_back("estop_ok");
   EXPECT_FALSE(safety::decode_hardware_safety(
-      duplicate_names, {1.0, 1.0, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0}).encoding_valid);
+      duplicate_names,
+      {1.0, 1.0, 0.0, 0.0, 1.0, 1.0, 0.0, 1.0, 0.0, 0.0, 1.0, 1.0})
+    .encoding_valid);
 
   auto extra_names = kHardwareSafetyNames;
   extra_names.push_back("unexpected");
   EXPECT_FALSE(safety::decode_hardware_safety(
-      extra_names, {1.0, 1.0, 0.0, 1.0, 0.0, 1.0, 0.0, 0.0}).encoding_valid);
+      extra_names,
+      {1.0, 1.0, 0.0, 0.0, 1.0, 1.0, 0.0, 1.0, 0.0, 0.0, 1.0, 0.0})
+    .encoding_valid);
 
   EXPECT_FALSE(safety::decode_hardware_safety(
       kHardwareSafetyNames,
-      {1.0, 1.0, 0.0, 1.0, 0.0, 1.0, std::numeric_limits<double>::infinity()})
+      {1.0, 1.0, 0.0, 0.0, 1.0, 1.0, 0.0, 1.0,
+        std::numeric_limits<double>::infinity(), 0.0, 1.0})
       .encoding_valid);
   EXPECT_FALSE(safety::decode_hardware_safety(
-      kHardwareSafetyNames, {1.0, 1.0, 0.0, 1.0, 1.0, 1.0, 0.0}).encoding_valid);
+      kHardwareSafetyNames,
+      {1.0, 1.0, 0.0, 0.0, 1.0, 1.0, 1.0, 1.0, 0.0, 1.0, 0.0})
+    .encoding_valid);
   EXPECT_FALSE(safety::decode_hardware_safety(
-      kHardwareSafetyNames, {1.0, 1.0, 1.0, 0.0, 1.0, 2.0, 0.0}).encoding_valid);
+      kHardwareSafetyNames,
+      {1.0, 1.0, 0.0, 0.0, 0.0, 1.0, 1.0, 2.0, 0.0, 1.0, 0.0})
+    .encoding_valid);
   EXPECT_FALSE(safety::decode_hardware_safety(
-      kHardwareSafetyNames, {1.0, 1.0, 0.0, 1.0, 0.0, 3.0, 0.0}).encoding_valid);
+      kHardwareSafetyNames,
+      {1.0, 1.0, 0.0, 0.0, 1.0, 1.0, 0.0, 3.0, 0.0, 0.0, 1.0})
+    .encoding_valid);
 }

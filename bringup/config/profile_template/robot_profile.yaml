@@ -55,8 +55,12 @@ hardware:
     # -1 is deliberately unconfigured and blocks physical hardware startup.
     # Replace both values only after the documented wiring inspection.
     estop_ok_dio_channel: -1
-    local_enable_dio_channel: -1
-    enable_debounce_ms: 100
+    start_button_dio_channel: -1
+    reset_button_dio_channel: -1
+    stop_ok_dio_channel: -1
+    start_led_dio_channel: -1
+    stop_led_dio_channel: -1
+    button_debounce_ms: 100
     safe_release_ms: 500
 
   # Valid indices: 0..3 for active motors, -1 for unused.

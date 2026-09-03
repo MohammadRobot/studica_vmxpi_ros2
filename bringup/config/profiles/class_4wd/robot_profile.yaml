@@ -49,8 +49,9 @@ drive:
 hardware:
   can_id: 42
   motor_freq: 15600
-  # Titan's internal S-curve convention for the 75001 Maverick is 732 CPR.
-  titan_encoder_cpr: 732
+  # Maverick x4 count at the 61:1 output. The physical stack_4wd fixture
+  # verified that 732 makes Titan 2.0.5 RPM feedback exactly 2x physical speed.
+  titan_encoder_cpr: 1464
   ticks_per_rotation: 1464
   lidar_type: x2
   speed_scale: 0.5
@@ -60,8 +61,12 @@ hardware:
   safety_gate:
     # Fail-closed placeholder pending physical FlexDIO wiring inspection.
     estop_ok_dio_channel: -1
-    local_enable_dio_channel: -1
-    enable_debounce_ms: 100
+    start_button_dio_channel: -1
+    reset_button_dio_channel: -1
+    stop_ok_dio_channel: -1
+    start_led_dio_channel: -1
+    stop_led_dio_channel: -1
+    button_debounce_ms: 100
     safe_release_ms: 500
   pid:
     type: mcv2

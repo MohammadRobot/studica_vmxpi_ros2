@@ -24,16 +24,20 @@ from std_srvs.srv import Trigger
 SAFETY_NAMES = [
     "input_valid",
     "estop_ok",
-    "enable_active",
+    "start_active",
+    "reset_active",
+    "stop_ok",
     "drive_healthy",
     "motion_enabled",
     "gate_state",
     "fault_reason",
+    "start_led_on",
+    "stop_led_on",
 ]
 
 
 def safety_message(values=None):
-    resolved = [1.0, 1.0, 0.0, 1.0, 0.0, 1.0, 0.0]
+    resolved = [1.0, 1.0, 0.0, 0.0, 1.0, 1.0, 0.0, 1.0, 0.0, 0.0, 1.0]
     if values is not None:
         resolved = values
     message = DynamicJointState()
@@ -132,7 +136,9 @@ def main():
             5.0,
         )
 
-        enabled = safety_message([1.0, 1.0, 1.0, 1.0, 1.0, 2.0, 0.0])
+        enabled = safety_message(
+            [1.0, 1.0, 0.0, 0.0, 1.0, 1.0, 1.0, 2.0, 0.0, 1.0, 0.0]
+        )
         spin_until(
             node,
             lambda: node.state == "READY_DISARMED"

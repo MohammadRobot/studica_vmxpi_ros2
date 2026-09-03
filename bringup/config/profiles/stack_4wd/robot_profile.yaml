@@ -53,9 +53,9 @@ drive:
 hardware:
   can_id: 42
   motor_freq: 15600
-  # Titan's internal S-curve convention for the 75001 Maverick is 732 CPR.
-  # ROS odometry separately uses 1464 quadrature counts per output revolution.
-  titan_encoder_cpr: 732
+  # Firmware 2.0.5 on this Titan consumes the Maverick's x4 output count.
+  # A timed manual revolution verified 1464; 732 makes reported RPM exactly 2x.
+  titan_encoder_cpr: 1464
   ticks_per_rotation: 1464
   lidar_type: x2
   speed_scale: 0.5
@@ -63,11 +63,15 @@ hardware:
   control_mode: velocity_pid
   wheel_radius_calibrated: true
   safety_gate:
-    # Confirmed active-low NC-to-ground inputs. Deployment remains gated by the
-    # motor-power-disconnected and lifted-wheel acceptance fixtures.
+    # E-stop and Stop are fail-closed NC-to-ground circuits. Start and Reset are
+    # momentary NO-to-ground inputs. Status LEDs are active-high 5 V modules.
     estop_ok_dio_channel: 8
-    local_enable_dio_channel: 9
-    enable_debounce_ms: 100
+    start_button_dio_channel: 9
+    reset_button_dio_channel: 10
+    stop_ok_dio_channel: 11
+    start_led_dio_channel: 12
+    stop_led_dio_channel: 13
+    button_debounce_ms: 100
     safe_release_ms: 500
   pid:
     type: mcv2

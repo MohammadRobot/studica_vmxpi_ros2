@@ -42,50 +42,65 @@ def test_stack_4wd_uses_confirmed_safety_channels(tmp_path):
     profile = load_profile()
     safety = profile["hardware"]["safety_gate"]
     assert safety["estop_ok_dio_channel"] == 8
-    assert safety["local_enable_dio_channel"] == 9
-    assert profile["hardware"]["titan_encoder_cpr"] == 732
+    assert safety["start_button_dio_channel"] == 9
+    assert safety["reset_button_dio_channel"] == 10
+    assert safety["stop_ok_dio_channel"] == 11
+    assert safety["start_led_dio_channel"] == 12
+    assert safety["stop_led_dio_channel"] == 13
+    assert profile["hardware"]["titan_encoder_cpr"] == 1464
     assert profile["hardware"]["controller_temperature_safety_enabled"] is False
     assert validate(profile, tmp_path) == []
 
 
-def test_unconfigured_pair_is_valid_but_remains_a_runtime_block(tmp_path):
+def test_unconfigured_panel_is_valid_but_remains_a_runtime_block(tmp_path):
     profile = deepcopy(load_profile())
     safety = profile["hardware"]["safety_gate"]
-    safety["estop_ok_dio_channel"] = -1
-    safety["local_enable_dio_channel"] = -1
+    for key in (
+        "estop_ok_dio_channel",
+        "start_button_dio_channel",
+        "reset_button_dio_channel",
+        "stop_ok_dio_channel",
+        "start_led_dio_channel",
+        "stop_led_dio_channel",
+    ):
+        safety[key] = -1
     assert validate(profile, tmp_path) == []
 
 
-def test_configured_distinct_flexdio_channels_are_valid(tmp_path):
+def test_configured_distinct_panel_channels_are_valid(tmp_path):
     profile = deepcopy(load_profile())
     safety = profile["hardware"]["safety_gate"]
-    safety["estop_ok_dio_channel"] = 10
-    safety["local_enable_dio_channel"] = 11
+    safety["estop_ok_dio_channel"] = 0
+    safety["start_button_dio_channel"] = 1
+    safety["reset_button_dio_channel"] = 2
+    safety["stop_ok_dio_channel"] = 3
+    safety["start_led_dio_channel"] = 4
+    safety["stop_led_dio_channel"] = 5
     assert validate(profile, tmp_path) == []
 
 
 @pytest.mark.parametrize(
-    ("estop_channel", "enable_channel", "message"),
+    ("estop_channel", "start_channel", "message"),
     [
-        (-1, 10, "must both be configured"),
+        (-1, 10, "must all be configured"),
         (10, 10, "must be different"),
         (30, 10, "must be -1 or in [0, 29]"),
     ],
 )
-def test_invalid_channel_pairs_are_rejected(
-    tmp_path, estop_channel, enable_channel, message
+def test_invalid_channel_sets_are_rejected(
+    tmp_path, estop_channel, start_channel, message
 ):
     profile = deepcopy(load_profile())
     safety = profile["hardware"]["safety_gate"]
     safety["estop_ok_dio_channel"] = estop_channel
-    safety["local_enable_dio_channel"] = enable_channel
+    safety["start_button_dio_channel"] = start_channel
     assert any(message in error for error in validate(profile, tmp_path))
 
 
 @pytest.mark.parametrize(
     ("key", "value", "message"),
     [
-        ("enable_debounce_ms", -1, "enable_debounce_ms must be >= 0"),
+        ("button_debounce_ms", -1, "button_debounce_ms must be >= 0"),
         ("safe_release_ms", 0, "safe_release_ms must be > 0"),
     ],
 )

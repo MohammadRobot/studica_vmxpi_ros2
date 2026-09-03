@@ -76,8 +76,8 @@ Controller-level state also exposes Titan temperature, temperature age, PID
 capability/type, fault latch, and firmware major/minor/patch.
 
 The `hardware_safety` sensor additionally exposes `input_valid`, `estop_ok`,
-`enable_active`, `drive_healthy`, `motion_enabled`, `gate_state`, and
-`fault_reason`. Their numeric contract is defined in
+`start_active`, `reset_active`, `stop_ok`, `drive_healthy`, `motion_enabled`,
+`gate_state`, `fault_reason`, `start_led_on`, and `stop_led_on`. Their numeric contract is defined in
 [Physical hardware safety gate](HARDWARE_SAFETY_GATE.md). They are read-only;
 the enforcement decision stays inside the hardware plugin.
 
@@ -93,7 +93,7 @@ The `stack_4wd` profile defaults to:
 hardware:
   feedback_warn_timeout_ms: 100
   feedback_error_timeout_ms: 250
-  titan_encoder_cpr: 732
+  titan_encoder_cpr: 1464
   controller_temperature_safety_enabled: false
   controller_temp_error_timeout_ms: 3000
 ```
@@ -101,10 +101,14 @@ hardware:
 Encoder/RPM feedback is expected much faster than Titan temperature, which is
 broadcast at approximately 1 Hz. The two timeouts must remain separate.
 
-For the 75001 Maverick motor, Titan's internal S-curve controller is explicitly
-programmed to 732 CPR on every hardware activation while output is disabled.
-ROS odometry independently uses 1464 quadrature counts per output-shaft
-revolution; the two values intentionally follow different counting conventions.
+For the 75001 Maverick motor, both Titan's internal S-curve controller and ROS
+odometry use 1464 quadrature counts per output-shaft revolution. A
+powered-disabled, manually timed revolution on Titan firmware 2.0.5 measured
+`6.386 rad` from encoder position but integrated to `12.799 rad` from RPM when
+the controller was programmed to 732. Historical evidence recorded before that
+override kept position and RPM consistent. The tested profile therefore
+programs 1464 while output is disabled and requires the guarded validator to
+reject position-versus-RPM disagreement.
 
 Stale encoder data at rest produces health information without creating motion.
 Stale data while a wheel is commanded is unsafe: all motors are zeroed and the

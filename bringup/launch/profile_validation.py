@@ -113,8 +113,12 @@ BOOL_HW_KEYS = tuple(k for k in REQUIRED_HW_KEYS if k.startswith("invert_"))
 
 REQUIRED_SAFETY_GATE_KEYS = (
     "estop_ok_dio_channel",
-    "local_enable_dio_channel",
-    "enable_debounce_ms",
+    "start_button_dio_channel",
+    "reset_button_dio_channel",
+    "stop_ok_dio_channel",
+    "start_led_dio_channel",
+    "stop_led_dio_channel",
+    "button_debounce_ms",
     "safe_release_ms",
 )
 
@@ -288,14 +292,21 @@ def validate_profile_files(
                     f"{profile_name}: {profile_path} missing "
                     f"hardware.safety_gate.{key}"
                 )
-        for channel_key in ("estop_ok_dio_channel", "local_enable_dio_channel"):
+        for channel_key in (
+            "estop_ok_dio_channel",
+            "start_button_dio_channel",
+            "reset_button_dio_channel",
+            "stop_ok_dio_channel",
+            "start_led_dio_channel",
+            "stop_led_dio_channel",
+        ):
             channel = safety_cfg.get(channel_key)
             if not isinstance(channel, int) or isinstance(channel, bool):
                 errors.append(
                     f"{profile_name}: {profile_path} "
                     f"hardware.safety_gate.{channel_key} must be an integer"
                 )
-        for timing_key in ("enable_debounce_ms", "safe_release_ms"):
+        for timing_key in ("button_debounce_ms", "safe_release_ms"):
             if not _is_number(safety_cfg.get(timing_key)):
                 errors.append(
                     f"{profile_name}: {profile_path} "
@@ -380,8 +391,12 @@ def validate_profile_files(
     speed_scale = float(hw_cfg["speed_scale"])
     max_wheel_rad_s = float(hw_cfg["max_wheel_angular_velocity_rad_s"])
     estop_channel = int(safety_cfg["estop_ok_dio_channel"])
-    enable_channel = int(safety_cfg["local_enable_dio_channel"])
-    enable_debounce_ms = float(safety_cfg["enable_debounce_ms"])
+    start_channel = int(safety_cfg["start_button_dio_channel"])
+    reset_channel = int(safety_cfg["reset_button_dio_channel"])
+    stop_channel = int(safety_cfg["stop_ok_dio_channel"])
+    start_led_channel = int(safety_cfg["start_led_dio_channel"])
+    stop_led_channel = int(safety_cfg["stop_led_dio_channel"])
+    button_debounce_ms = float(safety_cfg["button_debounce_ms"])
     safe_release_ms = float(safety_cfg["safe_release_ms"])
 
     if uses_physical_geometry:
@@ -467,26 +482,41 @@ def validate_profile_files(
         )
     for channel_name, channel in (
         ("estop_ok_dio_channel", estop_channel),
-        ("local_enable_dio_channel", enable_channel),
+        ("start_button_dio_channel", start_channel),
+        ("reset_button_dio_channel", reset_channel),
+        ("stop_ok_dio_channel", stop_channel),
+        ("start_led_dio_channel", start_led_channel),
+        ("stop_led_dio_channel", stop_led_channel),
     ):
         if channel < -1 or channel > 29:
             errors.append(
                 f"{profile_name}: {profile_path} "
                 f"hardware.safety_gate.{channel_name} must be -1 or in [0, 29]"
             )
-    if (estop_channel == -1) != (enable_channel == -1):
+    safety_channels = (
+        estop_channel,
+        start_channel,
+        reset_channel,
+        stop_channel,
+        start_led_channel,
+        stop_led_channel,
+    )
+    configured_channel_count = sum(channel >= 0 for channel in safety_channels)
+    if configured_channel_count not in (0, len(safety_channels)):
         errors.append(
-            f"{profile_name}: {profile_path} safety DIO channels must both be "
-            "configured or both be -1"
+            f"{profile_name}: {profile_path} safety DIO channels must all be "
+            "configured or all be -1"
         )
-    if estop_channel >= 0 and estop_channel == enable_channel:
+    if configured_channel_count == len(safety_channels) and len(set(safety_channels)) != len(
+        safety_channels
+    ):
         errors.append(
             f"{profile_name}: {profile_path} safety DIO channels must be different"
         )
-    if enable_debounce_ms < 0.0:
+    if button_debounce_ms < 0.0:
         errors.append(
             f"{profile_name}: {profile_path} "
-            "hardware.safety_gate.enable_debounce_ms must be >= 0"
+            "hardware.safety_gate.button_debounce_ms must be >= 0"
         )
     if safe_release_ms <= 0.0:
         errors.append(

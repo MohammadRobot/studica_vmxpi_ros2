@@ -86,7 +86,11 @@ private:
   void enforce_fault_stop();
   bool wait_for_safe_controller_temperature();
   bool drive_healthy() const noexcept;
+  bool drive_fault_conditions_clear() const noexcept;
+  bool fault_reset_path_ready();
+  void clear_drive_fault_latch() noexcept;
   local_enable_gate::Result update_local_enable_gate();
+  void update_status_leds(const local_enable_gate::Result & result) noexcept;
   void update_local_enable_state_interfaces(
     const local_enable_gate::Inputs & inputs,
     const local_enable_gate::Result & result) noexcept;
@@ -99,7 +103,11 @@ private:
   std::unique_ptr<studica_driver::Titan> titan_driver_;
   std::unique_ptr<studica_driver::Imu> imu_driver_;
   std::unique_ptr<studica_driver::DIO> estop_ok_input_;
-  std::unique_ptr<studica_driver::DIO> local_enable_input_;
+  std::unique_ptr<studica_driver::DIO> start_button_input_;
+  std::unique_ptr<studica_driver::DIO> reset_button_input_;
+  std::unique_ptr<studica_driver::DIO> stop_ok_input_;
+  std::unique_ptr<studica_driver::DIO> start_led_output_;
+  std::unique_ptr<studica_driver::DIO> stop_led_output_;
   std::unique_ptr<local_enable_gate::LocalEnableGate> local_enable_gate_;
   local_enable_gate::Config local_enable_gate_config_;
   std::vector<double> hw_positions_; // Store current joint positions
@@ -141,7 +149,11 @@ private:
   bool titan_output_enabled_{false};
 
   int estop_ok_dio_channel_{-1};
-  int local_enable_dio_channel_{-1};
+  int start_button_dio_channel_{-1};
+  int reset_button_dio_channel_{-1};
+  int stop_ok_dio_channel_{-1};
+  int start_led_dio_channel_{-1};
+  int stop_led_dio_channel_{-1};
 
   int left_front_motor_{-1};
   int left_rear_motor_{-1};
@@ -173,11 +185,15 @@ private:
   double titan_firmware_patch_{0.0};
   double safety_input_valid_{0.0};
   double safety_estop_ok_{0.0};
-  double safety_enable_active_{0.0};
+  double safety_start_active_{0.0};
+  double safety_reset_active_{0.0};
+  double safety_stop_ok_{0.0};
   double safety_drive_healthy_{0.0};
   double safety_motion_enabled_{0.0};
   double safety_gate_state_{0.0};
   double safety_fault_reason_{0.0};
+  double safety_start_led_on_{0.0};
+  double safety_stop_led_on_{0.0};
   std::chrono::steady_clock::time_point last_temperature_time_{};
   bool temperature_seen_{false};
   double imu_orientation_x_{0.0};

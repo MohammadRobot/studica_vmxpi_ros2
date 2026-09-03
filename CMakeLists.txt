@@ -123,6 +123,7 @@ unset(_conda_prefixes)
 
 find_package(backward_ros REQUIRED)
 find_package(ament_cmake REQUIRED)
+find_package(controller_manager REQUIRED)
 # Avoid Conda Python injecting non-system runtime paths into ROS binaries.
 set(Python3_FIND_VIRTUALENV STANDARD)
 set(Python3_FIND_STRATEGY LOCATION)
@@ -134,6 +135,7 @@ find_package(Python3 REQUIRED COMPONENTS Interpreter Development)
 find_package(builtin_interfaces REQUIRED)
 find_package(control_msgs REQUIRED)
 find_package(rclcpp REQUIRED)
+find_package(realtime_tools REQUIRED)
 find_package(geometry_msgs REQUIRED)
 find_package(nav_msgs REQUIRED)
 find_package(rcl_interfaces REQUIRED)
@@ -294,6 +296,11 @@ target_include_directories(safety_supervisor_node PRIVATE hardware/include)
 target_compile_features(safety_supervisor_node PUBLIC cxx_std_17)
 
 if(VMXPI_FOUND)
+  add_executable(vmx_control_node src/vmx_control_node.cpp)
+  ament_target_dependencies(
+    vmx_control_node controller_manager rclcpp realtime_tools)
+  target_compile_features(vmx_control_node PUBLIC cxx_std_17)
+
   add_executable(safety_input_check tools/safety_input_check.cpp)
   target_include_directories(safety_input_check PRIVATE
     ${VMXPI_INCLUDE_DIRS}
@@ -301,7 +308,18 @@ if(VMXPI_FOUND)
   )
   target_link_libraries(safety_input_check PRIVATE ${VMXPI_LIBRARIES})
   target_compile_features(safety_input_check PUBLIC cxx_std_17)
-  install(TARGETS safety_input_check DESTINATION lib/${PROJECT_NAME})
+
+  add_executable(safety_led_check tools/safety_led_check.cpp)
+  target_include_directories(safety_led_check PRIVATE
+    ${VMXPI_INCLUDE_DIRS}
+    /usr/local/include/vmxpi
+  )
+  target_link_libraries(safety_led_check PRIVATE ${VMXPI_LIBRARIES})
+  target_compile_features(safety_led_check PUBLIC cxx_std_17)
+  install(
+    TARGETS safety_input_check safety_led_check vmx_control_node
+    DESTINATION lib/${PROJECT_NAME}
+  )
 endif()
 
 install(TARGETS

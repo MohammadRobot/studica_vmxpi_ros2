@@ -77,9 +77,13 @@ struct HardwareSafetyStatus
   bool encoding_valid{false};
   bool input_valid{false};
   bool estop_ok{false};
-  bool enable_active{false};
+  bool start_active{false};
+  bool reset_active{false};
+  bool stop_ok{false};
   bool drive_healthy{false};
   bool motion_enabled{false};
+  bool start_led_on{false};
+  bool stop_led_on{false};
   HardwareGateState gate_state{HardwareGateState::FAULT_LATCHED};
   HardwareFaultReason fault_reason{HardwareFaultReason::INPUT_INVALID};
 };
@@ -139,7 +143,7 @@ inline HardwareSafetyStatus decode_hardware_safety(
   const std::vector<double> & values)
 {
   HardwareSafetyStatus status;
-  constexpr std::size_t expected_interface_count = 7U;
+  constexpr std::size_t expected_interface_count = 11U;
   if (
     names.size() != expected_interface_count ||
     values.size() != expected_interface_count)
@@ -161,21 +165,30 @@ inline HardwareSafetyStatus decode_hardware_safety(
 
   double input_valid = 0.0;
   double estop_ok = 0.0;
-  double enable_active = 0.0;
+  double start_active = 0.0;
+  double reset_active = 0.0;
+  double stop_ok = 0.0;
   double drive_healthy = 0.0;
   double motion_enabled = 0.0;
   double gate_state = 0.0;
   double fault_reason = 0.0;
+  double start_led_on = 0.0;
+  double stop_led_on = 0.0;
   if (
     !get_unique("input_valid", input_valid) ||
     !get_unique("estop_ok", estop_ok) ||
-    !get_unique("enable_active", enable_active) ||
+    !get_unique("start_active", start_active) ||
+    !get_unique("reset_active", reset_active) ||
+    !get_unique("stop_ok", stop_ok) ||
     !get_unique("drive_healthy", drive_healthy) ||
     !get_unique("motion_enabled", motion_enabled) ||
     !get_unique("gate_state", gate_state) ||
     !get_unique("fault_reason", fault_reason) ||
-    !binary(input_valid) || !binary(estop_ok) || !binary(enable_active) ||
-    !binary(drive_healthy) || !binary(motion_enabled))
+    !get_unique("start_led_on", start_led_on) ||
+    !get_unique("stop_led_on", stop_led_on) ||
+    !binary(input_valid) || !binary(estop_ok) || !binary(start_active) ||
+    !binary(reset_active) || !binary(stop_ok) || !binary(drive_healthy) ||
+    !binary(motion_enabled) || !binary(start_led_on) || !binary(stop_led_on))
   {
     return status;
   }
@@ -194,9 +207,13 @@ inline HardwareSafetyStatus decode_hardware_safety(
 
   status.input_valid = input_valid == 1.0;
   status.estop_ok = estop_ok == 1.0;
-  status.enable_active = enable_active == 1.0;
+  status.start_active = start_active == 1.0;
+  status.reset_active = reset_active == 1.0;
+  status.stop_ok = stop_ok == 1.0;
   status.drive_healthy = drive_healthy == 1.0;
   status.motion_enabled = motion_enabled == 1.0;
+  status.start_led_on = start_led_on == 1.0;
+  status.stop_led_on = stop_led_on == 1.0;
   status.gate_state = static_cast<HardwareGateState>(gate_state_value);
   status.fault_reason = static_cast<HardwareFaultReason>(fault_reason_value);
 
@@ -207,11 +224,15 @@ inline HardwareSafetyStatus decode_hardware_safety(
   const bool motion_consistent = status.motion_enabled ==
     (status.gate_state == HardwareGateState::ENABLED);
   const bool enabled_consistent = status.gate_state != HardwareGateState::ENABLED ||
-    (status.input_valid && status.estop_ok && status.enable_active && status.drive_healthy);
+    (status.input_valid && status.estop_ok && status.stop_ok && status.drive_healthy);
   const bool healthy_nonfault = is_fault ||
     (status.input_valid && status.estop_ok && status.drive_healthy);
+  const bool indicators_consistent =
+    status.start_led_on == status.motion_enabled &&
+    status.stop_led_on != status.start_led_on;
   status.encoding_valid =
-    fault_consistent && motion_consistent && enabled_consistent && healthy_nonfault;
+    fault_consistent && motion_consistent && enabled_consistent && healthy_nonfault &&
+    indicators_consistent;
   return status;
 }
 

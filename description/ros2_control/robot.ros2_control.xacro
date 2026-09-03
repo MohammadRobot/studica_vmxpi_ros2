@@ -38,8 +38,12 @@
           <param name="controller_temp_error_timeout_ms">${hardware_cfg.get('controller_temp_error_timeout_ms', 3000)}</param>
           <param name="wheel_radius_calibrated">${hardware_cfg.get('wheel_radius_calibrated', True)}</param>
           <param name="estop_ok_dio_channel">${safety_cfg.get('estop_ok_dio_channel', -1)}</param>
-          <param name="local_enable_dio_channel">${safety_cfg.get('local_enable_dio_channel', -1)}</param>
-          <param name="enable_debounce_ms">${safety_cfg.get('enable_debounce_ms', 100)}</param>
+          <param name="start_button_dio_channel">${safety_cfg.get('start_button_dio_channel', -1)}</param>
+          <param name="reset_button_dio_channel">${safety_cfg.get('reset_button_dio_channel', -1)}</param>
+          <param name="stop_ok_dio_channel">${safety_cfg.get('stop_ok_dio_channel', -1)}</param>
+          <param name="start_led_dio_channel">${safety_cfg.get('start_led_dio_channel', -1)}</param>
+          <param name="stop_led_dio_channel">${safety_cfg.get('stop_led_dio_channel', -1)}</param>
+          <param name="button_debounce_ms">${safety_cfg.get('button_debounce_ms', 100)}</param>
           <param name="safe_release_ms">${safety_cfg.get('safe_release_ms', 500)}</param>
 
           <param name="left_front_motor">${hardware_cfg['left_front_motor']}</param>
@@ -151,11 +155,15 @@
         <sensor name="hardware_safety">
           <state_interface name="input_valid"/>
           <state_interface name="estop_ok"/>
-          <state_interface name="enable_active"/>
+          <state_interface name="start_active"/>
+          <state_interface name="reset_active"/>
+          <state_interface name="stop_ok"/>
           <state_interface name="drive_healthy"/>
           <state_interface name="motion_enabled"/>
           <state_interface name="gate_state"/>
           <state_interface name="fault_reason"/>
+          <state_interface name="start_led_on"/>
+          <state_interface name="stop_led_on"/>
         </sensor>
         <sensor name="imu_sensor">
           <state_interface name="orientation.x"/>

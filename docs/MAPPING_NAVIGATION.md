@@ -94,8 +94,8 @@ ros2 launch studica_vmxpi_ros2 mapping.launch.py mode:=hardware
 ```
 
 The PC launch uses wall-clock time, starts RViz in the `map` frame, and applies
-conservative hardware teleop limits: 0.08 m/s and 0.25 rad/s normally, or
-0.12 m/s and 0.40 rad/s while R1 turbo is held. Motion still requires L1.
+validated hardware teleop limits: 0.20 m/s and 0.60 rad/s normally, or
+0.30 m/s and 0.90 rad/s while R1 turbo is held. Motion still requires L1.
 Release L1 before inspecting RViz or saving the map.
 
 `mode:=hardware` automatically selects

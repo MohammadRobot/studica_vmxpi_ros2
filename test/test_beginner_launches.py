@@ -43,6 +43,24 @@ class BeginnerLaunchContractTest(unittest.TestCase):
             with self.subTest(path=path.name):
                 py_compile.compile(str(path), doraise=True)
 
+    def test_physical_vmx_uses_managed_shutdown_control_node(self):
+        runtime = LAUNCH_DIR.joinpath("_robot_runtime.launch.py").read_text(
+            encoding="utf-8"
+        )
+        vmx_node = ROOT.joinpath("src", "vmx_control_node.cpp").read_text(
+            encoding="utf-8"
+        )
+
+        self.assertIn('executable="vmx_control_node"', runtime)
+        self.assertIn('executable="ros2_control_node"', runtime)
+        self.assertIn("rclcpp::SignalHandlerOptions::None", vmx_node)
+        self.assertIn("pthread_sigmask(SIG_BLOCK", vmx_node)
+        self.assertIn("sigtimedwait", vmx_node)
+        self.assertIn("control_thread.join();", vmx_node)
+        self.assertIn("executor_thread.join();", vmx_node)
+        self.assertIn("shutdown_controllers();", vmx_node)
+        self.assertIn("shutdown_hardware_components();", vmx_node)
+
     def test_every_launch_description_constructs(self):
         for index, path in enumerate(sorted(LAUNCH_DIR.glob("*.launch.py"))):
             with self.subTest(path=path.name):
@@ -103,8 +121,8 @@ class BeginnerLaunchContractTest(unittest.TestCase):
                 'package="joy"',
                 'package="teleop_twist_joy"',
                 '("cmd_vel", "/cmd_vel/joy")',
-                '"scale_linear.x": 0.08',
-                '"scale_angular.yaw": 0.25',
+                '"scale_linear.x": 0.20',
+                '"scale_angular.yaw": 0.60',
                 'default_value="true"',
                 '"use_joystick": use_joystick',
             ),

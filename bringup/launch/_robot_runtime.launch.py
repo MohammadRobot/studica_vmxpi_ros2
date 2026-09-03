@@ -797,14 +797,32 @@ def generate_launch_description():
         ],
     )
 
-    # Hardware-only control path (no simulation).
+    # Mock mode uses the standard controller manager. Physical VMX hardware
+    # uses a lifecycle-aware wrapper because the vendor HAL replaces the
+    # process SIGINT/SIGTERM handlers during construction.
     control_node = Node(
         package="controller_manager",
         executable="ros2_control_node",
         namespace="",
         parameters=[robot_description, robot_controllers, {"use_sim_time": use_sim_time_param}],
         output="screen",
-        condition=UnlessCondition(use_gz_sim),
+        condition=IfCondition(
+            PythonExpression(
+                _expr_is_false(use_gz_sim) + [" and "] + _expr_is_false(use_hardware)
+            )
+        ),
+    )
+    vmx_control_node = Node(
+        package="studica_vmxpi_ros2",
+        executable="vmx_control_node",
+        namespace="",
+        parameters=[robot_description, robot_controllers, {"use_sim_time": use_sim_time_param}],
+        output="screen",
+        condition=IfCondition(
+            PythonExpression(
+                _expr_is_false(use_gz_sim) + [" and "] + _expr_is_true(use_hardware)
+            )
+        ),
     )
 
     monitoring_launch = IncludeLaunchDescription(
@@ -866,6 +884,7 @@ def generate_launch_description():
         OpaqueFunction(function=_maybe_add_gz_sim_runtime_nodes),
         OpaqueFunction(function=_maybe_add_gz_sim_controller_spawners),
         control_node,
+        vmx_control_node,
         node_robot_state_publisher,
         base_footprint_tf,
         joint_state_broadcaster_spawner,

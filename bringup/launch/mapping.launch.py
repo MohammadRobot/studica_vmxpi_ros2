@@ -157,10 +157,10 @@ def generate_launch_description():
         parameters=[
             joystick_config_file,
             {
-                "scale_linear.x": 0.08,
-                "scale_linear_turbo.x": 0.12,
-                "scale_angular.yaw": 0.25,
-                "scale_angular_turbo.yaw": 0.40,
+                "scale_linear.x": 0.20,
+                "scale_linear_turbo.x": 0.30,
+                "scale_angular.yaw": 0.60,
+                "scale_angular_turbo.yaw": 0.90,
             },
         ],
         remappings=[("cmd_vel", "/cmd_vel/joy")],

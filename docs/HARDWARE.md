@@ -10,11 +10,11 @@ startup, navigation startup, or ordinary package tests.
 > **Current production phase:** the supervisor rejects network/software arm
 > requests, and the VMX/Titan plugin now enforces the local enable and E-stop
 > status gate. The operator confirmed FlexDIO channel 8 for E-stop status and
-> channel 9 for a momentary Start button used as hold-to-run enable. The
-> mapping is checked in but
-> is not deployed; motor-power-disconnected input acceptance passed on
-> 2026-08-28, while the lifted-wheel fault and recovery fixture remains
-> mandatory. Do not install boot services or perform floor motion.
+> channels 8--13 implement E-stop status, momentary Start, momentary Reset,
+> fail-closed NC Stop, Start LED, and Stop LED. Input, LED, lifted-wheel, and
+> supervised joystick/SLAM floor checks passed by 2026-09-03. Boot services
+> remain blocked until the independent hardware torque-removal and cold-boot
+> production gates pass.
 
 ## Roles and stop conditions
 
@@ -41,10 +41,8 @@ With motor power disabled:
 
 Then complete and record the circuit inspection in
 [Physical hardware safety gate](HARDWARE_SAFETY_GATE.md). The `stack_4wd`
-profile records E-stop channel 8 and local-enable channel 9. Do not deploy or
-start hardware bringup until the recorded input-only test confirms both
-active-low states with Titan motor power disconnected. That test passed for the
-reviewed 2026-08-28 acceptance checkout; lifted-wheel testing is the next gate.
+profile records the complete DIO 8--13 control panel. Do not deploy boot services
+until the recorded input, LED, lifted-wheel, floor, and cold-boot gates pass.
 
 The VMXPi remains powered for software checks only when the instructor considers
 that safe. Motor power stays disabled until the health report is understood.
@@ -145,6 +143,9 @@ sudo --preserve-env=ROS_DOMAIN_ID,RMW_IMPLEMENTATION,ROS_LOCALHOST_ONLY,CYCLONED
 
 This is one shell command even though it spans lines. Expected startup facts:
 
+- hardware launch uses `studica_vmxpi_ros2/vmx_control_node` and confirms
+  `SIGINT/SIGTERM reserved for ordered VMX shutdown`; mock and simulation keep
+  the generic controller manager;
 - Titan firmware probing succeeds;
 - firmware supports Titan2 MCV2 velocity PID;
 - PID type is `2` and sensitivity is `5`;
@@ -152,6 +153,13 @@ This is one shell command even though it spans lines. Expected startup facts:
 - the launch reports `Hardware ros2_control rate: 25 Hz`;
 - base, joint-state, and IMU controllers become active;
 - monitoring begins without commanding motion.
+
+On shutdown, require `Managed shutdown requested`, controller shutdown,
+`Titan Successfully deactivated!`, successful hardware `shutdown`, and
+`Managed VMX shutdown completed before HAL resource destruction` before the
+VMX RemoteServer and pigpio close. Treat any DIO/CAN error, failed zero/disable
+write, signal-handler stack trace, process abort, or SIGTERM escalation as a
+failed hardware gate.
 
 If the HAL reports permission or pigpio errors, stop and correct the root launch
 environment. Do not retry motion from the failed process.
@@ -226,16 +234,26 @@ is mounted at +90 degrees yaw, its X/Y sensor axes are not the same as the body
 X/Y axes; TF performs that rotation for consumers that need `base_link` data.
 
 The Titan `MCU_TEMP` payload contains whole and hundredths bytes but no unit
-flag. Firmware 2.0.5 has been confirmed on this platform to publish Fahrenheit;
-the low-level driver converts exactly that firmware to Celsius. Unknown
-firmware is never guessed, so an unexpectedly high value still fails the
-startup gate. `/robot_status/motors`, diagnostics, and the 80 °C comparison are
-always Celsius after the supported normalization.
+flag. Observations from firmware 2.0.5 on this controller have produced
+incompatible unit behavior, so the `stack_4wd` profile treats the decoded value
+as untrusted telemetry. It remains visible with its sample age, but it is
+excluded from startup authorization, `drive_healthy`, and fault latching. Do
+not label or use it as a Celsius safety measurement until a firmware-specific
+unit contract is independently verified. Other profiles retain temperature
+gating unless they have the same documented exception and equivalent
+independent safety controls.
 
 ## 6. Guarded lifted-wheel validation
 
 Enable motor power only after the safety operator confirms the stable lift and
 reachable emergency stop. No one touches the robot during this test.
+
+Before any commanded validation on a newly assembled or repaired robot, run the
+powered-disabled manual encoder mapping fixture documented in
+`HARDWARE_SAFETY_GATE.md`. A software label, changing encoder count, or reported
+RPM does not prove that the corresponding physical wheel is connected and
+turning. The manual mapping, shaft/hub check, and position-versus-RPM scale check
+are mandatory production acceptance evidence.
 
 ```bash
 ros2 run studica_robot_monitor validate_motors \
@@ -252,8 +270,8 @@ It always commands zero and attempts to restore the base controller on success,
 failure, timeout, cancellation, or process exit.
 
 The validator refuses to begin unless the live local hardware gate is
-`ENABLED`. The operator must continuously hold the momentary Start button for
-the test. Releasing it removes motion authorization and stops the run. The first
+`ENABLED`. Tap Start after the required Reset/safe-release sequence; Start
+release leaves authorization latched. Press Stop or E-stop to remove it. The first
 failed trial or blocking diagnostic also terminates the sequence; partial YAML
 evidence is saved atomically after each completed trial.
 
@@ -384,7 +402,12 @@ for the measured baseline and filter bounds.
 1. stop remote or local teleop;
 2. verify zero target and measured wheel velocities;
 3. disable motor power;
-4. press `Ctrl+C` in hardware bringup and wait for shutdown;
+4. press `Ctrl+C` in hardware bringup and require both
+   `Titan Successfully deactivated!` and
+   `Managed VMX shutdown completed before HAL resource destruction.`; any DIO
+   board-communication error, failed zero-target write, vendor `signal_func()`
+   stack trace, forced signal escalation, or nonzero exit fails the shutdown
+   gate;
 5. disconnect the battery according to the classroom procedure;
 6. save reports and record any WARN/FAIL observations.
 
