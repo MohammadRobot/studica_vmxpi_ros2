@@ -332,6 +332,14 @@ class ReleaseBundleTest(unittest.TestCase):
         cmake = ROOT.joinpath("CMakeLists.txt").read_text(encoding="utf-8")
         self.assertIn("STUDICA_PRODUCTION_INSTALL", cmake)
         self.assertIn("requires the VMXPi hardware interface", cmake)
+        production_install = cmake.split("# INSTALL", maxsplit=1)[1].split(
+            "else()", maxsplit=1
+        )[0]
+        self.assertNotIn("docs/", production_install)
+        target = ROOT.joinpath(
+            "deployment/systemd/studica-robot.target"
+        ).read_text(encoding="utf-8")
+        self.assertNotIn("/docs/", target)
 
 
 if __name__ == "__main__":

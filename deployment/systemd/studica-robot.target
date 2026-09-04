@@ -1,6 +1,5 @@
 [Unit]
 Description=Studica managed robot platform
-Documentation=file:/opt/studica/current/install/share/studica_vmxpi_ros2/docs/PRODUCTION_PLATFORM.md
 Requires=studica-firewall.service studica-hardware.service studica-mode-manager.service
 Requires=studica-update-recovery.service
 Wants=studica-orchestrator.service studica-lidar.service studica-joystick.service studica-web.service

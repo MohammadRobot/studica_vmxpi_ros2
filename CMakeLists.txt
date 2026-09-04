@@ -251,14 +251,6 @@ if(STUDICA_PRODUCTION_INSTALL)
     DESTINATION share/studica_vmxpi_ros2/deployment
     RENAME vmxpi-production-install-v1.json
   )
-  install(
-    FILES
-      docs/API_V1.md
-      docs/COMPANION.md
-      docs/PRODUCTION_PLATFORM.md
-      docs/SAFETY_ACCEPTANCE.md
-    DESTINATION share/studica_vmxpi_ros2/docs
-  )
   install(PROGRAMS
     scripts/audit_vmxpi_runtime.py
     scripts/create_support_bundle.py
