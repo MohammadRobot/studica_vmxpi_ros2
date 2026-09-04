@@ -41,8 +41,16 @@ MAX_TELEOP_LINEAR = 0.30
 MAX_TELEOP_ANGULAR = 0.90
 SESSION_LIFETIME_SEC = 8 * 60 * 60
 MAX_BROWSER_SESSIONS = 64
-ALLOW_INSECURE_HTTP = web.AppKey("allow_insecure_http", bool)
-OPERATOR_STATE = web.AppKey("operator_state", dict)
+
+# ``web.AppKey`` was added after the aiohttp release shipped by Ubuntu 22.04.
+# Keep typed keys on newer developer systems while using collision-resistant
+# string keys on the Humble production base image.
+if hasattr(web, "AppKey"):
+    ALLOW_INSECURE_HTTP = web.AppKey("allow_insecure_http", bool)
+    OPERATOR_STATE = web.AppKey("operator_state", dict)
+else:
+    ALLOW_INSECURE_HTTP = "studica.allow_insecure_http"
+    OPERATOR_STATE = "studica.operator_state"
 
 
 def status_to_dict(message: PlatformStatus) -> Dict[str, Any]:
