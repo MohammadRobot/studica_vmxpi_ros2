@@ -55,6 +55,7 @@ RUN rosdep init \
       < /opt/studica/hardware.repos \
     && cp /opt/studica/studica_vmxpi_ros2.package.xml \
       /tmp/studica-rosdep/src/studica_vmxpi_ros2/package.xml \
+    && apt-get -o Acquire::Retries=3 update \
     && rosdep --sources-cache-dir /opt/studica/rosdep-cache install \
       --from-paths /tmp/studica-rosdep/src \
       --ignore-src \
