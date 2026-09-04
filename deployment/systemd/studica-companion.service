@@ -1,0 +1,20 @@
+[Unit]
+Description=Studica Ubuntu companion autonomy daemon
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+ExecStart=%h/.local/bin/studica-companion-runtime
+Restart=on-failure
+RestartSec=3
+KillSignal=SIGINT
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectSystem=strict
+ProtectHome=read-only
+ReadWritePaths=%h/.cache/studica %h/.config/studica
+UMask=0077
+
+[Install]
+WantedBy=default.target

@@ -1,0 +1,7 @@
+[Unit]
+Description=Delay companion peer activation until pairing response is delivered
+
+[Timer]
+OnActiveSec=3s
+AccuracySec=500ms
+Unit=studica-peer-apply.service

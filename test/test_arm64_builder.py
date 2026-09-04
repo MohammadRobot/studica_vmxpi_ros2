@@ -193,7 +193,8 @@ class Arm64BuilderTest(unittest.TestCase):
             ROOT / "deployment/build_arm64_release_in_container.sh"
         ).read_text(encoding="utf-8")
         for variable in (
-            "HOME",
+            "XDG_CACHE_HOME",
+            "XDG_CONFIG_HOME",
             "PYTHONPYCACHEPREFIX",
             "ROS_LOG_DIR",
             "ROS_LOCALHOST_ONLY",

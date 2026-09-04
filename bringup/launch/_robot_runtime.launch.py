@@ -83,6 +83,47 @@ def _set_runtime_controller_file(context, *args, **kwargs):
     return actions
 
 
+def _maybe_add_delayed_rviz(context, *args, **kwargs):
+    """Resolve all scoped launch values before scheduling delayed RViz."""
+    del args, kwargs
+    if not _is_true(LaunchConfiguration("gui").perform(context).strip()):
+        return []
+    try:
+        delay = float(
+            LaunchConfiguration("rviz_start_delay").perform(context).strip()
+        )
+    except ValueError as error:
+        raise ValueError("rviz_start_delay must be numeric") from error
+    if not 0.0 <= delay <= 300.0:
+        raise ValueError("rviz_start_delay must be in [0, 300]")
+    rviz_env = {}
+    sanitized = _sanitize_ld_library_path_for_rviz()
+    if sanitized:
+        rviz_env["LD_LIBRARY_PATH"] = sanitized
+    rviz = Node(
+        package="rviz2",
+        executable="rviz2",
+        name="rviz2",
+        output="log",
+        parameters=[
+            {
+                "use_sim_time": _is_true(
+                    LaunchConfiguration("use_sim_time")
+                    .perform(context)
+                    .strip()
+                )
+            }
+        ],
+        arguments=[
+            "-d",
+            LaunchConfiguration("rviz_config_file").perform(context),
+        ],
+        additional_env=rviz_env,
+    )
+    # Gazebo wheel/odom TF can appear only after controllers are active.
+    return [TimerAction(period=delay, actions=[rviz])]
+
+
 def generate_launch_description():
     declared_arguments = [
         _declare_arg(
@@ -392,6 +433,11 @@ def generate_launch_description():
             "Monotonic command receive timeout enforced by the safety supervisor.",
         ),
         _declare_arg(
+            "safety_input_cmd_vel_topic",
+            "/cmd_vel",
+            "Application command topic consumed by the safety supervisor.",
+        ),
+        _declare_arg(
             "safety_max_linear_speed",
             "0.5",
             "Safety-supervisor absolute planar linear speed limit (m/s).",
@@ -403,7 +449,6 @@ def generate_launch_description():
         ),
     ]
 
-    gui = LaunchConfiguration("gui")
     use_hardware = LaunchConfiguration("use_hardware")
     use_gz_sim = LaunchConfiguration("use_gz_sim")
     use_sim_time = LaunchConfiguration("use_sim_time")
@@ -411,7 +456,6 @@ def generate_launch_description():
     use_ground_truth_odom_tf = LaunchConfiguration("use_ground_truth_odom_tf")
     use_imu_odometry = LaunchConfiguration("use_imu_odometry")
     robot_profile = LaunchConfiguration("robot_profile")
-    rviz_start_delay = LaunchConfiguration("rviz_start_delay")
     drive_controller_name = LaunchConfiguration("drive_controller_name")
     drive_controller_type = LaunchConfiguration("drive_controller_type")
     drive_cmd_topic = LaunchConfiguration("drive_cmd_topic")
@@ -432,7 +476,9 @@ def generate_launch_description():
                     PythonExpression(_expr_is_false(use_hardware)), value_type=bool
                 ),
                 "control_source": LaunchConfiguration("control_source"),
-                "input_cmd_vel_topic": "/cmd_vel",
+                "input_cmd_vel_topic": LaunchConfiguration(
+                    "safety_input_cmd_vel_topic"
+                ),
                 "joystick_cmd_vel_topic": "/cmd_vel/joy",
                 "joystick_state_topic": "/joy",
                 "joystick_deadman_button": ParameterValue(
@@ -509,11 +555,7 @@ def generate_launch_description():
         "use_sim_time": use_sim_time_param,
     }
 
-    rviz_config_file = LaunchConfiguration("rviz_config_file")
-    rviz_env = {}
     sanitized_ld_library_path = _sanitize_ld_library_path_for_rviz()
-    if sanitized_ld_library_path:
-        rviz_env["LD_LIBRARY_PATH"] = sanitized_ld_library_path
 
     node_robot_state_publisher = Node(
         package="robot_state_publisher",
@@ -763,23 +805,6 @@ def generate_launch_description():
         condition=UnlessCondition(use_gz_sim),
     )
 
-    rviz_node = Node(
-        package="rviz2",
-        executable="rviz2",
-        name="rviz2",
-        output="log",
-        parameters=[{"use_sim_time": use_sim_time_param}],
-        arguments=["-d", rviz_config_file],
-        additional_env=rviz_env,
-        condition=IfCondition(gui),
-    )
-    rviz_node_delayed = TimerAction(
-        # In Gazebo Sim, wheel/odom TF may appear only after ros2_control + broadcasters are active.
-        # Delay RViz to avoid startup TF errors (left_wheel/right_wheel/caster -> odom/base_link).
-        period=rviz_start_delay,
-        actions=[rviz_node],
-    )
-
     base_footprint_tf = Node(
         package="tf2_ros",
         executable="static_transform_publisher",
@@ -899,7 +924,7 @@ def generate_launch_description():
         drive_tf_relay_node_gt,
         drive_tf_relay_node,
         robot_controller_spawner,
-        rviz_node_delayed,
+        OpaqueFunction(function=_maybe_add_delayed_rviz),
         OpaqueFunction(function=_maybe_include_lidar),
         OpaqueFunction(function=_maybe_include_camera),
         monitoring_launch,

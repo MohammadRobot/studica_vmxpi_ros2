@@ -1,0 +1,34 @@
+[Unit]
+Description=Studica direct Bluetooth joystick runtime
+PartOf=studica-robot.target
+After=bluetooth.service studica-mode-manager.service
+Wants=bluetooth.service
+StartLimitIntervalSec=60
+StartLimitBurst=4
+
+[Service]
+Type=simple
+User=studica
+Group=studica
+SupplementaryGroups=input
+EnvironmentFile=-/etc/studica/robot.env
+ExecStart=/opt/studica/current/install/lib/studica_vmxpi_ros2/studica_hardware_runtime joystick
+Restart=on-failure
+RestartSec=3
+TimeoutStopSec=5
+KillSignal=SIGINT
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectSystem=strict
+ProtectHome=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+RestrictSUIDSGID=yes
+LockPersonality=yes
+ReadOnlyPaths=/dev
+UMask=0027
+SyslogIdentifier=studica-joystick
+
+[Install]
+WantedBy=studica-robot.target

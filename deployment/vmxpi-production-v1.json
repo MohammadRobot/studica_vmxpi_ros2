@@ -82,9 +82,18 @@
     "xrdp"
   ],
   "allowed_public_tcp_ports": [
-    22
+    22,
+    443
   ],
-  "allowed_public_udp_ports": [],
+  "allowed_public_udp_ports": [
+    5353
+  ],
+  "allowed_public_udp_ranges": [
+    [
+      17900,
+      18000
+    ]
+  ],
   "generic_hostnames": [
     "localhost",
     "raspberrypi",

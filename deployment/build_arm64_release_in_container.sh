@@ -41,10 +41,12 @@ source_setup_file() {
 [[ "${build_workers}" =~ ^[1-9][0-9]*$ ]] || die \
   "STUDICA_BUILD_WORKERS must be a positive integer"
 
-mkdir -p "${workspace}/build" "${workspace}/home" "${workspace}/install" \
-  "${workspace}/log/ros" "${workspace}/pycache" "${workspace}/vendor"
+mkdir -p "${workspace}/build" "${workspace}/cache" "${workspace}/config" \
+  "${workspace}/install" "${workspace}/log/ros" \
+  "${workspace}/pycache" "${workspace}/vendor"
 export GIT_OPTIONAL_LOCKS=0
-export HOME="${workspace}/home"
+export XDG_CACHE_HOME="${workspace}/cache"
+export XDG_CONFIG_HOME="${workspace}/config"
 export CMAKE_BUILD_PARALLEL_LEVEL="${build_workers}"
 export CTEST_PARALLEL_LEVEL="${build_workers}"
 export LD_LIBRARY_PATH="/usr/local/lib/vmxpi${LD_LIBRARY_PATH:+:${LD_LIBRARY_PATH}}"

@@ -53,7 +53,10 @@ class VmxpiRuntimeAuditTest(unittest.TestCase):
             unit_active=units,
             failed_units=(),
             installed_packages=(),
-            listeners=(AUDIT.Listener("tcp", "0.0.0.0", 22),),
+            listeners=(
+                AUDIT.Listener("tcp", "0.0.0.0", 22),
+                AUDIT.Listener("udp", "0.0.0.0", 17910),
+            ),
             wifi_power_save={"wlan0": "disable"},
             ufw_enabled=True,
             sshd_settings={

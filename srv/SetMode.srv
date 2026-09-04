@@ -1,0 +1,12 @@
+uint8 MODE_IDLE=0
+uint8 MODE_MANUAL_JOYSTICK=1
+uint8 MODE_MANUAL_WEB=2
+uint8 MODE_SLAM=3
+uint8 MODE_NAVIGATION=4
+uint8 MODE_DEVELOPER=5
+
+uint8 mode
+string map_id
+---
+bool accepted
+string message

@@ -1,0 +1,36 @@
+#!/usr/bin/env bash
+# Apply the fixed appliance firewall and network power policy.
+set -euo pipefail
+
+if [[ "${EUID}" -ne 0 ]]; then
+  echo "studica_network_guard must run as root" >&2
+  exit 77
+fi
+
+# This appliance owns its firewall policy. Reset removes any DDS exception
+# left by a crash or power loss while Developer/Autonomy mode was active.
+/usr/sbin/ufw --force reset
+/usr/sbin/ufw default deny incoming
+/usr/sbin/ufw default allow outgoing
+/usr/sbin/ufw allow 22/tcp comment "Studica recovery SSH"
+/usr/sbin/ufw allow 443/tcp comment "Studica HTTPS API"
+/usr/sbin/ufw allow 5353/udp comment "Studica mDNS"
+if [[ -s /etc/studica/companion-address ]]; then
+  IFS= read -r studica_companion_peer \
+    < /etc/studica/companion-address
+  if [[ -n "${studica_companion_peer}" ]]; then
+    /usr/sbin/ufw deny out to "${studica_companion_peer}" \
+      port 17900:18000 proto udp comment "Studica DDS closed"
+  fi
+fi
+/usr/sbin/ufw --force enable
+
+# Both the provisioned infrastructure connection and fallback hotspot must
+# keep radio power saving disabled for deterministic control latency.
+/usr/bin/nmcli connection modify "Studica fallback hotspot" \
+  802-11-wireless.powersave 2 >/dev/null 2>&1 || true
+/usr/bin/nmcli connection modify "Studica WiFi" \
+  802-11-wireless.powersave 2 >/dev/null 2>&1 || true
+
+/usr/sbin/sshd -t
+/usr/bin/systemctl reload ssh.service

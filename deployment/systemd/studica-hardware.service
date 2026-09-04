@@ -1,0 +1,35 @@
+[Unit]
+Description=Studica VMX/Titan hardware and safety runtime
+PartOf=studica-robot.target
+After=local-fs.target
+Before=studica-mode-manager.service
+StartLimitIntervalSec=60
+StartLimitBurst=4
+
+[Service]
+Type=simple
+User=root
+Group=studica
+EnvironmentFile=-/etc/studica/robot.env
+ExecStart=/opt/studica/current/install/lib/studica_vmxpi_ros2/studica_hardware_runtime hardware
+Restart=on-failure
+RestartSec=2
+TimeoutStartSec=45
+TimeoutStopSec=8
+KillMode=mixed
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectSystem=strict
+ProtectHome=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+RestrictSUIDSGID=yes
+LockPersonality=yes
+MemoryDenyWriteExecute=yes
+ReadWritePaths=/run/studica /var/lib/studica
+UMask=0027
+SyslogIdentifier=studica-hardware
+
+[Install]
+WantedBy=studica-robot.target

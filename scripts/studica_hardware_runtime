@@ -1,0 +1,37 @@
+#!/usr/bin/env bash
+# Start one allowlisted component from the active immutable release.
+set -euo pipefail
+
+release_root="${STUDICA_RELEASE_ROOT:-/opt/studica/current}"
+source /opt/ros/humble/setup.bash
+source "${release_root}/install/setup.bash"
+
+role="${1:-hardware}"
+case "${role}" in
+  hardware)
+    exec ros2 launch studica_vmxpi_ros2 robot.launch.py \
+      robot_profile:=stack_4wd \
+      use_lidar:=false \
+      use_camera:=false \
+      use_monitoring:=true \
+      use_joystick:=false \
+      control_source:=application \
+      safety_input_cmd_vel_topic:=/robot/platform/cmd_vel
+    ;;
+  mode-manager)
+    exec ros2 run studica_vmxpi_ros2 studica_mode_manager.py
+    ;;
+  joystick)
+    exec ros2 launch studica_vmxpi_ros2 _platform_joystick.launch.py
+    ;;
+  web)
+    exec ros2 run studica_vmxpi_ros2 studica_web_server.py
+    ;;
+  orchestrator)
+    exec ros2 run studica_vmxpi_ros2 studica_orchestrator.py
+    ;;
+  *)
+    echo "unsupported Studica runtime role: ${role}" >&2
+    exit 64
+    ;;
+esac

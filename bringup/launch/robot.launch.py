@@ -34,6 +34,7 @@ def generate_launch_description():
     joystick_deadman_button = LaunchConfiguration("joystick_deadman_button")
     use_imu_odometry = LaunchConfiguration("use_imu_odometry")
     hardware_control_rate_hz = LaunchConfiguration("hardware_control_rate_hz")
+    safety_input_cmd_vel_topic = LaunchConfiguration("safety_input_cmd_vel_topic")
 
     arguments = [
         DeclareLaunchArgument(
@@ -106,6 +107,11 @@ def generate_launch_description():
             description="ros2_control update and odometry publication rate in hardware mode.",
         ),
         DeclareLaunchArgument(
+            "safety_input_cmd_vel_topic",
+            default_value="/cmd_vel",
+            description="Application command input to the hardware safety supervisor.",
+        ),
+        DeclareLaunchArgument(
             "use_imu_odometry",
             default_value="true",
             description="Fuse encoder forward velocity with IMU yaw and publish the hardware odom TF.",
@@ -147,6 +153,7 @@ def generate_launch_description():
             "control_source": control_source,
             "joystick_deadman_button": joystick_deadman_button,
             "hardware_control_rate_hz": hardware_control_rate_hz,
+            "safety_input_cmd_vel_topic": safety_input_cmd_vel_topic,
             "use_imu_odometry": use_imu_odometry,
             "foxglove_address": foxglove_address,
             "foxglove_port": foxglove_port,

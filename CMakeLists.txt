@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.16)
-project(studica_vmxpi_ros2 LANGUAGES CXX)
+project(studica_vmxpi_ros2 LANGUAGES C CXX)
 include(CTest)
 option(
   STUDICA_PRODUCTION_INSTALL
@@ -123,6 +123,8 @@ unset(_conda_prefixes)
 
 find_package(backward_ros REQUIRED)
 find_package(ament_cmake REQUIRED)
+find_package(ament_cmake_python REQUIRED)
+find_package(rosidl_default_generators REQUIRED)
 find_package(controller_manager REQUIRED)
 # Avoid Conda Python injecting non-system runtime paths into ROS binaries.
 set(Python3_FIND_VIRTUALENV STANDARD)
@@ -134,6 +136,7 @@ endif()
 find_package(Python3 REQUIRED COMPONENTS Interpreter Development)
 find_package(builtin_interfaces REQUIRED)
 find_package(control_msgs REQUIRED)
+find_package(diagnostic_msgs REQUIRED)
 find_package(rclcpp REQUIRED)
 find_package(realtime_tools REQUIRED)
 find_package(geometry_msgs REQUIRED)
@@ -147,25 +150,40 @@ foreach(Dependency IN ITEMS ${THIS_PACKAGE_INCLUDE_DEPENDS})
   find_package(${Dependency} REQUIRED)
 endforeach()
 
+rosidl_generate_interfaces(${PROJECT_NAME}
+  "msg/CompanionHeartbeat.msg"
+  "msg/PlatformStatus.msg"
+  "srv/SaveMap.srv"
+  "srv/SetDeveloperMode.srv"
+  "srv/SetMode.srv"
+  "srv/SetSensor.srv"
+  DEPENDENCIES builtin_interfaces
+)
+
+ament_python_install_package(studica_robot_platform)
+
 ## COMPILE
 add_library(
-  studica_vmxpi_ros2
+  studica_vmxpi_ros2_hardware
   SHARED
   hardware/sim_system.cpp
 )
+set_target_properties(studica_vmxpi_ros2_hardware PROPERTIES
+  OUTPUT_NAME studica_vmxpi_ros2
+)
 
 if(VMXPI_FOUND)
-  target_sources(studica_vmxpi_ros2
+  target_sources(studica_vmxpi_ros2_hardware
     PRIVATE
     hardware/vmx_system.cpp
   )
 
-  target_include_directories(studica_vmxpi_ros2 PRIVATE
+  target_include_directories(studica_vmxpi_ros2_hardware PRIVATE
     ${VMXPI_INCLUDE_DIRS}
     /usr/local/include/vmxpi
   )
 
-  target_link_libraries(studica_vmxpi_ros2
+  target_link_libraries(studica_vmxpi_ros2_hardware
     PUBLIC
     ${VMXPI_LIBRARIES}
   )
@@ -173,13 +191,13 @@ else()
   message(WARNING "Skipping compilation of hardware interface code.")
 endif()
 
-target_compile_features(studica_vmxpi_ros2 PUBLIC cxx_std_17)
-target_include_directories(studica_vmxpi_ros2 PUBLIC
+target_compile_features(studica_vmxpi_ros2_hardware PUBLIC cxx_std_17)
+target_include_directories(studica_vmxpi_ros2_hardware PUBLIC
   $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/hardware/include>
   $<INSTALL_INTERFACE:include/studica_vmxpi_ros2>
 )
 ament_target_dependencies(
-  studica_vmxpi_ros2 PUBLIC
+  studica_vmxpi_ros2_hardware PUBLIC
   ${THIS_PACKAGE_INCLUDE_DEPENDS}
 )
 
@@ -213,6 +231,7 @@ if(STUDICA_PRODUCTION_INSTALL)
       bringup/launch/_lidar_hw.launch.py
       bringup/launch/_robot_runtime.launch.py
       bringup/launch/bringup.launch.py
+      bringup/launch/_platform_joystick.launch.py
       bringup/launch/profile_validation.py
       bringup/launch/robot.launch.py
     DESTINATION share/studica_vmxpi_ros2/launch
@@ -232,10 +251,32 @@ if(STUDICA_PRODUCTION_INSTALL)
     DESTINATION share/studica_vmxpi_ros2/deployment
     RENAME vmxpi-production-install-v1.json
   )
+  install(
+    FILES
+      docs/API_V1.md
+      docs/COMPANION.md
+      docs/PRODUCTION_PLATFORM.md
+      docs/SAFETY_ACCEPTANCE.md
+    DESTINATION share/studica_vmxpi_ros2/docs
+  )
   install(PROGRAMS
     scripts/audit_vmxpi_runtime.py
+    scripts/create_support_bundle.py
     scripts/point_cloud_filter.py
+    scripts/install_robot_platform.py
+    scripts/studica_first_boot.py
+    scripts/studica_hardware_runtime
+    scripts/studica_mode_manager.py
+    scripts/studica_network_guard
+    scripts/studica_orchestrator.py
+    scripts/studica_sensor_runtime
+    scripts/studica_update_agent.py
+    scripts/studica_web_server.py
     DESTINATION lib/${PROJECT_NAME}
+  )
+  install(
+    DIRECTORY deployment/systemd deployment/config web
+    DESTINATION share/${PROJECT_NAME}/deployment
   )
 else()
   install(
@@ -270,15 +311,32 @@ else()
     scripts/audit_vmxpi_runtime.py
     scripts/build_release_bundle.py
     scripts/configure_cyclonedds.py
+    scripts/create_support_bundle.py
     scripts/create_profile.sh
     scripts/depth_to_pointcloud.py
     scripts/install_git_hooks.sh
+    scripts/install_companion.py
     scripts/point_cloud_filter.py
     scripts/run_waypoint_route.py
     scripts/check_project.sh
+    scripts/install_robot_platform.py
+    scripts/studica_first_boot.py
+    scripts/studica_companion.py
+    scripts/studica_hardware_runtime
+    scripts/studica_mode_manager.py
+    scripts/studica_network_guard
+    scripts/studica_orchestrator.py
+    scripts/studica_sensor_runtime
+    scripts/studica_update_agent.py
+    scripts/studica_web_server.py
+    scripts/sign_release_manifest.py
     scripts/validate_production_manifest.py
     scripts/validate_profiles.py
     DESTINATION lib/${PROJECT_NAME}
+  )
+  install(
+    DIRECTORY deployment/systemd deployment/config web
+    DESTINATION share/${PROJECT_NAME}/deployment
   )
 endif()
 
@@ -328,7 +386,7 @@ install(TARGETS
   DESTINATION lib/${PROJECT_NAME}
 )
 
-install(TARGETS studica_vmxpi_ros2
+install(TARGETS studica_vmxpi_ros2_hardware
   EXPORT export_studica_vmxpi_ros2
   ARCHIVE DESTINATION lib
   LIBRARY DESTINATION lib
@@ -459,6 +517,17 @@ if(BUILD_TESTING)
     COMMAND ${Python3_EXECUTABLE} -m pytest -q
       ${CMAKE_CURRENT_SOURCE_DIR}/examples/python/tests/test_python_examples.py
   )
+  ament_add_test(
+    validate_platform_python
+    GENERATE_RESULT_FOR_RETURN_CODE_ZERO
+    COMMAND ${Python3_EXECUTABLE} -m pytest -q
+      ${CMAKE_CURRENT_SOURCE_DIR}/test/test_platform_model.py
+      ${CMAKE_CURRENT_SOURCE_DIR}/test/test_map_registry.py
+      ${CMAKE_CURRENT_SOURCE_DIR}/test/test_pairing.py
+      ${CMAKE_CURRENT_SOURCE_DIR}/test/test_platform_deployment.py
+      ${CMAKE_CURRENT_SOURCE_DIR}/test/test_signed_updates.py
+      ${CMAKE_CURRENT_SOURCE_DIR}/test/test_web_security.py
+  )
   set(_mock_runtime_arguments --mode mock)
   if(STUDICA_PRODUCTION_INSTALL)
     # Production artifacts intentionally contain only their qualified hardware
@@ -490,6 +559,13 @@ if(BUILD_TESTING)
     TIMEOUT 40
     COMMAND ${Python3_EXECUTABLE}
       ${CMAKE_CURRENT_SOURCE_DIR}/test/test_joystick_supervisor_runtime.py
+  )
+  ament_add_test(
+    validate_mode_manager_runtime
+    GENERATE_RESULT_FOR_RETURN_CODE_ZERO
+    TIMEOUT 40
+    COMMAND ${Python3_EXECUTABLE}
+      ${CMAKE_CURRENT_SOURCE_DIR}/test/test_mode_manager_runtime.py
   )
   ament_add_test(
     validate_headless_gz_runtime

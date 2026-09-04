@@ -14,7 +14,7 @@ from launch.substitutions import (
     PathJoinSubstitution,
     PythonExpression,
 )
-from launch_ros.actions import Node
+from launch_ros.actions import Node, SetRemap
 from launch_ros.substitutions import FindPackageShare
 
 _THIS_DIR = Path(__file__).resolve().parent
@@ -268,24 +268,33 @@ def generate_launch_description():
         condition=simulation_point_cloud,
     )
 
-    nav2 = deferred_include(
-        "nav2_bringup",
-        "bringup_launch.py",
-        {
-            "slam": "False",
-            "map": map_file,
-            "params_file": Nav2PointCloudParams(
-                source_file=nav2_params_file,
-                enabled=use_point_cloud,
-                profile_file=robot_profile_file,
-                hardware_mode=hardware_mode,
-                hardware_max_linear_speed=hardware_max_linear_speed,
-                hardware_max_angular_speed=hardware_max_angular_speed,
+    nav2 = GroupAction(
+        actions=[
+            # Humble's behavior_server recovery plugins publish on the absolute
+            # /cmd_vel topic, bypassing the velocity smoother. Feed those
+            # commands into the same pre-smoother topic as controller_server so
+            # the safety supervisor sees exactly one robot-facing publisher.
+            SetRemap(src="/cmd_vel", dst="/cmd_vel_nav"),
+            deferred_include(
+                "nav2_bringup",
+                "bringup_launch.py",
+                {
+                    "slam": "False",
+                    "map": map_file,
+                    "params_file": Nav2PointCloudParams(
+                        source_file=nav2_params_file,
+                        enabled=use_point_cloud,
+                        profile_file=robot_profile_file,
+                        hardware_mode=hardware_mode,
+                        hardware_max_linear_speed=hardware_max_linear_speed,
+                        hardware_max_angular_speed=hardware_max_angular_speed,
+                    ),
+                    "use_sim_time": use_sim_time,
+                    "autostart": autostart,
+                    "use_composition": "False",
+                },
             ),
-            "use_sim_time": use_sim_time,
-            "autostart": autostart,
-            "use_composition": "False",
-        },
+        ]
     )
 
     return LaunchDescription(

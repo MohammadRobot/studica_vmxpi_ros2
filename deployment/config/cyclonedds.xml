@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<CycloneDDS xmlns="https://cdds.io/config">
+  <Domain Id="any">
+    <General>
+      <AllowMulticast>false</AllowMulticast>
+      <Interfaces>
+        <NetworkInterface autodetermine="true" priority="default" multicast="false" />
+      </Interfaces>
+    </General>
+    <Discovery>
+      <ParticipantIndex>auto</ParticipantIndex>
+      <MaxAutoParticipantIndex>32</MaxAutoParticipantIndex>
+      <Peers AddLocalhost="true">
+        <!-- First boot adds the explicitly approved companion peer here. -->
+      </Peers>
+    </Discovery>
+  </Domain>
+</CycloneDDS>

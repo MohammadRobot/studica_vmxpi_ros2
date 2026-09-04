@@ -251,16 +251,20 @@ def _runtime_actions(context, *args, **kwargs):
         "drive_cmd_topic": drive_cmd_topic,
         "drive_odom_topic": drive_odom_topic,
         "rviz_config_file": rviz_config_file,
+        "rviz_start_delay": LaunchConfiguration("rviz_start_delay"),
         "robot_profile": robot_profile,
         "control_source": control_source,
         "joystick_deadman_button": joystick_deadman_button,
+        "safety_input_cmd_vel_topic": LaunchConfiguration(
+            "safety_input_cmd_vel_topic"
+        ),
     }
 
     robot_runtime = IncludeLaunchDescription(
-            PythonLaunchDescriptionSource(
-                os.path.join(pkg_share, "launch", "_robot_runtime.launch.py")
-            ),
-            launch_arguments=robot_launch_args.items(),
+        PythonLaunchDescriptionSource(
+            os.path.join(pkg_share, "launch", "_robot_runtime.launch.py")
+        ),
+        launch_arguments=robot_launch_args.items(),
     )
     joystick = Node(
         package="joy",
@@ -302,6 +306,11 @@ def generate_launch_description():
                     [FindPackageShare("studica_vmxpi_ros2"), "description/robot/rviz", "robot.rviz"]
                 ),
                 "Absolute path to RViz config file.",
+            ),
+            _declare_arg(
+                "rviz_start_delay",
+                "10.0",
+                "Delay before starting RViz2 (seconds).",
             ),
             _declare_arg(
                 "robot_profile",
@@ -462,6 +471,11 @@ def generate_launch_description():
                 "joystick_deadman_button",
                 "4",
                 "Raw /joy button index independently required by the safety supervisor.",
+            ),
+            _declare_arg(
+                "safety_input_cmd_vel_topic",
+                "/cmd_vel",
+                "Application command topic consumed by the safety supervisor.",
             ),
             _declare_arg(
                 "foxglove_address",

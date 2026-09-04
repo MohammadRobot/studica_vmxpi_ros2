@@ -146,6 +146,18 @@ def load_profile(path: Path) -> dict[str, Any]:
         raise ValueError("runtime profile Wi-Fi interface list is invalid")
     if network.get("required_wifi_power_save") != "disable":
         raise ValueError("runtime profile must explicitly disable Wi-Fi power saving")
+    udp_ranges = profile.get("allowed_public_udp_ranges", [])
+    if (
+        not isinstance(udp_ranges, list)
+        or any(
+            not isinstance(item, list)
+            or len(item) != 2
+            or any(not isinstance(port, int) for port in item)
+            or not 1 <= item[0] <= item[1] <= 65535
+            for item in udp_ranges
+        )
+    ):
+        raise ValueError("runtime profile UDP port ranges are invalid")
     return profile
 
 
@@ -593,9 +605,18 @@ def evaluate_snapshot(
 
     permitted_tcp_ports = set(profile["allowed_public_tcp_ports"]) | set(allowed_ports)
     permitted_udp_ports = set(profile["allowed_public_udp_ports"]) | set(allowed_udp_ports)
+    permitted_udp_ranges = profile.get("allowed_public_udp_ranges", [])
     for listener in snapshot.listeners:
         permitted_ports = permitted_tcp_ports if listener.protocol == "tcp" else permitted_udp_ports
-        if listener.public and listener.port not in permitted_ports:
+        allowed_by_range = listener.protocol == "udp" and any(
+            lower <= listener.port <= upper
+            for lower, upper in permitted_udp_ranges
+        )
+        if (
+            listener.public
+            and listener.port not in permitted_ports
+            and not allowed_by_range
+        ):
             findings.append(
                 Finding(
                     f"public-{listener.protocol}:{listener.port}",

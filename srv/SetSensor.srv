@@ -1,0 +1,5 @@
+string sensor
+bool enabled
+---
+bool accepted
+string message

@@ -1,0 +1,34 @@
+[Unit]
+Description=Studica LiDAR runtime
+PartOf=studica-robot.target
+After=studica-hardware.service
+StartLimitIntervalSec=60
+StartLimitBurst=4
+
+[Service]
+Type=simple
+User=studica
+Group=studica
+SupplementaryGroups=dialout
+EnvironmentFile=-/etc/studica/robot.env
+ExecStart=/opt/studica/current/install/lib/studica_vmxpi_ros2/studica_sensor_runtime lidar
+Restart=on-failure
+RestartSec=3
+TimeoutStartSec=30
+TimeoutStopSec=5
+KillSignal=SIGINT
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectSystem=strict
+ProtectHome=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+RestrictSUIDSGID=yes
+LockPersonality=yes
+ReadOnlyPaths=/dev
+UMask=0027
+SyslogIdentifier=studica-lidar
+
+[Install]
+WantedBy=studica-robot.target

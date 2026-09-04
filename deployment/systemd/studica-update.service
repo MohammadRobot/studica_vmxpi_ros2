@@ -1,0 +1,24 @@
+[Unit]
+Description=Studica signed release update check
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=studica-update
+Group=studica-update
+EnvironmentFile=-/etc/studica/robot.env
+ExecStart=/opt/studica/current/install/lib/studica_vmxpi_ros2/studica_update_agent.py check
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectSystem=strict
+ProtectHome=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+RestrictSUIDSGID=yes
+LockPersonality=yes
+MemoryDenyWriteExecute=yes
+ReadWritePaths=/var/lib/studica/updates
+UMask=0077
+SyslogIdentifier=studica-update

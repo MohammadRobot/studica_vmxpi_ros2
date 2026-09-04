@@ -74,6 +74,16 @@ class BeginnerLaunchContractTest(unittest.TestCase):
                 description = module.generate_launch_description()
                 self.assertGreater(len(description.entities), 0)
 
+    def test_delayed_rviz_resolves_values_before_timer_scope(self):
+        runtime = (LAUNCH_DIR / "_robot_runtime.launch.py").read_text(
+            encoding="utf-8"
+        )
+        self.assertIn("def _maybe_add_delayed_rviz", runtime)
+        self.assertIn(
+            "OpaqueFunction(function=_maybe_add_delayed_rviz)", runtime
+        )
+        self.assertNotIn("period=rviz_start_delay", runtime)
+
     def test_beginner_defaults_and_joystick_policy(self):
         expected = {
             "sim.launch.py": (

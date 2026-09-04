@@ -1,0 +1,199 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Studica Robot</title>
+    <link rel="stylesheet" href="/assets/app.css">
+  </head>
+  <body>
+    <header>
+      <div>
+        <p class="eyebrow">STUDICA ROS 2 ROBOT</p>
+        <h1>Robot control</h1>
+      </div>
+      <div id="connection" class="pill offline">Connecting…</div>
+    </header>
+
+    <main>
+      <section id="login-card" class="panel narrow">
+        <h2>Pair with this robot</h2>
+        <p>Enter the device token printed during first-time setup.</p>
+        <form id="login-form">
+          <label for="token">Pairing token</label>
+          <input id="token" name="token" type="password" autocomplete="current-password" required>
+          <button type="submit">Connect</button>
+        </form>
+        <p id="login-error" class="error" role="alert"></p>
+      </section>
+
+      <div id="dashboard" hidden>
+        <section class="status-grid">
+          <article class="status-card">
+            <span>Safety</span>
+            <strong id="safety-state">—</strong>
+            <small id="safety-reason">—</small>
+          </article>
+          <article class="status-card">
+            <span>Mode</span>
+            <strong id="mode-state">—</strong>
+            <small id="mode-transition">—</small>
+          </article>
+          <article class="status-card">
+            <span>Companion PC</span>
+            <strong id="companion-state">—</strong>
+            <small>Ubuntu 22.04 / ROS Humble</small>
+          </article>
+          <article class="status-card">
+            <span>Control source</span>
+            <strong id="control-source">—</strong>
+            <small id="platform-error">—</small>
+          </article>
+          <article class="status-card">
+            <span>Physical inputs</span>
+            <strong id="input-state">—</strong>
+            <small id="input-detail">—</small>
+          </article>
+          <article class="status-card">
+            <span>Compute</span>
+            <strong id="compute-state">—</strong>
+            <small id="compute-detail">—</small>
+          </article>
+          <article class="status-card">
+            <span>Motors</span>
+            <strong id="motor-state">—</strong>
+            <small id="motor-detail">—</small>
+          </article>
+          <article class="status-card">
+            <span>Battery</span>
+            <strong id="battery-state">Not reported</strong>
+            <small>Add a qualified voltage sensor for percentage estimates.</small>
+          </article>
+        </section>
+
+        <section class="panel">
+          <div class="section-heading">
+            <div><p class="eyebrow">OPERATING MODE</p><h2>Choose one owner</h2></div>
+            <button class="danger" data-mode="IDLE">Stop and disarm</button>
+          </div>
+          <div class="button-grid">
+            <button data-mode="MANUAL_JOYSTICK">Bluetooth joystick</button>
+            <button data-mode="MANUAL_WEB">Browser drive</button>
+            <button data-mode="SLAM" class="companion-required">SLAM mapping</button>
+            <button id="navigation-button" class="companion-required">Navigation</button>
+          </div>
+          <p class="notice">Every mode change commands zero and disarms the robot. Press the physical Start button only after the requested mode reports ready.</p>
+        </section>
+
+        <section class="two-column">
+          <article class="panel">
+            <p class="eyebrow">SENSORS</p>
+            <h2>Runtime devices</h2>
+            <div class="sensor-row">
+              <div><strong>LiDAR</strong><small id="lidar-health">—</small></div>
+              <button id="lidar-toggle">Toggle</button>
+            </div>
+            <div class="sensor-row">
+              <div><strong>Depth camera</strong><small id="camera-health">—</small></div>
+              <button id="camera-toggle">Toggle</button>
+            </div>
+          </article>
+
+          <article class="panel">
+            <p class="eyebrow">MAPS</p>
+            <h2>Map registry</h2>
+            <label for="map-select">Selected map</label>
+            <select id="map-select"></select>
+            <form id="map-upload-form">
+              <label for="map-id">Import map ZIP</label>
+              <div class="inline-fields">
+                <input id="map-id" placeholder="office_nav" required pattern="[A-Za-z0-9][A-Za-z0-9._-]{0,63}">
+                <input id="map-bundle" type="file" accept=".zip" required>
+                <button type="submit">Import</button>
+              </div>
+            </form>
+            <div class="inline-fields">
+              <input id="save-map-id" placeholder="new_map">
+              <button id="save-map">Save active SLAM map</button>
+            </div>
+          </article>
+        </section>
+
+        <section id="drive-panel" class="panel drive-panel">
+          <p class="eyebrow">HOLD TO DRIVE</p>
+          <h2>Browser manual control</h2>
+          <p>Available only in <strong>MANUAL_WEB</strong> while the physical safety gate is armed.</p>
+          <div class="drive-grid" aria-label="manual drive controls">
+            <button data-drive="forward" class="forward">Forward</button>
+            <button data-drive="left">Left</button>
+            <button data-drive="stop" class="danger">Stop</button>
+            <button data-drive="right">Right</button>
+            <button data-drive="reverse" class="reverse">Reverse</button>
+          </div>
+        </section>
+
+        <section id="navigation-panel" class="panel" hidden>
+          <p class="eyebrow">NAVIGATION GOAL</p>
+          <h2>Send a pose in the map frame</h2>
+          <div class="inline-fields">
+            <input id="goal-x" type="number" step="0.05" placeholder="X meters">
+            <input id="goal-y" type="number" step="0.05" placeholder="Y meters">
+            <input id="goal-yaw" type="number" step="0.1" placeholder="Yaw radians">
+            <button id="send-goal">Send goal</button>
+          </div>
+          <p class="notice">Confirm the pose is free space on the selected map and keep the E-stop reachable.</p>
+        </section>
+
+        <section class="panel">
+          <p class="eyebrow">BLUETOOTH JOYSTICK</p>
+          <h2>Pair directly with the robot</h2>
+          <div class="inline-fields">
+            <select id="bluetooth-devices"><option value="">Scan for a controller</option></select>
+            <button id="bluetooth-scan">Scan</button>
+            <button id="bluetooth-pair">Pair selected</button>
+          </div>
+          <p class="notice">Put the controller in pairing mode first. Driving still requires L1 and a fresh physical Start press.</p>
+        </section>
+
+        <section class="panel">
+          <p class="eyebrow">NETWORK</p>
+          <h2>Infrastructure Wi-Fi</h2>
+          <div class="inline-fields">
+            <select id="wifi-networks"><option value="">Scan for a network</option></select>
+            <input id="wifi-password" type="password" autocomplete="new-password" placeholder="Wi-Fi password">
+            <button id="wifi-scan">Scan</button>
+            <button id="wifi-connect">Connect</button>
+          </div>
+          <p class="notice">The fallback hotspot remains available when infrastructure Wi-Fi cannot connect.</p>
+        </section>
+
+        <section class="panel">
+          <p class="eyebrow">COMPANION PC</p>
+          <h2>One-time pairing</h2>
+          <div class="inline-fields">
+            <button id="companion-pair">Create pairing code</button>
+            <strong id="companion-code">—</strong>
+            <span id="companion-expiry"></span>
+          </div>
+          <p class="notice">The robot must be IDLE and READY_DISARMED. The code expires in 10 minutes and works once.</p>
+        </section>
+
+        <section class="panel">
+          <p class="eyebrow">MAINTENANCE</p>
+          <h2>Developer and support</h2>
+          <div class="button-grid">
+            <button id="developer-toggle">Toggle Developer Mode</button>
+            <button id="updates-refresh">Check staged updates</button>
+            <button id="update-activate" disabled>Activate selected update</button>
+            <select id="update-select"><option value="">No staged update</option></select>
+            <button id="support-bundle">Download support bundle</button>
+            <a class="button-link" href="/api/v1/openapi.json" target="_blank" rel="noopener">OpenAPI</a>
+            <button id="refresh">Refresh status</button>
+          </div>
+          <pre id="activity" aria-live="polite"></pre>
+        </section>
+      </div>
+    </main>
+    <script src="/assets/app.js" defer></script>
+  </body>
+</html>

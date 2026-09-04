@@ -1,0 +1,37 @@
+[Unit]
+Description=Studica privileged local service orchestrator
+PartOf=studica-robot.target
+Before=studica-mode-manager.service studica-web.service
+After=local-fs.target
+StartLimitIntervalSec=60
+StartLimitBurst=4
+
+[Service]
+Type=simple
+User=root
+Group=studica
+EnvironmentFile=-/etc/studica/robot.env
+RuntimeDirectory=studica
+RuntimeDirectoryMode=0750
+RuntimeDirectoryPreserve=restart
+ExecStart=/opt/studica/current/install/lib/studica_vmxpi_ros2/studica_hardware_runtime orchestrator
+Restart=on-failure
+RestartSec=2
+TimeoutStopSec=5
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectSystem=strict
+ProtectHome=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+RestrictAddressFamilies=AF_UNIX AF_NETLINK
+RestrictSUIDSGID=yes
+LockPersonality=yes
+MemoryDenyWriteExecute=yes
+ReadWritePaths=/run/studica /var/lib/studica/support /etc/studica /etc/ufw
+UMask=0027
+SyslogIdentifier=studica-orchestrator
+
+[Install]
+WantedBy=studica-robot.target

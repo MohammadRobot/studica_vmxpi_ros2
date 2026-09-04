@@ -405,12 +405,29 @@ def verify_command_publisher_ownership(mode, env):
         raise RuntimeError(f"Unexpected embedded command publisher:\n{output}")
     if mode == "mapping" and publisher_count != 0:
         raise RuntimeError(f"Mapping must leave /cmd_vel to external teleop:\n{output}")
-    if mode == "navigation" and publisher_count > 0:
-        nav2_publishers = (
-            "controller_server" in lowered or "velocity_smoother" in lowered
-        )
-        if not nav2_publishers:
-            raise RuntimeError(f"Navigation command publisher is not owned by Nav2:\n{output}")
+    if mode == "navigation":
+        if publisher_count != 1 or "velocity_smoother" not in lowered:
+            raise RuntimeError(
+                "Navigation must expose exactly one smoothed /cmd_vel publisher:\n"
+                f"{output}"
+            )
+        pre_smoothed = run_cli(
+            [
+                "ros2",
+                "topic",
+                "info",
+                "/cmd_vel_nav",
+                "--no-daemon",
+                "-v",
+            ],
+            env,
+        ).stdout.lower()
+        for owner in ("controller_server", "behavior_server", "velocity_smoother"):
+            if owner not in pre_smoothed:
+                raise RuntimeError(
+                    f"Navigation pre-smoother path is missing {owner}:\n"
+                    f"{pre_smoothed}"
+                )
 
     internal_output = run_cli(
         [

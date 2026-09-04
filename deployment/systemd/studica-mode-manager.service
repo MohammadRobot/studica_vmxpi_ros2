@@ -1,0 +1,36 @@
+[Unit]
+Description=Studica lifecycle mode manager and command arbiter
+PartOf=studica-robot.target
+Requires=studica-hardware.service studica-orchestrator.service
+After=studica-hardware.service studica-orchestrator.service
+StartLimitIntervalSec=60
+StartLimitBurst=4
+
+[Service]
+Type=simple
+User=studica
+Group=studica
+SupplementaryGroups=dialout input video
+EnvironmentFile=-/etc/studica/robot.env
+ExecStart=/opt/studica/current/install/lib/studica_vmxpi_ros2/studica_hardware_runtime mode-manager
+Restart=on-failure
+RestartSec=2
+TimeoutStartSec=30
+TimeoutStopSec=5
+KillSignal=SIGINT
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectSystem=strict
+ProtectHome=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+RestrictSUIDSGID=yes
+LockPersonality=yes
+MemoryDenyWriteExecute=yes
+ReadWritePaths=/run/studica /var/lib/studica
+UMask=0027
+SyslogIdentifier=studica-mode-manager
+
+[Install]
+WantedBy=studica-robot.target

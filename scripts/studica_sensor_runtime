@@ -1,0 +1,27 @@
+#!/usr/bin/env bash
+# Start one optional, allowlisted robot sensor from the active release.
+set -euo pipefail
+
+release_root="${STUDICA_RELEASE_ROOT:-/opt/studica/current}"
+source /opt/ros/humble/setup.bash
+source "${release_root}/install/setup.bash"
+
+case "${1:-}" in
+  lidar)
+    exec ros2 launch studica_vmxpi_ros2 _lidar_hw.launch.py lidar_type:=tmini
+    ;;
+  camera)
+    exec ros2 launch studica_vmxpi_ros2 _camera_hw.launch.py \
+      orbbec_enable_color:=false \
+      orbbec_enable_depth:=true \
+      orbbec_enable_ir:=false \
+      orbbec_enable_point_cloud:=false \
+      orbbec_depth_width:=320 \
+      orbbec_depth_height:=240 \
+      orbbec_depth_fps:=5
+    ;;
+  *)
+    echo "usage: studica_sensor_runtime {lidar|camera}" >&2
+    exit 64
+    ;;
+esac
