@@ -8,6 +8,11 @@ plus supervised joystick/SLAM floor operation passed on 2026-09-03. This is not
 permission to deploy boot services; the independent hardware torque-removal and
 cold-boot production gates remain open.
 
+The [2026-09-06 commissioning preflight](COMMISSIONING_PREFLIGHT_2026-09-06.md)
+records the operator's report of changed power wiring and a release dependency
+mismatch. The staged `b6b6c86` candidate omits the Titan heartbeat correction
+used during supervised acceptance and must be rebuilt before commissioning.
+
 ## Evidence from the robot
 
 A read-only inventory of `vmx@192.168.1.173` on 2026-08-28 confirmed:

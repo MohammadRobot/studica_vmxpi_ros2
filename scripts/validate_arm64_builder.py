@@ -245,6 +245,7 @@ def validate_builder(root: Path, manifest: dict[str, Any]) -> list[str]:
             "--parallel-workers 1",
             "--merge-install",
             'colcon --log-base "${workspace}/log" test-result',
+            '[[ -x "${workspace}/build/studica_drivers/test_titan_enable_protocol" ]]',
             'find "${workspace}/install" -xdev -depth',
             "-type d -name '__pycache__'",
             "-name '*.pyc'",

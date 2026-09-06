@@ -109,6 +109,10 @@ colcon --log-base "${workspace}/log" build \
     -DSTUDICA_PRODUCTION_INSTALL=ON
 
 source_setup_file "${workspace}/install/setup.bash"
+# The working robot depends on cancellation of the opposite Titan CAN
+# heartbeat. Older driver pins build successfully without this regression test.
+[[ -x "${workspace}/build/studica_drivers/test_titan_enable_protocol" ]] || die \
+  "Titan enable/disable protocol regression test is missing from the driver build"
 colcon --log-base "${workspace}/log" test \
   --executor sequential \
   --parallel-workers 1 \
