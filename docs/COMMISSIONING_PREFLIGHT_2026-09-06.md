@@ -87,3 +87,8 @@ The operator subsequently approved both dependency publications. The
 successful publication and native compilation progress, followed by a
 required stop after a VMXPi undervoltage warning. No corrected artifact was
 produced or staged; stable power is required before retrying.
+
+After the operator replaced the battery, the
+[fresh native retry](ARM64_BATTERY_RETRY_2026-09-06.md) completed and the
+corrected development release was verified and staged inactive. Physical
+commissioning and production autostart are still not authorized by that result.

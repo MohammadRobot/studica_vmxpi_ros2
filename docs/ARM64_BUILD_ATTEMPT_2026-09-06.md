@@ -100,3 +100,10 @@ After stable power is established, repeat the clean native build against
 `eb5e11aa6544b37eef58b6f578a15a8878db3aa7`; do not resume or accept outputs
 from the interrupted compilation. Verify a new archive before inactive
 staging, and retain the separate physical-safety and cold-boot gates.
+
+## Subsequent retry
+
+The operator reported replacing the battery. The
+[fresh retry and inactive staging](ARM64_BATTERY_RETRY_2026-09-06.md) succeeded
+with no new power warning during that interval. This interrupted attempt
+remains invalid and is retained as failure evidence.

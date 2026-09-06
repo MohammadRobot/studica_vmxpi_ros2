@@ -11,7 +11,10 @@ cold-boot production gates remain open.
 The [2026-09-06 commissioning preflight](COMMISSIONING_PREFLIGHT_2026-09-06.md)
 records the operator's report of changed power wiring and a release dependency
 mismatch. The staged `b6b6c86` candidate omits the Titan heartbeat correction
-used during supervised acceptance and must be rebuilt before commissioning.
+used during supervised acceptance and must not be commissioned. A
+[fresh corrected ARM64 release](ARM64_BATTERY_RETRY_2026-09-06.md) was later
+verified and staged inactive after battery replacement. Its physical
+commissioning and cold-boot qualification remain outstanding.
 
 ## Evidence from the robot
 
