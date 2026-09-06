@@ -79,3 +79,11 @@ it inactive, and perform supervised hardware commissioning against its new
 digest. The previous staged artifact and its activation guard remain intact.
 The production acceptance requirements are in
 [Safety acceptance](SAFETY_ACCEPTANCE.md).
+
+## Follow-up
+
+The operator subsequently approved both dependency publications. The
+[corrected ARM64 build attempt](ARM64_BUILD_ATTEMPT_2026-09-06.md) records
+successful publication and native compilation progress, followed by a
+required stop after a VMXPi undervoltage warning. No corrected artifact was
+produced or staged; stable power is required before retrying.
