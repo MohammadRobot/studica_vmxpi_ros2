@@ -3,8 +3,11 @@
 set -euo pipefail
 
 release_root="${STUDICA_RELEASE_ROOT:-/opt/studica/current}"
+# Humble/colcon setup scripts are not nounset-safe in a clean systemd environment.
+set +u
 source /opt/ros/humble/setup.bash
 source "${release_root}/install/setup.bash"
+set -u
 
 role="${1:-hardware}"
 case "${role}" in

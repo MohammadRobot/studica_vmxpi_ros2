@@ -11,11 +11,12 @@ import hmac
 import json
 import math
 from pathlib import Path
+import re
 import secrets
 import ssl
 import threading
 import time
-from typing import Any, Deque, Dict, Optional
+from typing import Any, Deque, Dict, Optional, TYPE_CHECKING
 
 from aiohttp import web
 from ament_index_python.packages import get_package_share_directory
@@ -25,9 +26,9 @@ import rclpy
 from rclpy.executors import SingleThreadedExecutor
 from rclpy.node import Node
 
-from studica_vmxpi_ros2.msg import CompanionHeartbeat, PlatformStatus
-from studica_vmxpi_ros2.srv import SaveMap, SetDeveloperMode, SetMode, SetSensor
-from studica_robot_monitor.msg import MotorTelemetryArray
+if TYPE_CHECKING:
+    from studica_vmxpi_ros2.msg import PlatformStatus
+    from studica_robot_monitor.msg import MotorTelemetryArray
 
 from . import API_VERSION
 from .map_registry import MapRegistry, MapRegistryError
@@ -98,6 +99,12 @@ class RosBridge(Node):
     """Bridge API requests to versioned ROS services and private command input."""
 
     def __init__(self) -> None:
+        # The observation-only service needs standard sensor messages, not the
+        # production control interfaces or any of their publishers/clients.
+        from studica_vmxpi_ros2.msg import CompanionHeartbeat, PlatformStatus
+        from studica_vmxpi_ros2.srv import SaveMap, SetDeveloperMode, SetMode, SetSensor
+        from studica_robot_monitor.msg import MotorTelemetryArray
+
         super().__init__("studica_web_bridge")
         self._lock = threading.Lock()
         self._status: Optional[Dict[str, Any]] = None
@@ -251,6 +258,8 @@ class RosBridge(Node):
         detail: str,
     ) -> None:
         """Relay an authenticated HTTPS heartbeat onto the local ROS graph."""
+        from studica_vmxpi_ros2.msg import CompanionHeartbeat
+
         message = CompanionHeartbeat()
         message.stamp = self.get_clock().now().to_msg()
         message.api_version = API_VERSION
@@ -472,6 +481,8 @@ def create_app(
     registry: MapRegistry,
     companion_pairing: CompanionPairingStore,
     web_root: Path,
+    *,
+    observation_only: bool = False,
 ) -> web.Application:
     """Create the complete local API/UI application."""
 
@@ -533,8 +544,29 @@ def create_app(
         request["bearer_ok"] = bearer_ok
         return await handler(request)
 
+    @web.middleware
+    async def observation_guard(request: web.Request, handler):
+        if observation_only and request.path.startswith("/api/v1"):
+            allowed = (
+                request.method == "GET" and request.path in {
+                    "/api/v1/health", "/api/v1/openapi.json",
+                    "/api/v1/status", "/api/v1/telemetry", "/api/v1/maps",
+                }
+            ) or (
+                request.method == "POST" and request.path == "/api/v1/session"
+            ) or (
+                request.method == "GET" and re.fullmatch(
+                    r"/api/v1/maps/[A-Za-z0-9][A-Za-z0-9._-]{0,63}/bundle",
+                    request.path,
+                ) is not None
+            )
+            if not allowed:
+                raise web.HTTPForbidden(text="observation-only deployment: control is disabled")
+        return await handler(request)
+
     app = web.Application(
-        middlewares=[security_headers, authentication], client_max_size=33 * 1024**2
+        middlewares=[security_headers, authentication, observation_guard],
+        client_max_size=33 * 1024**2,
     )
     app[OPERATOR_STATE] = {"teleop_active": False}
 
@@ -555,7 +587,9 @@ def create_app(
     async def health(request):
         del request
         return web.json_response(
-            {"ok": True, "api_version": API_VERSION, "ros_ready": bridge.status() is not None}
+            {"ok": True, "api_version": API_VERSION,
+             "ros_ready": not observation_only and bridge.status() is not None,
+             "read_only": observation_only}
         )
 
     async def session_login(request):
@@ -580,7 +614,22 @@ def create_app(
 
     async def openapi(request):
         del request
-        return web.json_response(openapi_document())
+        document = openapi_document()
+        if observation_only:
+            document["info"]["description"] = (
+                "Observation-only deployment. No motion, sensor control or maintenance writes."
+            )
+            allowed_paths = {
+                "/api/v1/health", "/api/v1/session", "/api/v1/openapi.json",
+                "/api/v1/status", "/api/v1/telemetry", "/api/v1/maps",
+                "/api/v1/maps/{map_id}/bundle",
+            }
+            document["paths"] = {
+                path: {method: value for method, value in methods.items()
+                       if method == "get" or path == "/api/v1/session"}
+                for path, methods in document["paths"].items() if path in allowed_paths
+            }
+        return web.json_response(document)
 
     async def companion_pair(request):
         peer = request.remote or "unknown"
@@ -683,6 +732,8 @@ def create_app(
         return web.json_response(value)
 
     async def set_mode(request):
+        from studica_vmxpi_ros2.srv import SetMode
+
         payload = await json_body(request)
         try:
             mode = Mode[str(payload.get("mode", "")).upper()]
@@ -698,6 +749,8 @@ def create_app(
         )
 
     async def set_sensor(request):
+        from studica_vmxpi_ros2.srv import SetSensor
+
         sensor = request.match_info["sensor"].lower()
         payload = await json_body(request)
         if not isinstance(payload.get("enabled"), bool):
@@ -712,6 +765,8 @@ def create_app(
         )
 
     async def set_developer(request):
+        from studica_vmxpi_ros2.srv import SetDeveloperMode
+
         payload = await json_body(request)
         if not isinstance(payload.get("enabled"), bool):
             raise web.HTTPBadRequest(text="enabled must be boolean")
@@ -744,6 +799,8 @@ def create_app(
         return web.Response(body=payload, content_type="application/zip")
 
     async def save_map(request):
+        from studica_vmxpi_ros2.srv import SaveMap
+
         payload = await json_body(request)
         ros_request = SaveMap.Request()
         ros_request.map_id = str(payload.get("map_id", ""))
@@ -1010,12 +1067,19 @@ def main(args=None) -> None:
     )
     parser.add_argument("--web-root", type=Path)
     parser.add_argument("--allow-insecure-http", action="store_true")
+    parser.add_argument("--observation-only", action="store_true")
     options, ros_args = parser.parse_known_args(args)
 
-    package_share = Path(get_package_share_directory("studica_vmxpi_ros2"))
-    web_root = options.web_root or package_share / "deployment" / "web"
+    web_root = options.web_root or (
+        Path(get_package_share_directory("studica_vmxpi_ros2")) / "deployment" / "web"
+    )
     rclpy.init(args=ros_args)
-    bridge = RosBridge()
+    if options.observation_only:
+        from .sensor_observer import SensorObserver
+
+        bridge = SensorObserver()
+    else:
+        bridge = RosBridge()
     executor = SingleThreadedExecutor()
     executor.add_node(bridge)
     spin_thread = threading.Thread(target=executor.spin, name="ros-api-bridge", daemon=True)
@@ -1027,6 +1091,7 @@ def main(args=None) -> None:
         MapRegistry(options.map_root),
         companion_pairing,
         web_root,
+        observation_only=options.observation_only,
     )
     app[ALLOW_INSECURE_HTTP] = options.allow_insecure_http
     loop = asyncio.new_event_loop()
@@ -1045,7 +1110,8 @@ def main(args=None) -> None:
             loop=loop,
         )
     finally:
-        bridge.publish_teleop(0.0, 0.0)
+        if not options.observation_only:
+            bridge.publish_teleop(0.0, 0.0)
         executor.shutdown()
         bridge.destroy_node()
         if rclpy.ok():

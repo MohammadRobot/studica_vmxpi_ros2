@@ -1,0 +1,43 @@
+[Unit]
+Description=Studica stationary training depth camera (on demand, no motors)
+After=network.target
+Conflicts=studica-camera.service studica-hardware.service
+StartLimitIntervalSec=120
+StartLimitBurst=2
+
+[Service]
+Type=simple
+User=vmx
+Group=vmx
+SupplementaryGroups=video
+Environment=STUDICA_RELEASE_ROOT=/home/vmx/studica_ws
+Environment=ROS_DOMAIN_ID=78
+Environment=RMW_IMPLEMENTATION=rmw_cyclonedds_cpp
+Environment=ROS_LOCALHOST_ONLY=0
+Environment=CYCLONEDDS_URI=file:///opt/studica/training-20260907/cyclonedds.xml
+Environment=ROS_LOG_DIR=/var/log/studica-training-camera
+ExecStart=/bin/bash /opt/studica/training-20260907/studica_sensor_runtime camera
+Restart=on-failure
+RestartSec=5
+TimeoutStopSec=10
+KillSignal=SIGINT
+KillMode=control-group
+NoNewPrivileges=yes
+CapabilityBoundingSet=
+DevicePolicy=closed
+DeviceAllow=char-usb_device rw
+DeviceAllow=char-video4linux rw
+ProtectSystem=strict
+ProtectHome=read-only
+PrivateTmp=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+RestrictSUIDSGID=yes
+LockPersonality=yes
+LogsDirectory=studica-training-camera
+LogsDirectoryMode=0750
+CPUQuota=120%
+MemoryMax=700M
+TasksMax=128
+UMask=0027

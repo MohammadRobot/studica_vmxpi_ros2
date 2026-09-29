@@ -1,0 +1,10 @@
+#!/usr/bin/env bash
+# Standard ROS sensor messages only; no hardware overlay is sourced.
+set -eo pipefail
+source /opt/ros/humble/setup.bash
+export PYTHONPATH="/opt/studica/training-20260907/python:${PYTHONPATH:-}"
+exec python3 -m studica_robot_platform.web_server --observation-only \
+  --web-root /opt/studica/training-20260907/web \
+  --pairing-root /run/studica-training-web/pairing \
+  --cert-file /var/lib/studica/tls/observer.crt \
+  --key-file /var/lib/studica/tls/observer.key

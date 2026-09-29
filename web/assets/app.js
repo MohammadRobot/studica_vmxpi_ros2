@@ -49,6 +49,19 @@ function renderStatus(value) {
   $$(".companion-required").forEach((button) => { button.disabled = !value.companion_connected; });
   $("#drive-panel").hidden = value.mode !== "MANUAL_WEB";
   $("#navigation-panel").hidden = value.mode !== "NAVIGATION";
+  $("#observation-notice").hidden = !value.read_only;
+  if (value.read_only) {
+    $("#connection").textContent = "Sensor observer online";
+    $("#input-state").textContent = "Not monitored";
+    $("#input-detail").textContent = "No physical safety input connection";
+    $("#motor-state").textContent = "Not monitored";
+    for (const name of ["lidar", "camera"]) {
+      const sensor = value.sensors[name];
+      $(`#${name}-health`).textContent = sensor.healthy
+        ? `Receiving · ${sensor.rate_hz} Hz` : "No recent data · off or unavailable";
+    }
+    $$("#dashboard button, #dashboard input, #dashboard select").forEach((item) => { item.disabled = true; });
+  }
 }
 
 async function refreshStatus() {

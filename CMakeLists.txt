@@ -457,6 +457,24 @@ if(BUILD_TESTING)
       ${CMAKE_CURRENT_SOURCE_DIR}
   )
   ament_add_test(
+    validate_training_launcher
+    GENERATE_RESULT_FOR_RETURN_CODE_ZERO
+    COMMAND ${Python3_EXECUTABLE} -m pytest -q
+      ${CMAKE_CURRENT_SOURCE_DIR}/test/test_training_launcher.py
+  )
+  ament_add_test(
+    validate_sensor_runtime
+    GENERATE_RESULT_FOR_RETURN_CODE_ZERO
+    COMMAND ${Python3_EXECUTABLE} -m pytest -q
+      ${CMAKE_CURRENT_SOURCE_DIR}/test/test_sensor_runtime.py
+  )
+  ament_add_test(
+    validate_sensor_observer
+    GENERATE_RESULT_FOR_RETURN_CODE_ZERO
+    COMMAND ${Python3_EXECUTABLE} -m pytest -q
+      ${CMAKE_CURRENT_SOURCE_DIR}/test/test_sensor_observer.py
+  )
+  ament_add_test(
     validate_classroom_source
     GENERATE_RESULT_FOR_RETURN_CODE_ZERO
     COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/scripts/check_project.sh

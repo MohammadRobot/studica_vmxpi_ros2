@@ -8,6 +8,8 @@ path.
 
 | Guide | Use it when |
 |---|---|
+| [Immediate classroom handoff](TRAINING_QUICKSTART.md) | Teaching now with isolated simulation, short launch commands, SLAM and Nav2 |
+| [Physical training track](PHYSICAL_TRAINING.md) | Using real sensors for stationary lessons and planning the separately gated physical driving/SLAM/Nav2 exercises |
 | [Quick start](QUICK_START.md) | Running simulation, physical mapping, or two-computer physical navigation with minimal setup |
 | [Installation](INSTALL.md) | Preparing an Ubuntu 22.04 computer |
 | [Launch arguments](LAUNCH_ARGUMENTS.md) | Defaults and examples for every supported public launch |

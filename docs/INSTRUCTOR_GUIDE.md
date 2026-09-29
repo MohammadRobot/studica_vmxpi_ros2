@@ -4,6 +4,11 @@ This guide separates normal learner work from operations that require hardware,
 network, or profile authority. Learners spend Labs 1–8 in simulation. Lab 9 is
 optional and supervised.
 
+For an immediate classroom session on the existing workstation, use
+[Immediate classroom handoff](TRAINING_QUICKSTART.md). It gives one isolated
+simulation launcher and a reduced camera-off SLAM/Nav2 path. It does not
+authorize physical motor operation with the current DIO8-only E-stop.
+
 ## Course invariants
 
 - Core robot: `class_4wd`.

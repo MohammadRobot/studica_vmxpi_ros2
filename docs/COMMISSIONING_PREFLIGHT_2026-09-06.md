@@ -7,11 +7,18 @@ with that tested working tree.
 
 ## Hardware status
 
-The operator replied "yes" when asked whether the E-stop now independently
-removes motor power while the VMXPi stays powered. This is recorded as an
-operator report of changed wiring, not as a witnessed torque-removal test or
-completed cold-boot qualification. The physical implementation and its observed
-behavior still need to be recorded before commissioning motion.
+**2026-09-07 operator correction:** the E-stop is wired only to DIO8 and
+does not physically interrupt Titan motor power. Independent hardware
+torque removal is therefore not installed. The operator reports E-stop
+pressed and wheels secured; this is not evidence of motor-power isolation.
+
+This explicit clarification supersedes the earlier ambiguous "yes" response
+about independent motor-power removal. Commissioning motion and production
+autostart remain blocked under the agreed safety acceptance plan. Do not
+mark the independent-torque-removal gate passed or bypass activation guards.
+Local mock/simulation testing and non-actuating software work may continue.
+The independent stop implementation and its physical verification must be
+documented before resuming motion commissioning.
 
 Read-only SSH checks found the robot reachable at `192.168.1.173`, with no
 robot control processes, no installed `studica-robot.target`, and no
@@ -92,3 +99,10 @@ After the operator replaced the battery, the
 [fresh native retry](ARM64_BATTERY_RETRY_2026-09-06.md) completed and the
 corrected development release was verified and staged inactive. Physical
 commissioning and production autostart are still not authorized by that result.
+
+The operator subsequently removed the independent motor-power stop wiring
+redesign from the immediate training scope. The
+[revised physical training scope](PHYSICAL_TRAINING.md) records this decision
+without marking the original production gate passed or disabling safeguards.
+An existing whole-robot physical cutoff, if present, is to be assessed before
+any decision about powered testing under a revised training procedure.

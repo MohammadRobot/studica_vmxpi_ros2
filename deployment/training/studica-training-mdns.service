@@ -1,0 +1,25 @@
+[Unit]
+Description=Studica robot.local training address advertisement
+Requires=avahi-daemon.service
+After=network-online.target avahi-daemon.service
+Wants=network-online.target
+StartLimitIntervalSec=120
+StartLimitBurst=3
+
+[Service]
+Type=simple
+User=studica
+Group=studica
+ExecStart=/usr/bin/avahi-publish-address --no-reverse robot.local 192.168.1.173
+Restart=on-failure
+RestartSec=5
+NoNewPrivileges=yes
+CapabilityBoundingSet=
+PrivateDevices=yes
+PrivateTmp=yes
+ProtectSystem=strict
+ProtectHome=yes
+MemoryMax=32M
+
+[Install]
+WantedBy=multi-user.target
