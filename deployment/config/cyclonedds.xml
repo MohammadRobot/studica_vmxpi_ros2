@@ -4,7 +4,9 @@
     <General>
       <AllowMulticast>false</AllowMulticast>
       <Interfaces>
-        <NetworkInterface autodetermine="true" priority="default" multicast="false" />
+        <NetworkInterface name="lo" priority="10" multicast="false" />
+        <NetworkInterface name="eth0" presence_required="false" multicast="false" />
+        <NetworkInterface name="wlan0" presence_required="false" multicast="false" />
       </Interfaces>
     </General>
     <Discovery>

@@ -205,6 +205,8 @@ ament_target_dependencies(
 pluginlib_export_plugin_description_file(hardware_interface studica_vmxpi_ros2.xml)
 
 # INSTALL
+install(PROGRAMS scripts/studica DESTINATION lib/${PROJECT_NAME})
+install(FILES deployment/sessions.example.json DESTINATION share/${PROJECT_NAME}/deployment)
 install(
   DIRECTORY hardware/include/
   DESTINATION include/studica_vmxpi_ros2
@@ -536,7 +538,15 @@ if(BUILD_TESTING)
       ${CMAKE_CURRENT_SOURCE_DIR}/test/test_pairing.py
       ${CMAKE_CURRENT_SOURCE_DIR}/test/test_platform_deployment.py
       ${CMAKE_CURRENT_SOURCE_DIR}/test/test_signed_updates.py
+      ${CMAKE_CURRENT_SOURCE_DIR}/test/test_update_activation.py
       ${CMAKE_CURRENT_SOURCE_DIR}/test/test_web_security.py
+      ${CMAKE_CURRENT_SOURCE_DIR}/test/test_session_cli.py
+      ${CMAKE_CURRENT_SOURCE_DIR}/test/test_companion_sessions.py
+  )
+  ament_add_test(
+    validate_session_domains
+    GENERATE_RESULT_FOR_RETURN_CODE_ZERO
+    COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/test/test_session_domains.py
   )
   set(_mock_runtime_arguments --mode mock)
   if(STUDICA_PRODUCTION_INSTALL)

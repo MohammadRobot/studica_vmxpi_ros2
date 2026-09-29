@@ -50,3 +50,6 @@ Public services:
 - `/robot/disarm` — existing safety-supervisor `std_srvs/srv/Trigger`.
 
 The internal command topics are `/robot/control/joystick`, `/robot/control/web`, `/cmd_vel` (Nav2), and `/robot/control/developer`. Applications must not publish `/robot/platform/cmd_vel` or the drive controller topic.
+
+Pairing redemption responses include `ros_domain_id`; the PC companion installer
+checks it against its selected session domain before storing the credential.

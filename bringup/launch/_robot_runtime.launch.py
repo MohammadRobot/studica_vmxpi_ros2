@@ -20,6 +20,7 @@ from launch.conditions import IfCondition, UnlessCondition
 from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch.substitutions import (
     Command,
+    EnvironmentVariable,
     FindExecutable,
     LaunchConfiguration,
     PathJoinSubstitution,
@@ -513,7 +514,9 @@ def generate_launch_description():
     _append_env_path("GZ_SIM_SYSTEM_PLUGIN_PATH", install_dir + "/lib")
 
     profile_file = PathJoinSubstitution(
-        [FindPackageShare("studica_vmxpi_ros2"), "config", "profiles", robot_profile, "robot_profile.yaml"]
+        [EnvironmentVariable("STUDICA_PROFILE_ROOT", default_value=PathJoinSubstitution(
+            [FindPackageShare("studica_vmxpi_ros2"), "config", "profiles"])),
+         robot_profile, "robot_profile.yaml"]
     )
     robot_controllers = LaunchConfiguration("runtime_controllers_file")
 

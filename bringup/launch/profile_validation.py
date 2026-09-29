@@ -6,6 +6,7 @@
 from __future__ import annotations
 
 import math
+import os
 import re
 from numbers import Real
 from pathlib import Path
@@ -721,7 +722,9 @@ def validate_profile_for_launch(
     package_share_dir: str,
     profile_name: str,
 ) -> tuple[str, str, str, str, str]:
-    profile_dir = Path(package_share_dir) / "config" / "profiles" / profile_name
+    profile_dir = Path(os.environ.get(
+        "STUDICA_PROFILE_ROOT", str(Path(package_share_dir) / "config" / "profiles")
+    )) / profile_name
     profile_file = profile_dir / "robot_profile.yaml"
     controllers_file = profile_dir / "robot_controllers.yaml"
     errors, controller_name, controller_type, wheel_layout = validate_profile_files(

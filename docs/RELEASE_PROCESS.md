@@ -236,3 +236,10 @@ Do not tag or publish when any of the following is true:
 
 Tags and published artifacts should be signed. Promotion changes channel
 metadata; it does not rebuild the artifact.
+
+## Exact-artifact qualification
+
+The offline signer accepts `--qualification REPORT.json` to include the hardware
+acceptance record in the signed envelope, bound to the unchanged artifact digest.
+This is the managed activation path for a qualified development bundle. See
+[Product runtime](PRODUCT_RUNTIME.md) for required fields and rollout checks.

@@ -8,13 +8,14 @@ path.
 
 | Guide | Use it when |
 |---|---|
+| [Product runtime](PRODUCT_RUNTIME.md) | Provisioning independent robots, PC sessions and signed releases |
 | [Immediate classroom handoff](TRAINING_QUICKSTART.md) | Teaching now with isolated simulation, short launch commands, SLAM and Nav2 |
 | [Physical training track](PHYSICAL_TRAINING.md) | Using real sensors for stationary lessons and planning the separately gated physical driving/SLAM/Nav2 exercises |
 | [Quick start](QUICK_START.md) | Running simulation, physical mapping, or two-computer physical navigation with minimal setup |
 | [Installation](INSTALL.md) | Preparing an Ubuntu 22.04 computer |
 | [Launch arguments](LAUNCH_ARGUMENTS.md) | Defaults and examples for every supported public launch |
 | [Camera and point cloud](CAMERA_POINT_CLOUD.md) | Testing RGB, depth, PointCloud2, and the read-only observer |
-| [Application development](DEVELOPMENT.md) | Editing on a PC and deploying source to VMXPi |
+| [Application development](DEVELOPMENT.md) | Developing and running applications on the PC |
 | [Course and labs](COURSE.md) | Learning ROS 2 from Lab 1 through Lab 9 |
 | [Joystick teleoperation](JOYSTICK.md) | Driving simulation with a DualShock 4 or compatible controller |
 | [Troubleshooting](TROUBLESHOOTING.md) | A build, launch, topic, TF, or simulator check fails |

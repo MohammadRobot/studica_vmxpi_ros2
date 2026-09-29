@@ -8,6 +8,9 @@ set +u
 source /opt/ros/humble/setup.bash
 source "${release_root}/install/setup.bash"
 set -u
+if [[ -d /etc/studica/profiles/stack_4wd ]]; then
+  export STUDICA_PROFILE_ROOT=/etc/studica/profiles
+fi
 
 role="${1:-hardware}"
 case "${role}" in
@@ -29,6 +32,10 @@ case "${role}" in
     ;;
   web)
     exec ros2 run studica_vmxpi_ros2 studica_web_server.py
+    ;;
+  update)
+    shift
+    exec ros2 run studica_vmxpi_ros2 studica_update_agent.py "$@"
     ;;
   orchestrator)
     exec ros2 run studica_vmxpi_ros2 studica_orchestrator.py

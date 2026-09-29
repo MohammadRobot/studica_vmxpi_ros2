@@ -807,9 +807,15 @@ def main() -> int:
         help="audit a development host without enforcing Ubuntu/arm64 identity",
     )
     parser.add_argument("--json", action="store_true", help="emit a JSON report")
+    parser.add_argument("--domain-id", type=int, help="audit ports for this classroom ROS domain")
     arguments = parser.parse_args()
     try:
         profile = load_profile(arguments.profile.resolve())
+        if arguments.domain_id is not None:
+            if not 0 <= arguments.domain_id <= 100:
+                raise ValueError("classroom domain must be between 0 and 100")
+            first = 7410 + 250 * arguments.domain_id
+            profile["allowed_public_udp_ranges"] = [[first, first + 65]]
         snapshot = collect_snapshot(profile, arguments.require_unit)
     except ValueError as error:
         print(f"ERROR: {error}", file=sys.stderr)

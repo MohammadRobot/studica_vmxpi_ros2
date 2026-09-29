@@ -7,6 +7,7 @@ import argparse
 import ipaddress
 import json
 import os
+import re
 from pathlib import Path
 import shlex
 import shutil
@@ -18,6 +19,7 @@ from urllib.parse import urlparse
 from urllib import request as urlrequest
 
 from ament_index_python.packages import get_package_prefix, get_package_share_directory
+from studica_robot_platform.provisioning import validate_domain_id
 
 
 def _private_copy(source: Path, destination: Path, mode: int) -> None:
@@ -31,6 +33,7 @@ def _redeem_pairing_code(
     certificate: Path,
     code: str,
     companion_id: str,
+    domain_id: int = 42,
 ) -> tuple[str, int]:
     payload = json.dumps(
         {"code": code, "companion_id": companion_id}
@@ -50,6 +53,8 @@ def _redeem_pairing_code(
     token = str(document.get("token", "")) if isinstance(document, dict) else ""
     if len(token) < 24 or document.get("scope") != "companion":
         raise SystemExit("companion pairing returned an invalid credential")
+    if document.get("ros_domain_id", 42) != domain_id:
+        raise SystemExit("robot ROS domain differs from --domain-id; re-pair with its configured domain")
     try:
         peer_version = ipaddress.ip_address(document["peer_address"]).version
     except (KeyError, TypeError, ValueError) as error:
@@ -118,11 +123,27 @@ def main() -> None:
     parser.add_argument("--robot-url", default="https://robot.local")
     parser.add_argument("--companion-id", default=os.uname().nodename)
     parser.add_argument("--no-enable", action="store_true")
+    parser.add_argument("--robot-id", help="named independent robot session, e.g. robot01")
+    parser.add_argument("--domain-id", type=int, default=42)
     options = parser.parse_args()
+    validate_domain_id(options.domain_id)
+    if options.robot_id and not re.fullmatch(r"[a-z][a-z0-9_-]{0,47}", options.robot_id):
+        raise SystemExit("robot-id must be a lowercase identifier of at most 48 characters")
     if not options.robot_url.startswith("https://"):
         raise SystemExit("robot URL must use HTTPS")
     home = Path.home()
     config = home / ".config/studica"
+    registrations = list((config / "robots").glob("*/session.json"))
+    if (config / "session.json").exists():
+        registrations.append(config / "session.json")
+    for registration in registrations:
+        existing = json.loads(registration.read_text())
+        if existing["robot_id"] != (options.robot_id or "default") and existing["domain_id"] == options.domain_id:
+            raise SystemExit("another robot session already uses this ROS domain")
+    if options.robot_id:
+        config = config / "robots" / options.robot_id
+    cache = home / ".cache/studica" / (options.robot_id or "default") / "maps"
+    cache.mkdir(parents=True, exist_ok=True)
     _private_copy(options.robot_certificate, config / "robot-ca.crt", 0o600)
     peer_version = None
     if options.pairing_code:
@@ -131,6 +152,7 @@ def main() -> None:
             config / "robot-ca.crt",
             options.pairing_code,
             options.companion_id,
+            options.domain_id,
         )
         (config / "token").write_text(token + "\n", encoding="utf-8")
         os.chmod(config / "token", 0o600)
@@ -143,29 +165,43 @@ def main() -> None:
 
     prefix = Path(get_package_prefix("studica_vmxpi_ros2"))
     share = Path(get_package_share_directory("studica_vmxpi_ros2"))
-    runtime = home / ".local/bin/studica-companion-runtime"
+    runtime = home / ".local/bin" / (
+        f"studica-companion-{options.robot_id}" if options.robot_id else "studica-companion-runtime")
     runtime.parent.mkdir(parents=True, exist_ok=True)
     runtime.write_text(
         "#!/usr/bin/env bash\n"
-        "set -euo pipefail\n"
+        "set -eo pipefail\n"
         "source /opt/ros/humble/setup.bash\n"
         f"source {shlex.quote(str(prefix / 'setup.bash'))}\n"
-        "export ROS_DOMAIN_ID=42\n"
+        f"export ROS_DOMAIN_ID={options.domain_id}\n"
+        "export ROS_LOCALHOST_ONLY=0\n"
         "export RMW_IMPLEMENTATION=rmw_cyclonedds_cpp\n"
         f"export CYCLONEDDS_URI={shlex.quote('file://' + str(config / 'cyclonedds.xml'))}\n"
         f"exec {shlex.quote(str(prefix / 'lib/studica_vmxpi_ros2/studica_companion.py'))} "
-        f"--robot-url {shlex.quote(options.robot_url)}\n",
+        f"--robot-url {shlex.quote(options.robot_url)} "
+        f"--token-file {shlex.quote(str(config / 'token'))} "
+        f"--ca-file {shlex.quote(str(config / 'robot-ca.crt'))} "
+        f"--cache-root {shlex.quote(str(cache))} "
+        f"--companion-id {shlex.quote(options.companion_id)}\n",
         encoding="utf-8",
     )
     os.chmod(runtime, 0o700)
     unit_root = home / ".config/systemd/user"
     unit_root.mkdir(parents=True, exist_ok=True)
     unit_source = share / "deployment/systemd/studica-companion.service"
-    shutil.copyfile(unit_source, unit_root / "studica-companion.service")
+    unit_name = (f"studica-companion-{options.robot_id}.service" if options.robot_id
+                 else "studica-companion.service")
+    unit = unit_source.read_text().replace(
+        "%h/.local/bin/studica-companion-runtime", "%h/.local/bin/" + runtime.name)
+    (unit_root / unit_name).write_text(unit)
+    (config / "session.json").write_text(json.dumps({
+        "robot_id": options.robot_id or "default", "domain_id": options.domain_id,
+        "robot_url": options.robot_url,
+    }, indent=2) + "\n")
     if not options.no_enable:
         subprocess.run(["systemctl", "--user", "daemon-reload"], check=True)
         subprocess.run(
-            ["systemctl", "--user", "enable", "--now", "studica-companion.service"],
+            ["systemctl", "--user", "enable", "--now", unit_name],
             check=True,
         )
     print(

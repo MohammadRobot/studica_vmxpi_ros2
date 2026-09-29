@@ -21,15 +21,15 @@ from studica_robot_platform.updates import (
 )
 
 
-def production_archive(version: str) -> bytes:
+def production_archive(version: str, development=False) -> bytes:
     files = {
         f"opt/studica/releases/{version}/install/setup.bash": b"#!/bin/bash\n",
         f"opt/studica/releases/{version}/metadata/release.json": json.dumps(
             {
                 "product": "studica-robot",
                 "release_version": version,
-                "channel": "production",
-                "activation_authorized": True,
+                "channel": "development" if development else "production",
+                "activation_authorized": not development,
             }
         ).encode(),
     }
@@ -58,8 +58,8 @@ def production_archive(version: str) -> bytes:
     return output.getvalue()
 
 
-def signed_envelope(tmp_path: Path, version="1.0.0"):
-    artifact = production_archive(version)
+def signed_envelope(tmp_path: Path, version="1.0.0", development=False, qualified=False):
+    artifact = production_archive(version, development)
     private = Ed25519PrivateKey.generate()
     public_path = tmp_path / "public.pem"
     public_path.write_bytes(
@@ -77,6 +77,11 @@ def signed_envelope(tmp_path: Path, version="1.0.0"):
         "release_root": f"opt/studica/releases/{version}",
         "version": version,
     }
+    if qualified:
+        signed["qualification"] = dict(
+            schema_version=1, tested_release_sha256=signed["artifact_sha256"],
+            cold_boots_passed=50, independent_torque_removal=True,
+            failure_injection_passed=True, zero_motion_all_boots=True)
     envelope = {
         "schema_version": 1,
         "signed": signed,
@@ -144,3 +149,67 @@ def test_interrupted_activation_rolls_back_from_boot_journal(tmp_path: Path):
     status = json.loads((staged / "status.json").read_text())
     assert status["state"] == "ROLLED_BACK_INTERRUPTED"
     assert status["activation_approved"] is False
+
+
+def test_existing_release_is_not_trusted(tmp_path):
+    artifact, public, envelope = signed_envelope(tmp_path)
+    staged = tmp_path / "state/staged/1.0.0"
+    staged.mkdir(parents=True)
+    (staged / "release.tar.gz").write_bytes(artifact)
+    (staged / "manifest.json").write_text(json.dumps(envelope))
+    (tmp_path / "releases/1.0.0").mkdir(parents=True)
+    with pytest.raises(UpdateError, match="already exists"):
+        extract_verified_release("1.0.0", tmp_path / "state", tmp_path / "releases", public)
+
+
+def test_qualification_is_bound_to_digest_and_all_acceptance_gates():
+    from studica_robot_platform.updates import validate_signed_qualification
+    report = dict(schema_version=1, tested_release_sha256="a" * 64, cold_boots_passed=50,
+                  independent_torque_removal=True, failure_injection_passed=True,
+                  zero_motion_all_boots=True)
+    validate_signed_qualification(report, "a" * 64)
+    with pytest.raises(UpdateError):
+        validate_signed_qualification(report, "b" * 64)
+    for field in ("independent_torque_removal", "failure_injection_passed", "zero_motion_all_boots"):
+        with pytest.raises(UpdateError):
+            validate_signed_qualification(dict(report, **{field: False}), "a" * 64)
+
+
+def test_archive_links_cannot_escape_or_replace_ancestors():
+    from studica_robot_platform.updates import _safe_member
+    root = "opt/studica/releases/1.0.0"
+    member = tarfile.TarInfo("opt")
+    member.type = tarfile.SYMTYPE
+    member.linkname = "elsewhere"
+    with pytest.raises(UpdateError):
+        _safe_member(member, root)
+    member.name = root + "/install/link"
+    member.linkname = "../../../../outside"
+    with pytest.raises(UpdateError):
+        _safe_member(member, root)
+
+
+@pytest.mark.parametrize("qualified", [False, True])
+def test_development_bundle_requires_signed_qualification(tmp_path, qualified):
+    artifact, public, envelope = signed_envelope(tmp_path, development=True, qualified=qualified)
+    staged = tmp_path / "state/staged/1.0.0"
+    staged.mkdir(parents=True)
+    (staged / "release.tar.gz").write_bytes(artifact)
+    (staged / "manifest.json").write_text(json.dumps(envelope))
+    if qualified:
+        release = extract_verified_release("1.0.0", tmp_path / "state", tmp_path / "releases", public)
+        assert (release / "install/setup.bash").is_file()
+    else:
+        with pytest.raises(UpdateError, match="does not authorize"):
+            extract_verified_release("1.0.0", tmp_path / "state", tmp_path / "releases", public)
+
+
+def test_corrupt_staged_archive_is_rejected(tmp_path):
+    artifact, public, envelope = signed_envelope(tmp_path)
+    staged = tmp_path / "state/staged/1.0.0"
+    staged.mkdir(parents=True)
+    (staged / "release.tar.gz").write_bytes(artifact[:-1] + bytes([artifact[-1] ^ 1]))
+    (staged / "manifest.json").write_text(json.dumps(envelope))
+    with pytest.raises(UpdateError, match="changed after verification"):
+        extract_verified_release("1.0.0", tmp_path / "state", tmp_path / "releases", public)
+    assert not (tmp_path / "releases/1.0.0").exists()

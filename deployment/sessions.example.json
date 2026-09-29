@@ -1,0 +1,31 @@
+{
+  "schema_version": 1,
+  "sessions": {
+    "lab": {
+      "kind": "sim",
+      "domain_id": 80,
+      "profile": "class_4wd",
+      "dds_config": "~/.ros/studica_sim.xml"
+    },
+    "robot01": {
+      "kind": "robot",
+      "domain_id": 11,
+      "profile": "stack_4wd",
+      "dds_config": "~/.config/studica/robots/robot01/cyclonedds.xml",
+      "api_url": "https://studica-REPLACE-robot01.local",
+      "ca_file": "~/.config/studica/robots/robot01/robot-ca.crt",
+      "token_file": "~/.config/studica/robots/robot01/token",
+      "admin_token_file": "~/.config/studica/robots/robot01/admin-token"
+    },
+    "robot02": {
+      "kind": "robot",
+      "domain_id": 12,
+      "profile": "stack_4wd",
+      "dds_config": "~/.config/studica/robots/robot02/cyclonedds.xml",
+      "api_url": "https://studica-REPLACE-robot02.local",
+      "ca_file": "~/.config/studica/robots/robot02/robot-ca.crt",
+      "token_file": "~/.config/studica/robots/robot02/token",
+      "admin_token_file": "~/.config/studica/robots/robot02/admin-token"
+    }
+  }
+}

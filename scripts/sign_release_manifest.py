@@ -9,7 +9,9 @@ from pathlib import Path
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 
-from studica_robot_platform.updates import PLATFORM, PRODUCT, canonical_json, sha256_file
+from studica_robot_platform.updates import (
+    PLATFORM, PRODUCT, canonical_json, sha256_file, validate_signed_qualification,
+)
 
 
 def main() -> None:
@@ -19,6 +21,8 @@ def main() -> None:
     parser.add_argument("--artifact-url", required=True)
     parser.add_argument("--private-key", type=Path, required=True)
     parser.add_argument("--output", type=Path, required=True)
+    parser.add_argument("--qualification", type=Path,
+                        help="hardware acceptance report for this exact development bundle")
     options = parser.parse_args()
     key = serialization.load_pem_private_key(
         options.private_key.read_bytes(), password=None
@@ -34,6 +38,10 @@ def main() -> None:
         "release_root": f"opt/studica/releases/{options.version}",
         "version": options.version,
     }
+    if options.qualification:
+        report = json.loads(options.qualification.read_text())
+        validate_signed_qualification(report, signed["artifact_sha256"])
+        signed["qualification"] = report
     envelope = {
         "schema_version": 1,
         "signed": signed,

@@ -2,6 +2,16 @@
 
 ## Unreleased
 
+- Added named PC robot/simulation sessions with isolated domains, clocks and
+  companion credentials/services; retained the managed authenticated API.
+- Made robot identity unique, firewall rules domain-aware, and hardware profile
+  calibration persistent across replaceable releases.
+- Latched command loss until disarm, and inhibited motion during activation.
+- Hardened signed extraction and durable rollback, bound optional hardware
+  qualification to the artifact digest, and fixed clean-boot update environments.
+- Updated production guidance for PC-side applications and recorded the latest
+  hardware evidence separately from new software validation.
+
 - Selected Ubuntu 22.04 arm64 with ROS 2 Humble as the Phase-1 VMXPi
   production baseline and documented its May 2027 lifecycle gate.
 - Added a validated minimal runtime package manifest that keeps Bluetooth

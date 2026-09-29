@@ -9,6 +9,7 @@ Wants=NetworkManager.service ufw.service
 Type=oneshot
 User=root
 Group=root
+EnvironmentFile=-/etc/studica/robot.env
 ExecStart=/opt/studica/current/install/lib/studica_vmxpi_ros2/studica_network_guard
 RemainAfterExit=yes
 TimeoutStartSec=30

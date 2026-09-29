@@ -77,6 +77,7 @@ def test_orchestrator_configures_only_a_routable_companion_peer(tmp_path: Path):
         companion_address_path=address,
         cyclonedds_path=cyclone,
         transport_state_root=tmp_path / "transport",
+        domain_id=11,
     )
     assert not controller.configure_companion_peer("127.0.0.1")["ok"]
     result = controller.configure_companion_peer("192.0.2.20")
@@ -85,7 +86,7 @@ def test_orchestrator_configures_only_a_routable_companion_peer(tmp_path: Path):
     assert '<Peer Address="192.0.2.20"' in cyclone.read_text()
     assert "studica-peer-apply.timer" in calls[-1]
     assert controller.companion_transport(True)["ok"]
-    assert "17900:18000" in calls[-1]
+    assert "10160:10225" in calls[-1]
     assert (tmp_path / "transport/companion").is_file()
     assert controller.companion_transport(False)["ok"]
     assert not (tmp_path / "transport/companion").exists()
@@ -135,7 +136,7 @@ def test_first_boot_is_idempotent_and_private(tmp_path: Path):
     assert key.stat().st_mode & 0o077 == 0
     pairing = tmp_path / "var/lib/studica/pairing"
     assert pairing.stat().st_mode & 0o077 == 0
-    assert (tmp_path / "etc/hostname").read_text() == "robot\n"
+    assert (tmp_path / "etc/hostname").read_text() == first["device_name"] + "\n"
     assert first["device_name"].startswith("studica-")
     assert first["hotspot_ssid"].endswith(first["device_name"][-8:].upper())
     certificate = x509.load_pem_x509_certificate(
@@ -193,3 +194,13 @@ def test_systemd_contract_keeps_camera_on_demand_and_final_topic_unique():
     assert "ufw --force reset" in guard
     assert 'ufw deny out to "${studica_companion_peer}"' in guard
     assert 'ufw allow 443/tcp comment "Studica HTTPS API"' in guard
+
+
+def test_boot_services_and_update_environment():
+    target = (ROOT / "deployment/systemd/studica-robot.target").read_text()
+    assert "network-online.target" not in target
+    for name in ("studica-update.service", "studica-update-activate@.service", "studica-update-recovery.service"):
+        unit = (ROOT / "deployment/systemd" / name).read_text()
+        assert "studica_hardware_runtime update " in unit
+    wrapper = (ROOT / "scripts/studica_hardware_runtime").read_text()
+    assert 'studica_update_agent.py "$@"' in wrapper

@@ -63,6 +63,7 @@ class ModeManager(Node):
         self.declare_parameter("camera_freshness_sec", 2.0)
         self.declare_parameter("output_cmd_vel_topic", "/robot/platform/cmd_vel")
         self.declare_parameter("navigation_cmd_vel_topic", "/cmd_vel")
+        self.declare_parameter("maintenance_lock_file", "/var/lib/studica/activation-in-progress")
         self.declare_parameter(
             "status_snapshot_path", "/run/studica/platform-status.json"
         )
@@ -106,6 +107,10 @@ class ModeManager(Node):
         self._safety_state = "BOOTING"
         self._safety_reason = "WAITING_FOR_SAFETY_SUPERVISOR"
         self._command_reason = "PLATFORM_DISARMED"
+        self._command_was_live = False
+        self._command_loss_inhibit = False
+        self._last_command_disarm = 0.0
+        self._maintenance_lock = Path(str(self.get_parameter("maintenance_lock_file").value))
         self._last_companion = 0.0
         self._last_joy = 0.0
         self._joystick_deadman = False
@@ -323,6 +328,10 @@ class ModeManager(Node):
             self._publish_status()
 
     def _set_mode(self, request: SetMode.Request, response: SetMode.Response):
+        if self._maintenance_active():
+            response.accepted = False
+            response.message = "release activation is in progress"
+            return response
         with self._lock:
             try:
                 mode = parse_mode(request.mode)
@@ -575,6 +584,12 @@ class ModeManager(Node):
             and now - self._last_lidar <= self._lidar_freshness
         )
 
+    def _maintenance_active(self) -> bool:
+        try:
+            return self._maintenance_lock.exists()
+        except OSError:
+            return True
+
     def _publish_selected_command(self) -> None:
         now = time.monotonic()
         with self._lock:
@@ -595,6 +610,29 @@ class ModeManager(Node):
                     self._joystick_deadman and deadman_fresh,
                 )
             output = Twist()
+            if self._maintenance_active():
+                command = PlanarCommand()
+                reason = "MAINTENANCE_LOCKED"
+                if now - self._last_command_disarm >= 1.0:
+                    self._request_disarm()
+                    self._last_command_disarm = now
+            if self._safety_state != "ARMED":
+                self._command_was_live = False
+                self._command_loss_inhibit = False
+            elif self._command_was_live and reason in {
+                "COMMAND_STALE", "COMMAND_SOURCE_LOST", "COMMAND_SOURCE_CONFLICT",
+                "COMMAND_NONFINITE",
+            }:
+                self._command_loss_inhibit = True
+                self._arbiter.clear()
+            if self._command_loss_inhibit:
+                command = PlanarCommand()
+                reason = "COMMAND_LOST_WAITING_FOR_DISARM"
+                if now - self._last_command_disarm >= 1.0:
+                    self._request_disarm()
+                    self._last_command_disarm = now
+            elif reason == "COMMAND_ACCEPTED":
+                self._command_was_live = True
             output.linear.x = command.linear_x
             output.linear.y = command.linear_y
             output.angular.z = command.angular_z

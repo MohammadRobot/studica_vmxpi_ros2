@@ -2,7 +2,7 @@
 Description=Studica authenticated HTTPS robot API and web UI
 PartOf=studica-robot.target
 Requires=studica-firewall.service studica-mode-manager.service
-After=network-online.target studica-firewall.service studica-mode-manager.service
+After=studica-firewall.service studica-mode-manager.service
 StartLimitIntervalSec=60
 StartLimitBurst=4
 

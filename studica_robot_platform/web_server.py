@@ -10,6 +10,7 @@ from dataclasses import dataclass
 import hmac
 import json
 import math
+import os
 from pathlib import Path
 import re
 import secrets
@@ -676,6 +677,7 @@ def create_app(
                 "scope": "companion",
                 "api_version": API_VERSION,
                 "peer_address": peer,
+                "ros_domain_id": int(os.environ.get("ROS_DOMAIN_ID", "42")),
                 "platform_restart_scheduled": bool(
                     transport.get("restart_scheduled")
                 ),

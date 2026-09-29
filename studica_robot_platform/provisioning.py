@@ -22,6 +22,26 @@ class ProvisioningError(RuntimeError):
     """Provisioning input or target filesystem is unsafe."""
 
 
+def validate_domain_id(value: int) -> int:
+    if type(value) is not int or not 0 <= value <= 100:
+        raise ProvisioningError("classroom ROS domain must be an integer from 0 through 100")
+    return value
+
+
+def dds_port_range(domain_id: int) -> str:
+    """Unicast discovery/data ports for Cyclone participant indices 0..32."""
+    first = 7410 + 250 * validate_domain_id(domain_id)
+    return f"{first}:{first + 65}"
+
+
+def configure_domain(root: Path, domain_id: int) -> None:
+    domain_id = validate_domain_id(domain_id)
+    path = root_path(root, "/etc/studica/robot.env")
+    lines = path.read_text(encoding="utf-8").splitlines()
+    lines = [line for line in lines if not line.startswith("ROS_DOMAIN_ID=")]
+    private_write(path, "\n".join(lines + [f"ROS_DOMAIN_ID={domain_id}"]) + "\n", 0o644)
+
+
 def canonical_root(root: Path) -> Path:
     if not root.is_absolute():
         raise ProvisioningError("target root must be absolute")
@@ -102,7 +122,11 @@ def render_cyclonedds(companion_address: Optional[str]) -> str:
   <Domain Id="any">
     <General>
       <AllowMulticast>false</AllowMulticast>
-      <Interfaces><NetworkInterface autodetermine="true" multicast="false" /></Interfaces>
+      <Interfaces>
+        <NetworkInterface name="lo" multicast="false" priority="10" />
+        <NetworkInterface name="eth0" presence_required="false" multicast="false" />
+        <NetworkInterface name="wlan0" presence_required="false" multicast="false" />
+      </Interfaces>
     </General>
     <Discovery>
       <ParticipantIndex>auto</ParticipantIndex>
@@ -128,10 +152,7 @@ def provision(root: Path, companion_address: Optional[str] = None) -> dict[str, 
         identity = {
             "schema_version": 1,
             "device_id": device_id,
-            # The appliance default is deliberately stable so a first-time user
-            # can always open robot.local.  The immutable device_name remains
-            # unique and is used for the hotspot and support identity.
-            "hostname": "robot",
+            "hostname": f"studica-{suffix}",
             "device_name": f"studica-{suffix}",
             "created_at": datetime.now(timezone.utc).isoformat(),
         }
@@ -143,15 +164,15 @@ def provision(root: Path, companion_address: Optional[str] = None) -> dict[str, 
         except (KeyError, ValueError) as error:
             raise ProvisioningError("stored device identity is invalid") from error
         device_name = f"studica-{device_id.replace('-', '')[:8]}"
-        if identity.get("hostname") != "robot" or identity.get(
+        if identity.get("hostname") != device_name or identity.get(
             "device_name"
         ) != device_name:
-            identity["hostname"] = "robot"
+            identity["hostname"] = device_name
             identity["device_name"] = device_name
             private_write(identity_path, json.dumps(identity, indent=2) + "\n")
     hostname = str(identity["hostname"])
     device_name = str(identity["device_name"])
-    if hostname != "robot" or re.fullmatch(
+    if hostname != device_name or re.fullmatch(
         r"studica-[0-9a-f]{8}", device_name
     ) is None:
         raise ProvisioningError("stored device naming is invalid")
@@ -184,6 +205,9 @@ def provision(root: Path, companion_address: Optional[str] = None) -> dict[str, 
 
     etc_studica = root_path(root, "/etc/studica")
     etc_studica.mkdir(parents=True, exist_ok=True)
+    peer_path = etc_studica / "companion-address"
+    if companion_address is None and peer_path.is_file():
+        companion_address = peer_path.read_text(encoding="utf-8").strip() or None
     private_write(
         etc_studica / "companion-address",
         (companion_address or "") + "\n",

@@ -18,21 +18,19 @@ VMX/Titan write boundary. It disables Titan and forces zero unless two valid
 active-low DIO samples, drive health, the boot-release sequence, and a new local
 enable edge all agree. The operator confirmed E-stop status on FlexDIO channel
 8 and separate local enable on channel 9; `stack_4wd` now records that pair.
-Motor-power-disconnected input acceptance passed on 2026-08-28. A charged
-lifted-wheel run on 2026-08-29 stopped safely on its first failed tracking
-trial, so deployment remains blocked pending drivetrain diagnosis and complete
-lifted-wheel fault and recovery acceptance. See [Physical hardware safety
-gate](HARDWARE_SAFETY_GATE.md).
+Motor-power-disconnected acceptance passed on 2026-08-28. The failed tracking
+trial on 2026-08-29 is historical: lifted-wheel acceptance passed on 2026-09-02,
+followed by panel, joystick and SLAM floor testing on 2026-09-03. See
+[Physical hardware safety gate](HARDWARE_SAFETY_GATE.md) for the evidence and
+remaining torque-independent E-stop qualification. A pushed Git revision is
+not by itself an acceptance record for a release artifact.
 
-The hardware-only monitor publishes a fail-closed
-`Robot/Control/HardwareSafety` diagnostic from the exported state. The
-supervisor mirrors fresh, single-source hardware state into boot, arm,
-disarm-inhibit, fault, and local-acknowledgement transitions while the VMX write
-gate remains the authority. Phase 3A separates joystick commands, verifies its
-raw L1 deadman in the supervisor, and prevents fallback or reconnect-while-held
-motion. Nav2 selection, authenticated remote leases, systemd activation, and
-atomic updates remain gated future work. This revision is not deployed to the
-physical VMX-pi.
+The managed platform now includes mode ownership, authenticated remote leases,
+supervised services, PC companion autonomy and signed atomic updates. The
+classroom session additions build on source revision
+`d3861cacc8c9b7e3bc515f3306408bd4cc00b63b`; they require fresh physical acceptance
+before classroom deployment. See [Product runtime](PRODUCT_RUNTIME.md) and
+[Production platform](PRODUCTION_PLATFORM.md).
 
 A read-only VMXPi audit confirms that idle compute load is healthy but the
 current Ubuntu Desktop-derived image runs unnecessary services and exposes

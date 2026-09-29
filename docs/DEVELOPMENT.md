@@ -1,8 +1,7 @@
 # Application Development and Deployment
 
-Use the PC as the primary development machine and the VMXPi as the deployment
-target. This keeps editing, Git, simulation, RViz, and most tests fast while
-ensuring hardware code is built for the VMXPi's arm64 processor.
+Use the PC for application development, simulation and high-level computation.
+The VMXPi runs the installed hardware, safety, sensing and odometry platform.
 
 ## Workspace layout
 
@@ -89,50 +88,25 @@ colcon test --packages-select studica_robot_apps
 colcon test-result --test-result-base build/studica_robot_apps --verbose
 ```
 
-### 4. Deploy source to the VMXPi
+### 4. Run the same application from the PC
 
-From the PC:
-
-```bash
-cd "$STUDICA_WS/src/studica_robot_apps"
-./scripts/deploy_to_vmxpi.sh --host vmx@192.168.1.63
-```
-
-The helper uses `rsync` over SSH, copies only `studica_robot_apps`, and runs this
-build on the VMXPi:
+Configure named targets as described in [Product runtime](PRODUCT_RUNTIME.md).
+For a ROS executable publishing `/cmd_vel`:
 
 ```bash
-colcon build --symlink-install --packages-select studica_robot_apps
+ros2 run studica_vmxpi_ros2 studica sim lab run -- ros2 run my_course my_node
+ros2 run studica_vmxpi_ros2 studica robot robot01 run -- ros2 run my_course my_node
 ```
 
-It never copies `build`, `install`, or `log`. PC binaries are amd64 and cannot
-run on the arm64 VMXPi. The script does not contain or save an SSH password;
-use an SSH key for repeated deployment or enter the password interactively.
-Extra remote files are preserved by default. Add `--delete` only after making
-the PC copy authoritative and reviewing any VMXPi-only edits.
+On hardware, explicitly select Developer Mode in the authenticated robot UI and
+use the local enable procedure. The selector supplies domain, DDS configuration,
+clock and the managed developer command input. A custom launch must expose and
+propagate `use_sim_time` and `cmd_vel_topic` arguments to its nodes. Generic
+non-ROS commands receive the session environment only.
 
-To use another robot address:
-
-```bash
-./scripts/deploy_to_vmxpi.sh --host vmx@<VMXPI_IP>
-```
-
-### 5. Run on the VMXPi
-
-Start the supervised robot bringup first. In a separate SSH session:
-
-```bash
-ssh vmx@<VMXPI_IP>
-export STUDICA_WS="$HOME/studica_ws"
-source "$HOME/.ros/studica_vmxpi_wifi.env"
-source /opt/ros/humble/setup.bash
-source "$STUDICA_WS/install/setup.bash"
-ros2 launch studica_robot_apps robot_observer.launch.py use_sim_time:=false
-```
-
-Source the generated VMXPi Ethernet environment when using Ethernet. The PC and
-VMXPi must use matching Cyclone DDS domain and peer profiles; see
-[Networking and Cyclone DDS](NETWORKING.md).
+Install application packages on the PC. Source deployment to the Pi is a
+hardware-driver development workflow, not the classroom application workflow.
+Robot software updates use signed ARM64 release artifacts.
 
 ## When to use VS Code Remote SSH
 
@@ -152,5 +126,4 @@ or copy it back immediately so the PC and VMXPi do not diverge.
   owns `/cmd_vel`.
 - Test in simulation, then at low speed with the hardware safety procedure.
 
-The same application package runs in simulation and hardware. Only
-`use_sim_time` and the selected environment change.
+The same application package runs in simulation and hardware. Target selection supplies the clock, command remap and network environment.

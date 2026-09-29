@@ -17,7 +17,7 @@ import subprocess
 import tempfile
 from typing import Any, Callable, Dict, Iterable, Optional
 
-from .provisioning import private_write, render_cyclonedds
+from .provisioning import private_write, render_cyclonedds, dds_port_range
 
 
 SENSOR_UNITS = {
@@ -28,7 +28,6 @@ MANAGED_UNITS = frozenset(SENSOR_UNITS.values())
 BLUETOOTH_ADDRESS = re.compile(r"(?:[0-9A-F]{2}:){5}[0-9A-F]{2}")
 RELEASE_VERSION = re.compile(r"[0-9A-Za-z][0-9A-Za-z.+-]{0,63}")
 WIFI_SSID = re.compile(r"[^\x00-\x1f\x7f]{1,32}")
-DDS_DOMAIN_42_PORT_RANGE = "17900:18000"
 
 
 def camera_resources_available() -> tuple[bool, str]:
@@ -64,6 +63,7 @@ class UnitController:
         camera_resource_probe: Callable[[], tuple[bool, str]] = (
             camera_resources_available
         ),
+        domain_id: Optional[int] = None,
     ):
         self._runner = runner
         self._companion_address_path = companion_address_path
@@ -71,6 +71,8 @@ class UnitController:
         self._update_state_root = update_state_root
         self._transport_state_root = transport_state_root
         self._camera_resource_probe = camera_resource_probe
+        self._dds_ports = dds_port_range(
+            int(os.environ.get("ROS_DOMAIN_ID", "42")) if domain_id is None else domain_id)
 
     def set_active(self, unit: str, enabled: bool) -> Dict[str, Any]:
         if unit not in MANAGED_UNITS:
@@ -297,7 +299,7 @@ class UnitController:
             "to",
             "any",
             "port",
-            DDS_DOMAIN_42_PORT_RANGE,
+            self._dds_ports,
             "proto",
             "udp",
             "comment",
@@ -309,7 +311,7 @@ class UnitController:
             "to",
             address,
             "port",
-            DDS_DOMAIN_42_PORT_RANGE,
+            self._dds_ports,
             "proto",
             "udp",
             "comment",

@@ -93,7 +93,10 @@ def _sanitize_ld_library_path_for_rviz() -> str:
 def _profile_assets(profile_name: str, control_rate_hz=None, enable_odom_tf=None):
     """Materialize controller parameters with runtime control/TF overrides."""
     pkg_share = get_package_share_directory("studica_vmxpi_ros2")
-    profile_dir = os.path.join(pkg_share, "config", "profiles", profile_name)
+    profile_dir = os.path.join(
+        os.environ.get("STUDICA_PROFILE_ROOT", os.path.join(pkg_share, "config", "profiles")),
+        profile_name,
+    )
     profile_file = os.path.join(profile_dir, "robot_profile.yaml")
     source_controllers_file = os.path.join(profile_dir, "robot_controllers.yaml")
 

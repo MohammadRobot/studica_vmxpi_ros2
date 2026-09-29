@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+import fcntl
 import json
 import os
 from pathlib import Path
@@ -27,6 +28,10 @@ from studica_robot_platform.updates import (
     staged_status,
     switch_current,
 )
+
+CURRENT_RELEASE = Path("/opt/studica/current")
+RELEASES_ROOT = Path("/opt/studica/releases")
+MAINTENANCE_LOCK = Path("/var/lib/studica/activation-in-progress")
 
 
 def _wait_disarmed(timeout: float, request_disarm: bool) -> bool:
@@ -58,6 +63,8 @@ def _wait_disarmed(timeout: float, request_disarm: bool) -> bool:
             and latest.safety_state == "READY_DISARMED"
             and not latest.armed
             and latest.mode_name == "IDLE"
+            and latest.transition == "READY"
+            and node.count_publishers("/robot/platform/status") == 1
         ):
             safe = True
             break
@@ -79,10 +86,10 @@ def _systemctl(verb: str, unit: str) -> None:
 
 
 def activate(version: str, state_root: Path, public_key: Path) -> None:
-    if not _wait_disarmed(15.0, request_disarm=True):
+    if not _wait_disarmed(15.0, request_disarm=False):
         raise UpdateError("activation requires IDLE and READY_DISARMED")
-    current = Path("/opt/studica/current")
-    releases_root = Path("/opt/studica/releases")
+    current = CURRENT_RELEASE
+    releases_root = RELEASES_ROOT
     release = extract_verified_release(
         version, state_root, releases_root, public_key
     )
@@ -90,31 +97,44 @@ def activate(version: str, state_root: Path, public_key: Path) -> None:
         version, state_root, releases_root, current, release
     )
     try:
+        MAINTENANCE_LOCK.touch(mode=0o644, exist_ok=False)
+        if not _wait_disarmed(15.0, request_disarm=False):
+            raise UpdateError("robot left IDLE/READY_DISARMED during staging")
         _systemctl("stop", "studica-robot.target")
         switch_current(current, release)
         _systemctl("start", "studica-robot.target")
         if not _wait_disarmed(60.0, request_disarm=False):
             raise UpdateError("new release did not reach READY_DISARMED")
         finalize_activation(state_root, "ACTIVE_HEALTHY")
+        MAINTENANCE_LOCK.unlink(missing_ok=True)
     except Exception as error:
         rollback_errors = []
         try:
             _systemctl("stop", "studica-robot.target")
         except UpdateError as rollback_error:
             rollback_errors.append(str(rollback_error))
+        if rollback_errors:
+            # Do not switch beneath a runtime that could still be running.
+            raise UpdateError("could not stop failed candidate; recovery journal retained") from error
         try:
             if current.is_symlink() and current.resolve() != previous:
                 switch_current(current, previous)
         except (OSError, UpdateError) as rollback_error:
             rollback_errors.append(str(rollback_error))
+        if rollback_errors:
+            raise UpdateError("could not restore previous pointer; recovery journal retained") from error
         try:
             _systemctl("start", "studica-robot.target")
+            if not _wait_disarmed(30.0, request_disarm=False):
+                raise UpdateError("previous release did not recover READY_DISARMED")
         except UpdateError as rollback_error:
             rollback_errors.append(str(rollback_error))
-        try:
-            finalize_activation(state_root, "ROLLED_BACK_FAILED", str(error))
-        except UpdateError as rollback_error:
-            rollback_errors.append(str(rollback_error))
+        if not rollback_errors:
+            try:
+                finalize_activation(state_root, "ROLLED_BACK_FAILED", str(error))
+                MAINTENANCE_LOCK.unlink(missing_ok=True)
+            except UpdateError as rollback_error:
+                rollback_errors.append(str(rollback_error))
         if rollback_errors:
             raise UpdateError(
                 f"activation failed: {error}; rollback errors: "
@@ -143,7 +163,14 @@ def main() -> int:
     activate_parser = subparsers.add_parser("activate")
     activate_parser.add_argument("version")
     options = parser.parse_args()
+    activation_lock = None
     try:
+        if options.command in {"activate", "recover"}:
+            if os.geteuid() != 0:
+                raise UpdateError("activation and recovery must run as root")
+            options.state_root.mkdir(parents=True, exist_ok=True)
+            activation_lock = (options.state_root / "activation.lock").open("a")
+            fcntl.flock(activation_lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
         if options.command == "check":
             url = options.manifest_url_file.read_text(encoding="utf-8").strip()
             result = stage_update(
@@ -166,9 +193,13 @@ def main() -> int:
                     Path("/opt/studica/current"),
                 )
             )
+            MAINTENANCE_LOCK.unlink(missing_ok=True)
     except (OSError, ValueError, UpdateError) as error:
         print(f"update failed: {error}", file=sys.stderr)
         return 1
+    finally:
+        if activation_lock is not None:
+            activation_lock.close()
     return 0
 
 

@@ -31,6 +31,7 @@ else
 fi
 
 echo "[check] Python syntax: launch, classroom, and validation scripts"
+python3 -m py_compile "${repo_root}/scripts/studica"
 python3 -m py_compile \
   "${launch_py_files[@]}" \
   "${repo_root}/scripts/check_classroom.py" \

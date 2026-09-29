@@ -173,10 +173,10 @@ required component returns `1`; a usage or setup error returns `2`. Add
 `bringup.launch.py` remains available for instructors and advanced robot
 profiles. Beginners should use the four small launch files above.
 
-The current production-safety phase intentionally rejects `/robot/arm` in
-hardware mode. Physical motion remains gated until the next phase connects a
-local safety enable and emergency-stop health input; do not deploy this phase
-to the VMX-pi for motion testing.
+Hardware requires local enable and healthy E-stop inputs. Managed deployment
+starts ready-disarmed and runs expensive applications on a paired PC. See [Product runtime](docs/PRODUCT_RUNTIME.md) for independent robot
+and simulation sessions, and [hardware acceptance](docs/HARDWARE_SAFETY_GATE.md)
+for tested behavior and outstanding production qualification.
 
 ## Course path
 

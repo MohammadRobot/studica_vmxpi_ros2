@@ -10,13 +10,15 @@ Install the workspace on the PC and copy the robot's public TLS certificate over
 source /opt/ros/humble/setup.bash
 source /home/$USER/studica_ws/install/setup.bash
 ros2 run studica_vmxpi_ros2 install_companion.py \
+  --robot-id robot01 --domain-id 11 \
+  --robot-url https://studica-DEVICE.local \
   --pairing-code 12345678 \
   --robot-certificate /secure/input/robot.crt
 ```
 
 The code works once. The installer exchanges it over certificate-verified HTTPS for a hash-only, companion-scoped credential and installs a restricted Cyclone DDS peer configuration. The credential can read status, report readiness, download maps and upload completed maps; it cannot change modes, drive, pair devices, activate updates or enable Developer Mode. The redeeming address becomes the robot's allowlisted DDS peer, and re-pairing revokes the previous companion credential. Pairing schedules a safe robot-platform restart after the HTTPS response so the new peer configuration is loaded. Re-pair if the companion's address changes. The administrative `--token-file` option remains available only as a recovery path and requires the peer to be provisioned separately.
 
-The installer creates private token, CA and Cyclone DDS files below `~/.config/studica`, a map cache below `~/.cache/studica`, and enables `studica-companion.service` in the user systemd instance. Use `--no-enable` for inspection-only installation.
+Named installs create private token, CA and DDS files below `~/.config/studica/robots/<id>`, a map cache below `~/.cache/studica/<id>/maps`, and enable `studica-companion-<id>.service`. Match the domain to the provisioned robot. Repeat with another ID and domain for each robot. Omitting `--robot-id` retains the legacy singleton layout. See [Product runtime](PRODUCT_RUNTIME.md). Use `--no-enable` for inspection-only installation.
 
 The daemon exchanges status and readiness through the scoped HTTPS API, so discovery does not require DDS to be exposed at idle. The robot opens DDS only to the paired address while SLAM, Navigation or explicit Developer Mode owns the system, and removes that exception on mode exit, companion loss, process restart and boot.
 

@@ -284,9 +284,9 @@ Do not place a link-specific `CYCLONEDDS_URI` in `.bashrc` or `.profile`.
 Terminal-scoped environments prevent an absent robot interface from breaking
 simulation. The supervised root launch preserves these four selected variables.
 
-Application nodes may run on the PC during a short network test, but the normal
-deployment path copies `studica_robot_apps` source to the VMXPi and builds it
-there. This avoids making physical operation depend on the PC connection. See
+Application nodes normally run on the PC. The Pi retains local stopping and
+command expiry if the PC or network disappears. Use the managed paired
+companion and separate domains described in [Product runtime](PRODUCT_RUNTIME.md). See
 [Application development and deployment](DEVELOPMENT.md).
 
 ## Test discovery without robot hardware

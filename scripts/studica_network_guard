@@ -7,6 +7,14 @@ if [[ "${EUID}" -ne 0 ]]; then
   exit 77
 fi
 
+studica_domain="${ROS_DOMAIN_ID:-42}"
+if [[ ! "${studica_domain}" =~ ^([0-9]|[1-9][0-9]|100)$ ]]; then
+  echo "Invalid classroom ROS_DOMAIN_ID (expected 0..100)" >&2
+  exit 64
+fi
+studica_dds_first=$((7410 + 250 * studica_domain))
+studica_dds_last=$((studica_dds_first + 65))
+
 # This appliance owns its firewall policy. Reset removes any DDS exception
 # left by a crash or power loss while Developer/Autonomy mode was active.
 /usr/sbin/ufw --force reset
@@ -20,7 +28,7 @@ if [[ -s /etc/studica/companion-address ]]; then
     < /etc/studica/companion-address
   if [[ -n "${studica_companion_peer}" ]]; then
     /usr/sbin/ufw deny out to "${studica_companion_peer}" \
-      port 17900:18000 proto udp comment "Studica DDS closed"
+      port "${studica_dds_first}:${studica_dds_last}" proto udp comment "Studica DDS closed"
   fi
 fi
 /usr/sbin/ufw --force enable

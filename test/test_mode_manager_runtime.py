@@ -129,6 +129,7 @@ def main():
         prefix / "lib/studica_vmxpi_ros2/studica_mode_manager.py"
     )
     snapshot = Path(f"/tmp/studica-mode-manager-test-{os.getpid()}.json")
+    maintenance = snapshot.with_suffix(".maintenance")
     process = subprocess.Popen(
         [
             str(executable),
@@ -139,6 +140,8 @@ def main():
             f"status_snapshot_path:={snapshot}",
             "-p",
             "companion_timeout_sec:=3.0",
+            "-p",
+            f"maintenance_lock_file:={maintenance}",
         ],
         stdout=subprocess.PIPE,
         stderr=subprocess.STDOUT,
@@ -206,6 +209,16 @@ def main():
         spin_until(node, lambda: node.disarm_count >= 4, 2.0)
         assert node.disarm_count >= 4
         assert abs(node.output.linear.x) < 1.0e-9
+        # A new manual session must not resume when a lost source reconnects.
+        request_mode(node, 2)
+        spin_until(node, lambda: node.status.mode_name == "MANUAL_WEB"
+                   and node.status.transition == "READY", 3.0)
+        node.safety_state = "ARMED"
+        spin_until(node, lambda: node.output.linear.x > 0.01, 3.0, command)
+        count_before_loss = node.disarm_count
+        spin_until(node, lambda: node.disarm_count > count_before_loss, 3.0)
+        spin_until(node, lambda: node.status.safety_state == "READY_DISARMED", 2.0, command)
+        assert abs(node.output.linear.x) < 1.0e-9
 
         node.publish_scan = True
         node.companion.active_mode = 0
@@ -237,6 +250,17 @@ def main():
         )
         assert node.disarm_count >= 4
         assert abs(node.output.linear.x) < 1.0e-9
+        maintenance.touch()
+        request = SetMode.Request()
+        request.mode = 2
+        future = node.mode_client.call_async(request)
+        spin_until(node, future.done, 3.0)
+        assert not future.result().accepted
+        assert "activation" in future.result().message
+        node.safety_state = "ARMED"
+        before_maintenance = node.disarm_count
+        spin_until(node, lambda: node.disarm_count > before_maintenance, 3.0, command)
+        assert abs(node.output.linear.x) < 1.0e-9
     finally:
         if node is not None:
             node.destroy_node()
@@ -249,6 +273,7 @@ def main():
             process.kill()
             output, _ = process.communicate(timeout=5.0)
         snapshot.unlink(missing_ok=True)
+        maintenance.unlink(missing_ok=True)
         if process.returncode != 0:
             print(output, file=sys.stderr)
             raise RuntimeError(

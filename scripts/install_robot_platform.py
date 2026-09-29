@@ -16,11 +16,14 @@ from studica_robot_platform.provisioning import (
     provision,
     root_path,
     validate_qualification,
+    configure_domain,
+    validate_domain_id,
 )
 
 
 def _copy_tree(
-    source: Path, destination: Path, excluded_names: frozenset[str] = frozenset()
+    source: Path, destination: Path, excluded_names: frozenset[str] = frozenset(),
+    preserve_existing: bool = False,
 ) -> None:
     destination.mkdir(parents=True, exist_ok=True)
     for item in source.iterdir():
@@ -28,8 +31,10 @@ def _copy_tree(
             continue
         target = destination / item.name
         if item.is_dir():
-            _copy_tree(item, target, excluded_names)
+            _copy_tree(item, target, excluded_names, preserve_existing)
         else:
+            if preserve_existing and target.exists():
+                continue
             shutil.copyfile(item, target)
             os.chmod(target, item.stat().st_mode & 0o777)
 
@@ -87,12 +92,15 @@ def main() -> None:
     parser.add_argument("--root", type=Path, default=Path("/"))
     parser.add_argument("--assets-root", type=Path)
     parser.add_argument("--companion-address")
+    parser.add_argument("--domain-id", type=int, help="unique classroom domain (0..100)")
     parser.add_argument("--enable-autostart", action="store_true")
     parser.add_argument("--safety-qualification", type=Path)
     parser.add_argument("--update-public-key", type=Path)
     parser.add_argument("--update-manifest-url")
     options = parser.parse_args()
     root = canonical_root(options.root)
+    if options.domain_id is not None:
+        validate_domain_id(options.domain_id)
     if (options.update_public_key is None) != (options.update_manifest_url is None):
         raise SystemExit(
             "update public key and manifest URL must be configured together"
@@ -112,7 +120,11 @@ def main() -> None:
         root_path(root, "/etc/systemd/system"),
         frozenset({"studica-companion.service"}),
     )
-    _copy_tree(assets / "config", root_path(root, "/etc/studica"))
+    _copy_tree(assets / "config", root_path(root, "/etc/studica"), preserve_existing=True)
+    if options.domain_id is not None:
+        configure_domain(root, options.domain_id)
+    _copy_tree(share / "config/profiles/stack_4wd",
+               root_path(root, "/etc/studica/profiles/stack_4wd"), preserve_existing=True)
     journal_destination = root_path(
         root, "/etc/systemd/journald.conf.d/studica.conf"
     )

@@ -44,7 +44,8 @@ def main():
         if not len(valid):
             raise RuntimeError("no valid depth pixels")
         info = infos[-1]
-        if (info.width, info.height, info.header.frame_id) != (320, 240, msg.header.frame_id) or info.k[0] <= 0 or info.k[4] <= 0:
+        if ((info.width, info.height, info.header.frame_id) != (320, 240, msg.header.frame_id)
+                or info.k[0] <= 0 or info.k[4] <= 0):
             raise RuntimeError("invalid or mismatched camera calibration")
         image_rate = (len(images) - 1) / (images[-1][0] - images[0][0])
         scan_rate = (len(scans) - 1) / (scans[-1] - scans[0])

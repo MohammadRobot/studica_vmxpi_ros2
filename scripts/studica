@@ -1,0 +1,183 @@
+#!/usr/bin/env python3
+# Copyright (c) 2026 studica_vmxpi_ros2 contributors
+# SPDX-License-Identifier: Apache-2.0
+"""Run isolated PC sessions without modifying the parent shell or robot."""
+
+import argparse
+import json
+import os
+from pathlib import Path
+import re
+import ssl
+import subprocess
+import sys
+import xml.etree.ElementTree as ET
+from urllib.request import Request, build_opener, HTTPSHandler, HTTPRedirectHandler
+from urllib.parse import urlparse
+
+
+def load_sessions(path):
+    data = json.loads(path.read_text())
+    if data.get("schema_version") != 1:
+        raise ValueError("unsupported sessions schema")
+    sessions = data["sessions"]
+    domains = set()
+    for name, session in sessions.items():
+        if not re.fullmatch(r"[a-z][a-z0-9_-]*", name):
+            raise ValueError("invalid session name")
+        domain = session["domain_id"]
+        if type(domain) is not int or not 0 <= domain <= 100 or domain in domains:
+            raise ValueError("sessions require distinct domain IDs from 0 through 100")
+        domains.add(domain)
+        if session["kind"] not in ("sim", "robot"):
+            raise ValueError("session kind must be sim or robot")
+        if not Path(session["dds_config"]).expanduser().is_file():
+            raise ValueError(f"DDS configuration missing for {name}")
+        if session["kind"] == "sim":
+            xml = ET.parse(Path(session["dds_config"]).expanduser())
+            interfaces = xml.findall(".//{*}NetworkInterface")
+            peers = xml.findall(".//{*}Peer")
+            if (not interfaces or any(item.get("name") != "lo" for item in interfaces)
+                    or any(item.get("Address") != "127.0.0.1" for item in peers)):
+                raise ValueError("simulation requires a loopback-only DDS profile")
+    return sessions
+
+
+def environment(session):
+    env = os.environ.copy()
+    for key in ("ROS_DOMAIN_ID", "ROS_LOCALHOST_ONLY", "CYCLONEDDS_URI",
+                "RMW_IMPLEMENTATION", "STUDICA_PROFILE_ROOT", "STUDICA_RUNTIME_ROLE"):
+        env.pop(key, None)
+    env.update(ROS_DOMAIN_ID=str(session["domain_id"]),
+               # Cyclone already selects lo in the XML. Humble localhost-only
+               # adds lo a second time and rejects the duplicate interface.
+               ROS_LOCALHOST_ONLY="0",
+               RMW_IMPLEMENTATION="rmw_cyclonedds_cpp",
+               CYCLONEDDS_URI=Path(session["dds_config"]).expanduser().resolve().as_uri(),
+               STUDICA_USE_SIM_TIME="true" if session["kind"] == "sim" else "false")
+    if session["kind"] == "sim":
+        env.update(GZ_VERSION="harmonic", GZ_PARTITION=f"studica_sim_{session['domain_id']}")
+    return env
+
+
+def command_for(session, operation, extra):
+    simulated = session["kind"] == "sim"
+    if operation == "run":
+        if not extra:
+            raise ValueError("run requires a command after --")
+        clock = "true" if simulated else "false"
+        if extra[:2] == ["ros2", "run"]:
+            result = extra + ["--ros-args", "-p", "use_sim_time:=" + clock]
+            if not simulated:
+                result += ["-r", "/cmd_vel:=/robot/control/developer"]
+            return result
+        if extra[:2] == ["ros2", "launch"]:
+            return extra + ["use_sim_time:=" + clock, "cmd_vel_topic:=" + (
+                "/cmd_vel" if simulated else "/robot/control/developer")]
+        return extra
+    if extra and operation not in ("launch", "mapping", "navigation", "update"):
+        raise ValueError("unexpected arguments")
+    if operation == "status":
+        return ["ros2", "topic", "echo", "/robot/state", "--once"]
+    if operation == "doctor":
+        return ["ros2", "run", "studica_robot_monitor", "robot_check", "--mode",
+                "simulation" if simulated else "hardware", "--strict"]
+    if operation == "update":
+        raise ValueError("updates use the managed robot HTTPS API")
+    if operation == "launch" and not simulated:
+        raise ValueError("the robot starts at power-on; use status, doctor, mapping, navigation or run")
+    launch = "sim" if operation == "launch" else operation
+    if any(arg.split(":=", 1)[0] in ("mode", "robot_profile", "use_sim_time") for arg in extra):
+        raise ValueError("session selection owns mode, robot_profile and use_sim_time")
+    result = ["ros2", "launch", "studica_vmxpi_ros2", f"{launch}.launch.py",
+              "robot_profile:=" + session.get("profile", "class_4wd" if simulated else "stack_4wd")]
+    if launch != "sim":
+        result.append("mode:=" + ("gz_sim" if simulated else "hardware"))
+    return result + extra
+
+
+def api_plan(session, operation, extra):
+    url = session.get("api_url", "")
+    parsed = urlparse(url)
+    if parsed.scheme != "https" or not parsed.hostname or parsed.username or parsed.password:
+        raise ValueError("configure api_url as a credential-free HTTPS robot URL")
+    if operation == "status":
+        if extra:
+            raise ValueError("status takes no extra arguments")
+        return "GET", url.rstrip("/") + "/api/v1/status", None
+    if operation == "update":
+        if len(extra) != 1 or not re.fullmatch(r"[0-9A-Za-z][0-9A-Za-z.+-]{0,63}", extra[0]):
+            raise ValueError("update requires one staged release version")
+        return "POST", url.rstrip("/") + "/api/v1/updates/activate", {"version": extra[0]}
+    if operation == "mapping" and not extra:
+        return "PUT", url.rstrip("/") + "/api/v1/mode", {"mode": "SLAM"}
+    if operation == "navigation" and len(extra) == 1:
+        return "PUT", url.rstrip("/") + "/api/v1/mode", {"mode": "NAVIGATION", "map_id": extra[0]}
+    raise ValueError("mapping takes no arguments; navigation requires one registered map ID")
+
+
+def call_api(session, request):
+    method, url, payload = request
+    credential = (session.get("admin_token_file") if method != "GET" else None) or session["token_file"]
+    token_file = Path(credential).expanduser()
+    if token_file.stat().st_mode & 0o077:
+        raise ValueError("token file must be private (chmod 600)")
+    token = token_file.read_text().strip()
+    context = ssl.create_default_context(cafile=str(Path(session["ca_file"]).expanduser()))
+    request = Request(url, data=None if payload is None else json.dumps(payload).encode(),
+                      method=method, headers={"Authorization": "Bearer " + token,
+                                              "Content-Type": "application/json"})
+
+    class NoRedirect(HTTPRedirectHandler):
+        def redirect_request(self, req, fp, code, msg, headers, newurl):
+            return None
+
+    opener = build_opener(HTTPSHandler(context=context), NoRedirect())
+    with opener.open(request, timeout=15) as response:
+        result = json.loads(response.read(1024 * 1024))
+    print(json.dumps(result, indent=2))
+    return 0
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--config", type=Path,
+                        default=Path.home() / ".config/studica/sessions.json")
+    parser.add_argument("--dry-run", action="store_true")
+    parser.add_argument("target", choices=("sim", "robot"))
+    parser.add_argument("session", help="configured simulation session or device ID")
+    parser.add_argument("operation", choices=(
+        "launch", "mapping", "navigation", "run", "status", "doctor", "update"))
+    parser.add_argument("arguments", nargs=argparse.REMAINDER)
+    args = parser.parse_args()
+    try:
+        session = load_sessions(args.config)[args.session]
+        if session["kind"] != args.target:
+            raise ValueError("target does not match configured session kind")
+        extra = args.arguments
+        if extra[:1] == ["--"]:
+            extra = extra[1:]
+        if session["kind"] == "robot" and args.operation in ("status", "update", "mapping", "navigation"):
+            request = api_plan(session, args.operation, extra)
+            if args.dry_run:
+                print(json.dumps({"method": request[0], "url": request[1], "body": request[2]}, indent=2))
+                return 0
+            return call_api(session, request)
+        command = command_for(session, args.operation, extra)
+        env = environment(session)
+        if args.dry_run:
+            print(json.dumps({"command": command, "environment": {
+                key: env[key] for key in (
+                    "ROS_DOMAIN_ID", "ROS_LOCALHOST_ONLY", "CYCLONEDDS_URI",
+                    "STUDICA_USE_SIM_TIME")}}, indent=2))
+            return 0
+        if args.operation == "status":
+            return subprocess.run(command, env=env, timeout=10, check=False).returncode
+        os.execvpe(command[0], command, env)
+    except (OSError, ValueError, KeyError, TypeError, ET.ParseError, subprocess.TimeoutExpired) as error:
+        print(f"studica: {error}", file=sys.stderr)
+        return 2
+
+
+if __name__ == "__main__":
+    sys.exit(main())

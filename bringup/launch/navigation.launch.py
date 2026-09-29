@@ -78,9 +78,8 @@ def generate_launch_description():
     )
     robot_profile_file = PathJoinSubstitution(
         [
-            FindPackageShare("studica_vmxpi_ros2"),
-            "config",
-            "profiles",
+            EnvironmentVariable("STUDICA_PROFILE_ROOT", default_value=PathJoinSubstitution(
+                [FindPackageShare("studica_vmxpi_ros2"), "config", "profiles"])),
             robot_profile,
             "robot_profile.yaml",
         ]
