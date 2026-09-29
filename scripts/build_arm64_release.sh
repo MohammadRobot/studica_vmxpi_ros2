@@ -130,7 +130,7 @@ case "${docker_architecture}" in
   *)
     ${allow_emulation} || die \
       "Docker host is ${docker_architecture}; use native ARM64 or pass --allow-emulation"
-    docker buildx inspect --bootstrap | grep -q 'linux/arm64' || die \
+    docker buildx inspect --bootstrap | grep 'linux/arm64' >/dev/null || die \
       "the active Buildx builder does not advertise linux/arm64"
     ;;
 esac
