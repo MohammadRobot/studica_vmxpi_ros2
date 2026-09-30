@@ -1,5 +1,9 @@
 # Supervised Hardware
 
+For the current robot installation, tested status and complete start/stop commands,
+use the [Robot manual](ROBOT_MANUAL.md). It distinguishes the native tested
+installation from older workspace and managed-production examples below.
+
 This guide is for an instructor and operators working together. Complete the
 simulation labs first. The person at the robot must be able to press a physical
 emergency stop immediately.

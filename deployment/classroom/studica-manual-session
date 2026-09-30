@@ -1,0 +1,8 @@
+#!/usr/bin/env bash
+set -euo pipefail
+[[ $EUID == 0 ]] || { echo 'Run with sudo' >&2; exit 1; }
+case "${1:-}" in
+ drive|slam|navigation) systemctl start studica-classroom.service ;;
+ stop) systemctl stop studica-classroom.service ;;
+ *) echo 'Usage: studica-manual-session drive|slam|navigation|stop' >&2; exit 2 ;;
+esac

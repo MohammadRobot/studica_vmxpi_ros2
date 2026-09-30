@@ -1,0 +1,29 @@
+[Unit]
+Description=Studica supervised classroom runtime (local physical enable required)
+After=network-online.target
+Wants=network-online.target
+Conflicts=studica-hardware.service studica-training-lidar.service studica-training-camera.service
+StartLimitIntervalSec=120
+StartLimitBurst=3
+
+[Service]
+Type=simple
+User=root
+Environment=ROS_DOMAIN_ID=78
+Environment=ROS_LOCALHOST_ONLY=0
+Environment=RMW_IMPLEMENTATION=rmw_cyclonedds_cpp
+Environment=CYCLONEDDS_URI=file:///opt/studica/training-20260907/cyclonedds.xml
+Environment=ROS_LOG_DIR=/var/log/studica-classroom
+ExecStart=/usr/local/sbin/studica-classroom-runtime
+Restart=on-failure
+RestartSec=5
+KillSignal=SIGINT
+KillMode=control-group
+TimeoutStopSec=15
+LogsDirectory=studica-classroom
+UMask=0027
+LogRateLimitIntervalSec=30
+LogRateLimitBurst=200
+
+[Install]
+WantedBy=multi-user.target

@@ -1,5 +1,9 @@
 # Physical-robot training track
 
+For the current robot installation, tested status and complete start/stop commands,
+use the [Robot manual](ROBOT_MANUAL.md). It distinguishes the native tested
+installation from older workspace and managed-production examples below.
+
 The classroom includes the actual robot as well as simulation. Distinguish
 stationary live-sensor exercises from exercises that energize the drivetrain;
 they have different prerequisites. The simulation-only `training.sh` wrapper

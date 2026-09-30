@@ -1,5 +1,9 @@
 # Networking and Cyclone DDS
 
+For the current robot installation, tested status and complete start/stop commands,
+use the [Robot manual](ROBOT_MANUAL.md). It distinguishes the native tested
+installation from older workspace and managed-production examples below.
+
 Use this guide with an instructor. Simulation stays local to the PC. Real-robot
 sessions use a deliberate peer profile between one PC and one VMXPi over either
 Wi-Fi or Ethernet.

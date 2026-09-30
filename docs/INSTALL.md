@@ -1,5 +1,9 @@
 # Installation
 
+For the current robot installation, tested status and complete start/stop commands,
+use the [Robot manual](ROBOT_MANUAL.md). It distinguishes the native tested
+installation from older workspace and managed-production examples below.
+
 This guide prepares Ubuntu 22.04 for the ROS 2 Humble classroom. Simulation is
 the default. Hardware mode is for the arm64 VMXPi robot image and requires the
 Studica vendor SDK to be installed already.

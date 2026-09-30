@@ -205,7 +205,7 @@ ament_target_dependencies(
 pluginlib_export_plugin_description_file(hardware_interface studica_vmxpi_ros2.xml)
 
 # INSTALL
-install(PROGRAMS scripts/studica DESTINATION lib/${PROJECT_NAME})
+install(PROGRAMS scripts/studica scripts/robot-pc scripts/navigation_override.py DESTINATION lib/${PROJECT_NAME})
 install(FILES deployment/sessions.example.json DESTINATION share/${PROJECT_NAME}/deployment)
 install(
   DIRECTORY hardware/include/
@@ -522,6 +522,13 @@ if(BUILD_TESTING)
     COMMAND ${Python3_EXECUTABLE}
       ${CMAKE_CURRENT_SOURCE_DIR}/test/test_release_artifacts.py
       ${CMAKE_CURRENT_SOURCE_DIR}
+  )
+  ament_add_test(
+    validate_manual_override
+    GENERATE_RESULT_FOR_RETURN_CODE_ZERO
+    COMMAND ${Python3_EXECUTABLE} -m pytest -q
+      ${CMAKE_CURRENT_SOURCE_DIR}/test/test_manual_override.py
+      ${CMAKE_CURRENT_SOURCE_DIR}/test/test_remote_launch.py
   )
   ament_add_test(
     validate_python_examples

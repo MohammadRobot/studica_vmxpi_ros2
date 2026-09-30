@@ -1,0 +1,10 @@
+#!/usr/bin/env bash
+# Tested native development installation; no automatic arm or motion command.
+set -eo pipefail
+source /opt/ros/humble/setup.bash
+source /home/vmx/studica-direct-build-20260929/install/setup.bash
+source /home/vmx/studica-pilot-overlay-20260929/install/setup.bash
+export LD_LIBRARY_PATH=/usr/local/lib/vmxpi:/home/vmx/studica-direct-build-20260929/vendor/ydlidar_sdk/lib:${LD_LIBRARY_PATH:-}
+exec ros2 launch studica_vmxpi_ros2 robot.launch.py \
+ robot_profile:=stack_4wd use_lidar:=true use_camera:=false \
+ use_joystick:=false control_source:=application safety_input_cmd_vel_topic:=/cmd_vel

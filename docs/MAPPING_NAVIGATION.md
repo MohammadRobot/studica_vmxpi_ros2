@@ -1,5 +1,9 @@
 # Mapping and Navigation
 
+For the current robot installation, tested status and complete start/stop commands,
+use the [Robot manual](ROBOT_MANUAL.md). It distinguishes the native tested
+installation from older workspace and managed-production examples below.
+
 Complete Labs 1–6 before this guide. Mapping starts deadman-protected joystick
 teleoperation by default. Navigation keeps joystick teleoperation disabled so
 Nav2 remains the sole motion owner after you send a goal.
@@ -12,8 +16,10 @@ ros2 topic echo /robot/state --once
 ros2 service call /robot/arm std_srvs/srv/Trigger '{}'
 ```
 
-Hardware software-arming is disabled in the current production phase; the
-physical workflows below are read-only until the local hardware gate is added.
+Hardware software-arming is disabled. The local Start/Reset/Stop gate is now
+implemented and was tested with lifted wheels. Physical mapping and navigation
+still require supervised floor validation; use Reset then Start locally after
+checking the scene. See the manual for the tested native install prefixes.
 
 For simulation, use the local simulation DDS profile. This prevents a
 previously sourced robot Wi-Fi or Ethernet profile from leaking into the local

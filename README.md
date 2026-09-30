@@ -3,6 +3,37 @@ Learn ROS 2 by driving and programming one robot in simulation before touching r
 hardware. Lab 1 introduces terminal skills, and the ROS interfaces are identical
 for simulated `class_4wd` and physical `stack_4wd`.
 
+## Robot manual — start here
+
+Use the [complete operator manual](docs/ROBOT_MANUAL.md) for copy/paste commands:
+
+- simulation and per-terminal network setup;
+- real robot startup, physical enable, stop and shutdown;
+- PC joystick and the tested SSH keyboard session;
+- RViz, sensor checks, SLAM, map saving and Nav2;
+- PC builds and [direct native VMXPi builds without Docker](docs/NATIVE_BUILD.md);
+- troubleshooting, recordings and test handoff.
+
+As of 2026-09-30, native hardware, lifted-wheel control, remote keyboard control
+and live PC RViz sensor reception have been tested. Physical SLAM/Nav2 have been exercised in supervised tests;
+full production qualification remains incomplete. The installed robot currently uses a
+native base plus a tested monitor overlay; the manual identifies both paths.
+Use the pinned dependencies; an older workspace may not match that build.
+
+## One PC terminal for the current robot
+
+```bash
+robot-pc drive
+# Or: robot-pc slam
+# Or: robot-pc navigation ~/studica_ws/project_maps/real_robot_map.yaml
+```
+
+These mutually exclusive PC modes open RViz with joystick, SLAM, or Nav2.
+The robot runs one common runtime at power-on; no SSH mode switching is needed. Local Reset/Start is still required.
+See [setup, stop procedure and power-on limitation](docs/ROBOT_MANUAL.md#2-start-the-robot-session).
+The classroom native runtime starts at power-on with motion disabled; physical
+Reset/Start remains required. Full production qualification remains pending.
+
 ## What you will learn
 
 You will learn how to:
@@ -66,6 +97,8 @@ installation problems.
 
 Every terminal must source ROS 2 and this workspace. Replace the workspace value
 only if you chose a different directory.
+
+First create the simulation environment file using [manual section 2](docs/ROBOT_MANUAL.md#7-simulation--pc-only).
 
 Terminal 1 — launch the maze, robot, controllers, sensors, and RViz:
 

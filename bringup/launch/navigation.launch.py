@@ -86,6 +86,7 @@ def generate_launch_description():
     )
 
     arguments = [
+        DeclareLaunchArgument("navigation_output_topic", default_value="/cmd_vel"),
         DeclareLaunchArgument(
             "mode",
             default_value="gz_sim",
@@ -274,6 +275,7 @@ def generate_launch_description():
             # commands into the same pre-smoother topic as controller_server so
             # the safety supervisor sees exactly one robot-facing publisher.
             SetRemap(src="/cmd_vel", dst="/cmd_vel_nav"),
+            SetRemap(src="cmd_vel_smoothed", dst=LaunchConfiguration("navigation_output_topic")),
             deferred_include(
                 "nav2_bringup",
                 "bringup_launch.py",

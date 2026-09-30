@@ -1,5 +1,9 @@
 # Joystick Teleoperation
 
+For the current robot installation, tested status and complete start/stop commands,
+use the [Robot manual](ROBOT_MANUAL.md). It distinguishes the native tested
+installation from older workspace and managed-production examples below.
+
 Use this guide to drive simulation or a remote physical robot with a DualShock
 4 or a compatible Linux joystick. `sim.launch.py` and `mapping.launch.py` start
 the configured joystick nodes by default and select the dedicated
@@ -221,3 +225,11 @@ See [Networking](NETWORKING.md) when nodes exist but cannot discover one another
 
 The controller timeout is a backup. Cleanly stopping the motion publisher is the
 normal end of a teleoperation session.
+
+## Navigation manual takeover
+
+`remote.launch.py mode:=navigation map:=/absolute/map.yaml` starts its own joy
+node and command arbiter. Do not start `teleop_twist_joy` alongside it. Holding L1
+cancels navigation and permits manual driving; releasing it stops. A new goal,
+after cancellation and L1 release, is required to resume navigation. See the
+[short manual](ROBOT_MANUAL.md#5-navigate-with-the-saved-map).

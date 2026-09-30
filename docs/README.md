@@ -4,6 +4,10 @@ Start with simulation and follow the course in order. Hardware, PID tuning,
 networking, and custom profiles are intentionally separated from the beginner
 path.
 
+Start with the [complete robot manual](ROBOT_MANUAL.md) for the current tested
+installation and all operating commands. Use [Native build](NATIVE_BUILD.md) for
+one-worker ARM64 compilation without Docker.
+
 ## Learning and development
 
 | Guide | Use it when |

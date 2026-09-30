@@ -22,6 +22,7 @@
   <depend>diff_drive_controller</depend>
   <depend>imu_sensor_broadcaster</depend>
   <depend>geometry_msgs</depend>
+  <exec_depend>action_msgs</exec_depend>
   <depend>builtin_interfaces</depend>
   <depend>control_msgs</depend>
   <depend>controller_manager</depend>

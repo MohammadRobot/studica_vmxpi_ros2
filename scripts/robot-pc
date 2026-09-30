@@ -1,0 +1,49 @@
+#!/usr/bin/env bash
+# Supervised PC session: starts disarmed robot hardware; never arms it.
+set -eo pipefail
+mode="${1:-}"
+case "$mode" in
+  drive|slam) [[ $# == 1 ]] || { echo "Usage: robot-pc $mode" >&2; exit 2; } ;;
+  navigation) [[ $# == 2 && -f "$2" ]] || { echo 'Usage: robot-pc navigation /path/to/map.yaml' >&2; exit 2; } ;;
+  *) echo 'Usage: robot-pc drive | slam | navigation /path/to/map.yaml' >&2; exit 2 ;;
+esac
+workspace="${STUDICA_PC_WORKSPACE:-$HOME/studica_ws}"
+profile="${STUDICA_PC_ENV:-$HOME/.config/studica/robot-wifi.sh}"
+[[ -f "$workspace/install/setup.bash" && -f "$profile" ]] || {
+  echo "Missing workspace install or robot environment: $workspace, $profile" >&2; exit 1;
+}
+source /opt/ros/humble/setup.bash
+source "$workspace/install/setup.bash"
+source "$profile"
+mkdir -p "$HOME/.cache/studica"
+exec 9>"$HOME/.cache/studica/session-${ROS_DOMAIN_ID}.lock"
+flock -n 9 || { echo 'A PC session already owns this robot domain.' >&2; exit 1; }
+args=(mode:="$mode")
+if [[ "$mode" == navigation ]]; then args+=(map:="$(realpath "$2")"); fi
+printf 'Mode: %s. Using unified application input (PC %s mode). Local Reset/Start required.\n' \
+  "$mode" "$([[ "$mode" == navigation ]] && echo application || echo joystick)"
+echo 'Robot starts at power-on. Press physical Stop before changing PC modes.'
+python3 - <<'CHECK'
+import time
+import rclpy
+from control_msgs.msg import DynamicJointState
+rclpy.init()
+node = rclpy.create_node('pc_session_preflight')
+state = {}
+def receive(msg):
+    for name, values in zip(msg.joint_names, msg.interface_values):
+        if name == 'hardware_safety':
+            state.update(zip(values.interface_names, values.values))
+node.create_subscription(DynamicJointState, '/dynamic_joint_states', receive, 10)
+end = time.monotonic() + 30
+while not state and time.monotonic() < end:
+    rclpy.spin_once(node, timeout_sec=0.2)
+node.destroy_node()
+rclpy.shutdown()
+if not state or state.get('input_valid') != 1.0:
+    raise SystemExit('No valid live robot safety telemetry. Check DDS/network; session stopped.')
+if state.get('motion_enabled') != 0.0:
+    raise SystemExit('Robot is already enabled. Press physical Stop before starting a PC session.')
+print('Live robot connected, motion disabled. Use physical Reset/Start when ready.')
+CHECK
+ros2 launch studica_vmxpi_ros2 remote.launch.py "${args[@]}"
