@@ -3,13 +3,13 @@ from pathlib import Path
 import sys
 import math
 from launch import LaunchDescription
+from launch.substitutions import LaunchConfiguration
 from launch.actions import DeclareLaunchArgument, OpaqueFunction
 from launch_ros.actions import Node
 from ament_index_python.packages import get_package_share_directory
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from _classroom_launch import deferred_include  # noqa: E402
-from launch.substitutions import LaunchConfiguration
 
 
 def session(context):
@@ -27,7 +27,7 @@ def session(context):
             Node(package='joy', executable='joy_node', name='joy_node',
                  parameters=[{'device_id': 0, 'deadzone': 0.10, 'autorepeat_rate': 20.0}]),
             Node(package='studica_vmxpi_ros2', executable='navigation_override.py',
-                 name='navigation_override') ]
+                 name='navigation_override')]
     speeds = {}
     for name, default, ceiling in [
         ('linear_speed', '0.20', 0.30), ('angular_speed', '0.60', 0.90),

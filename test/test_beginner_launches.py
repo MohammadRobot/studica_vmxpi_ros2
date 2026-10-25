@@ -33,6 +33,7 @@ class BeginnerLaunchContractTest(unittest.TestCase):
                 "bringup.launch.py",
                 "mapping.launch.py",
                 "navigation.launch.py",
+                "remote.launch.py",
                 "robot.launch.py",
                 "sim.launch.py",
             },

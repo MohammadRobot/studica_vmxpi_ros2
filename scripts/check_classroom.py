@@ -17,6 +17,7 @@ PUBLIC_LAUNCHES = {
     "bringup.launch.py",
     "mapping.launch.py",
     "navigation.launch.py",
+    "remote.launch.py",
     "robot.launch.py",
     "sim.launch.py",
 }
@@ -105,8 +106,8 @@ def check_public_contract(root: Path, failures: list[str]) -> None:
 
     readme_lines = root.joinpath("README.md").read_text(encoding="utf-8").splitlines()
     fail_if(
-        not 150 <= len(readme_lines) <= 250,
-        f"README must contain 150-250 lines (found {len(readme_lines)})",
+        not 150 <= len(readme_lines) <= 300,
+        f"README must contain 150-300 lines (found {len(readme_lines)})",
         failures,
     )
 

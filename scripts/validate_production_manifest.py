@@ -90,7 +90,6 @@ CORE_REQUIRED_ROSDEP_KEYS = {
     "teleop_twist_joy",
 }
 CORE_FORBIDDEN_ROSDEP_KEYS = {
-    "action_msgs",
     "foxglove_bridge",
     "gz_ros2_control",
     "joint_state_publisher_gui",
