@@ -3,6 +3,7 @@ import math
 
 
 class OverrideGate:
+
     def __init__(self, linear=0.20, angular=0.60, turbo_linear=0.20, turbo_angular=0.60):
         self.speeds = (linear, angular, turbo_linear, turbo_angular)
         self.mode = 'WAITING_FOR_NEW_GOAL'

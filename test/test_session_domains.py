@@ -12,7 +12,7 @@ import sys
 from test_session_cli import CLI
 
 
-PROBE = '''
+PROBE = """
 import json, os, time
 import rclpy
 from std_msgs.msg import String
@@ -34,7 +34,7 @@ while time.monotonic() < deadline:
 print(json.dumps({'seen': sorted(seen), 'clock': bool(clocks)}))
 node.destroy_node()
 rclpy.shutdown()
-'''
+"""
 
 
 def main():

@@ -13,11 +13,11 @@ from ament_index_python.packages import get_package_share_directory
 
 from studica_robot_platform.provisioning import (
     canonical_root,
+    configure_domain,
     provision,
     root_path,
-    validate_qualification,
-    configure_domain,
     validate_domain_id,
+    validate_qualification,
 )
 
 

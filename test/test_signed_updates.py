@@ -78,10 +78,10 @@ def signed_envelope(tmp_path: Path, version="1.0.0", development=False, qualifie
         "version": version,
     }
     if qualified:
-        signed["qualification"] = dict(
-            schema_version=1, tested_release_sha256=signed["artifact_sha256"],
-            cold_boots_passed=50, independent_torque_removal=True,
-            failure_injection_passed=True, zero_motion_all_boots=True)
+        signed["qualification"] = {
+            "schema_version": 1, "tested_release_sha256": signed["artifact_sha256"],
+            "cold_boots_passed": 50, "independent_torque_removal": True,
+            "failure_injection_passed": True, "zero_motion_all_boots": True}
     envelope = {
         "schema_version": 1,
         "signed": signed,
@@ -164,9 +164,9 @@ def test_existing_release_is_not_trusted(tmp_path):
 
 def test_qualification_is_bound_to_digest_and_all_acceptance_gates():
     from studica_robot_platform.updates import validate_signed_qualification
-    report = dict(schema_version=1, tested_release_sha256="a" * 64, cold_boots_passed=50,
-                  independent_torque_removal=True, failure_injection_passed=True,
-                  zero_motion_all_boots=True)
+    report = {"schema_version": 1, "tested_release_sha256": "a" * 64, "cold_boots_passed": 50,
+              "independent_torque_removal": True, "failure_injection_passed": True,
+              "zero_motion_all_boots": True}
     validate_signed_qualification(report, "a" * 64)
     with pytest.raises(UpdateError):
         validate_signed_qualification(report, "b" * 64)

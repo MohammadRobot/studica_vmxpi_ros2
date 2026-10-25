@@ -117,7 +117,7 @@ def render_cyclonedds(companion_address: Optional[str]) -> str:
         except ValueError as error:
             raise ProvisioningError("companion address must be an IP literal") from error
         peer = f'        <Peer Address="{address}" />\n'
-    return f'''<?xml version="1.0" encoding="UTF-8" ?>
+    return f"""<?xml version="1.0" encoding="UTF-8" ?>
 <CycloneDDS xmlns="https://cdds.io/config">
   <Domain Id="any">
     <General>
@@ -136,7 +136,7 @@ def render_cyclonedds(companion_address: Optional[str]) -> str:
     </Discovery>
   </Domain>
 </CycloneDDS>
-'''
+"""
 
 
 def provision(root: Path, companion_address: Optional[str] = None) -> dict[str, Any]:
@@ -222,7 +222,7 @@ def provision(root: Path, companion_address: Optional[str] = None) -> dict[str, 
     hostname_file = root_path(root, "/etc/hostname")
     private_write(hostname_file, hostname + "\n", mode=0o644)
     nm_root = root_path(root, "/etc/NetworkManager/system-connections")
-    hotspot = f'''[connection]
+    hotspot = f"""[connection]
 id=Studica fallback hotspot
 type=wifi
 autoconnect=true
@@ -242,7 +242,7 @@ method=shared
 
 [ipv6]
 method=disabled
-'''
+"""
     private_write(nm_root / "studica-hotspot.nmconnection", hotspot)
     summary = {
         **identity,

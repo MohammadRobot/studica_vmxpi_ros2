@@ -87,7 +87,7 @@ def _robot_peer(robot_url: str, ip_version: int | None = None) -> str:
 
 def _write_cyclonedds(path: Path, peer: str) -> None:
     path.write_text(
-        f'''<?xml version="1.0" encoding="UTF-8" ?>
+        f"""<?xml version="1.0" encoding="UTF-8" ?>
 <CycloneDDS xmlns="https://cdds.io/config">
   <Domain Id="any">
     <General>
@@ -101,7 +101,7 @@ def _write_cyclonedds(path: Path, peer: str) -> None:
     </Discovery>
   </Domain>
 </CycloneDDS>
-''',
+""",
         encoding="utf-8",
     )
     os.chmod(path, 0o600)

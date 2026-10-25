@@ -20,6 +20,7 @@ loader.exec_module(CLI)
 
 
 class SessionTests(unittest.TestCase):
+
     def test_duplicate_domains_rejected(self):
         with tempfile.TemporaryDirectory() as temporary:
             path = Path(temporary)

@@ -4,7 +4,7 @@ import time
 import math
 import rclpy
 from rclpy.node import Node
-from rclpy.qos import QoSProfile, DurabilityPolicy
+from rclpy.qos import DurabilityPolicy, QoSProfile
 from geometry_msgs.msg import Twist
 from sensor_msgs.msg import Joy
 from std_msgs.msg import String
@@ -14,6 +14,7 @@ from studica_robot_platform.manual_override import OverrideGate
 
 
 class NavigationOverride(Node):
+
     def __init__(self):
         super().__init__('navigation_override')
         self.allow_navigation = self.declare_parameter('allow_navigation', True).value

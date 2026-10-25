@@ -31,9 +31,9 @@ from studica_vmxpi_ros2.srv import SetDeveloperMode, SetMode, SetSensor
 from . import API_VERSION
 from .model import (
     AUTONOMY_MODES,
+    CommandArbiter,
     MODE_NAMES,
     MODE_SOURCES,
-    CommandArbiter,
     Mode,
     PlanarCommand,
     PlatformModel,

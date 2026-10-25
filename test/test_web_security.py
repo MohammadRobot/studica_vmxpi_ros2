@@ -17,6 +17,7 @@ from studica_robot_platform.web_server import (
 
 
 class FakeBridge:
+
     def __init__(self):
         self.heartbeat = None
         self.commands = []

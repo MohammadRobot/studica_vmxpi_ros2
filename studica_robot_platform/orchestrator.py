@@ -17,7 +17,7 @@ import subprocess
 import tempfile
 from typing import Any, Callable, Dict, Iterable, Optional
 
-from .provisioning import private_write, render_cyclonedds, dds_port_range
+from .provisioning import dds_port_range, private_write, render_cyclonedds
 
 
 SENSOR_UNITS = {

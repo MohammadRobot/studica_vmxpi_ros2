@@ -17,6 +17,7 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 class Result:
+
     def __init__(self, returncode=0, stdout="", stderr=""):
         self.returncode = returncode
         self.stdout = stdout
