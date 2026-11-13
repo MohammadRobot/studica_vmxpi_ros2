@@ -11,8 +11,8 @@ from studica_robot_platform.minimal_runtime import launch_command, load_config
 
 @pytest.fixture
 def config():
-    return dict(schema_version=1, device_id='classroom-01', domain_id=78,
-                robot_profile='stack_4wd', use_lidar=True, use_camera=False)
+    return {'schema_version': 1, 'device_id': 'classroom-01', 'domain_id': 78,
+            'robot_profile': 'stack_4wd', 'use_lidar': True, 'use_camera': False}
 
 
 def test_runtime_contract(tmp_path, config):

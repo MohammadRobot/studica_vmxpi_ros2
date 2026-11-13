@@ -93,20 +93,20 @@ def compose(profile_root, device, calibration, validator_path):
         raise ValueError('motor mapping and controller joint count differ')
     if any(not isinstance(joint, str) or not joint for joint in joints) or len(set(joints)) != len(joints):
         raise ValueError('controller joints must be unique nonempty names')
-    inputs = dict(device=device, calibration=calibration, profile=profile, controllers=controllers)
-    metadata = dict(
-        schema=CONTRACT, evidence_scope='offline_configuration',
-        device_id=device['device_id'], domain_id=device['domain_id'],
-        environment=device['environment'], profile_id=name,
-        configuration_sha256=digest(inputs), profile_sha256=digest(profile),
-        calibration_sha256=digest(calibration),
-        software=dict(ros_distro='humble', runtime_revision=None, installed_artifact_sha256=None),
-        drive=dict(layout=layout, controller_type=controller_type, joints=joints, motors=motors),
-        sensors=dict(imu='configured', lidar='configured' if device['use_lidar'] else 'disabled',
-                     camera='configured' if device['use_camera'] else 'disabled'),
-        interfaces={'/cmd_vel': 'geometry_msgs/msg/Twist', '/odom': 'nav_msgs/msg/Odometry',
-                    '/imu': 'sensor_msgs/msg/Imu', '/scan': 'sensor_msgs/msg/LaserScan'},
-        clock='simulation' if device['environment'] == 'simulation' else 'system',
-        qualification='unqualified', motion_authorized=False,
-    )
+    inputs = {'device': device, 'calibration': calibration, 'profile': profile, 'controllers': controllers}
+    metadata = {
+        'schema': CONTRACT, 'evidence_scope': 'offline_configuration',
+        'device_id': device['device_id'], 'domain_id': device['domain_id'],
+        'environment': device['environment'], 'profile_id': name,
+        'configuration_sha256': digest(inputs), 'profile_sha256': digest(profile),
+        'calibration_sha256': digest(calibration),
+        'software': {'ros_distro': 'humble', 'runtime_revision': None, 'installed_artifact_sha256': None},
+        'drive': {'layout': layout, 'controller_type': controller_type, 'joints': joints, 'motors': motors},
+        'sensors': {'imu': 'configured', 'lidar': 'configured' if device['use_lidar'] else 'disabled',
+                    'camera': 'configured' if device['use_camera'] else 'disabled'},
+        'interfaces': {'/cmd_vel': 'geometry_msgs/msg/Twist', '/odom': 'nav_msgs/msg/Odometry',
+                       '/imu': 'sensor_msgs/msg/Imu', '/scan': 'sensor_msgs/msg/LaserScan'},
+        'clock': 'simulation' if device['environment'] == 'simulation' else 'system',
+        'qualification': 'unqualified', 'motion_authorized': False,
+    }
     return inputs, metadata

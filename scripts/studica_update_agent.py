@@ -19,9 +19,8 @@ from std_srvs.srv import Trigger
 from studica_vmxpi_ros2.msg import PlatformStatus
 from studica_robot_platform.updates import (
     UpdateError,
-    create_maintenance_lock,
-    validate_maintenance_lock,
     complete_activation_cleanup,
+    create_maintenance_lock,
     extract_verified_release,
     finalize_activation,
     prepare_activation,
@@ -30,6 +29,7 @@ from studica_robot_platform.updates import (
     stage_update,
     staged_status,
     switch_current,
+    validate_maintenance_lock,
 )
 
 CURRENT_RELEASE = Path("/opt/studica/current")

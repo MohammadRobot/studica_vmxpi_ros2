@@ -54,7 +54,7 @@ def snapshot(proc=Path('/proc'), thermal=Path('/sys/class/thermal'), disk=Path('
         errors.append('thermal: unavailable')
     try:
         usage = shutil.disk_usage(disk)
-        result['disk_bytes'] = dict(total=usage.total, used=usage.used, free=usage.free)
+        result['disk_bytes'] = {'total': usage.total, 'used': usage.used, 'free': usage.free}
     except OSError as error:
         errors.append('disk: ' + str(error))
     result['observation_errors'] = errors

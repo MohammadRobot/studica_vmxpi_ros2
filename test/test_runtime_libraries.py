@@ -27,7 +27,7 @@ def fixture(tmp_path):
     library = elf(system / 'libvendor.so')
 
     def read(path):
-        return dict(needed=['libvendor.so'] if path == executable else [], search_paths=[])
+        return {'needed': ['libvendor.so'] if path == executable else [], 'search_paths': []}
     return install, system, executable, library, read
 
 

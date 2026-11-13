@@ -109,6 +109,14 @@ jobs:
           source ros2_ws/install/setup.bash
           cd ros2_ws
           set +e
+          # Only static XML validation may fetch the manifest's upstream schema.
+          colcon test \
+            --event-handlers console_direct+ \
+            --return-code-on-test-failure \
+            --packages-select \
+              studica_drivers studica_robot_monitor studica_ros2_control studica_vmxpi_ros2 \
+            --ctest-args -R '^xmllint$'
+          xml_rc=$?
           unshare --user --map-root-user --net bash --noprofile --norc -c '
             ip link set lo up
             exec "$@"
@@ -116,10 +124,12 @@ jobs:
             --event-handlers console_direct+ \
             --return-code-on-test-failure \
             --packages-select \
-              studica_drivers studica_robot_monitor studica_ros2_control studica_vmxpi_ros2
+              studica_drivers studica_robot_monitor studica_ros2_control studica_vmxpi_ros2 \
+            --ctest-args -E '^xmllint$'
           test_rc=$?
           colcon test-result --verbose || true
-          exit $test_rc
+          if (( xml_rc != 0 )); then exit "$xml_rc"; fi
+          exit "$test_rc"
 
   headless-harmonic:
     runs-on: ubuntu-22.04

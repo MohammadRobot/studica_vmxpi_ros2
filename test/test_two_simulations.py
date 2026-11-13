@@ -13,7 +13,7 @@ import time
 import rclpy
 from rclpy.context import Context
 from rclpy.executors import SingleThreadedExecutor
-from rclpy.qos import QoSProfile, DurabilityPolicy, qos_profile_sensor_data
+from rclpy.qos import DurabilityPolicy, QoSProfile, qos_profile_sensor_data
 from geometry_msgs.msg import Twist
 from nav_msgs.msg import Odometry
 from rosgraph_msgs.msg import Clock
@@ -26,6 +26,7 @@ from test_runtime_contract import stop_process
 
 
 class Probe:
+
     def __init__(self, domain):
         self.context = Context()
         rclpy.init(context=self.context, domain_id=domain)
@@ -130,7 +131,7 @@ def main():
         print('Both Gazebo robots ready; checking graph ownership', flush=True)
         ownership = {}
         for topic in ['/scan', '/odom', '/clock', '/tf']:
-            gids = [set(bytes(e.endpoint_gid).hex() for e in p.node.get_publishers_info_by_topic(topic))
+            gids = [{bytes(e.endpoint_gid).hex() for e in p.node.get_publishers_info_by_topic(topic)}
                     for p in probes]
             assert all(gids) and gids[0].isdisjoint(gids[1]), (topic, gids)
             if topic != '/tf':

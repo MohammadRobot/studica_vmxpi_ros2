@@ -392,6 +392,17 @@ build_and_validate() {
   colcon test-result --test-result-base "${workspace}/build" \
     --delete-yes >/dev/null 2>&1 || true
 
+  # XML lint is static-only, but dependency manifests may fetch an online schema.
+  # Keep it separate so runtime tests never gain access to the host network.
+  colcon --log-base "${workspace}/log" test \
+    --base-paths "${workspace}/src" \
+    --build-base "${workspace}/build" \
+    --install-base "${workspace}/install" \
+    --packages-select "${test_packages[@]}" \
+    --event-handlers console_direct+ \
+    --return-code-on-test-failure \
+    --ctest-args -R '^xmllint$'
+
   # Installation validation needs an actual loopback-only network namespace,
   # not only a domain/localhost setting. Refuse rather than fall back to the LAN.
   # Runtime networking remains untouched.
@@ -407,7 +418,8 @@ build_and_validate() {
     --install-base "${workspace}/install" \
     --packages-select "${test_packages[@]}" \
     --event-handlers console_direct+ \
-    --return-code-on-test-failure
+    --return-code-on-test-failure \
+    --ctest-args -E '^xmllint$'
   colcon test-result --test-result-base "${workspace}/build" --verbose
 }
 

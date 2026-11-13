@@ -17,9 +17,10 @@ from rclpy.node import Node
 def main():
     if {name for _, name in socket.if_nameindex()} != {'lo'}:
         raise RuntimeError('example tests require an isolated loopback network namespace')
-    os.environ.update(ROS_DOMAIN_ID='95', ROS_LOCALHOST_ONLY='1',
-                      RMW_IMPLEMENTATION='rmw_fastrtps_cpp')
-    rclpy.init()
+    # Keep the selected RMW: rclpy may have loaded it before main(), and child
+    # processes must use the same implementation as this telemetry fixture.
+    os.environ.update(ROS_DOMAIN_ID='95', ROS_LOCALHOST_ONLY='1')
+    rclpy.init(domain_id=95)
     node = Node('example_fixture')
     odom = node.create_publisher(Odometry, '/odom', 1)
     samples = []

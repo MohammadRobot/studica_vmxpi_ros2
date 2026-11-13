@@ -9,8 +9,8 @@ from pathlib import Path
 from ament_index_python.packages import get_package_prefix, get_package_share_directory
 from launch import LaunchDescription
 from launch.actions import (
-    IncludeLaunchDescription,
     EmitEvent,
+    IncludeLaunchDescription,
     LogInfo,
     OpaqueFunction,
     RegisterEventHandler,

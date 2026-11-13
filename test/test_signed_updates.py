@@ -281,7 +281,7 @@ def test_process_exit_recovery_boundaries(tmp_path, boundary):
     current = tmp_path / 'current'
     current.symlink_to(previous)
     source = Path(__file__).resolve().parents[1]
-    child = '''
+    child = """
 import os
 from pathlib import Path
 import sys
@@ -303,7 +303,7 @@ if boundary == 'history':
     u._atomic_json = interrupted_write
 u.finalize_activation(state, 'ACTIVE_HEALTHY')
 os._exit(73)
-'''
+"""
     result = subprocess.run(
         [sys.executable, '-c', child, str(tmp_path), boundary],
         env=dict(os.environ, PYTHONPATH=str(source)), capture_output=True, timeout=10)
@@ -355,7 +355,7 @@ def test_completion_receipt_survives_process_exit(tmp_path, outcome, boundary):
         complete_activation_cleanup, validate_maintenance_lock)
 
     source = Path(__file__).resolve().parents[1]
-    child = '''
+    child = """
 import os
 from pathlib import Path
 import sys
@@ -386,7 +386,7 @@ def interrupted_sync(path):
 Path.unlink, u._sync_directory = interrupted_unlink, interrupted_sync
 u.complete_activation_cleanup(state, releases, current, lock)
 raise AssertionError('boundary not reached')
-'''
+"""
     result = subprocess.run(
         [sys.executable, '-c', child, str(tmp_path), outcome, boundary],
         env=dict(os.environ, PYTHONPATH=str(source)), capture_output=True, timeout=10)

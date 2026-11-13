@@ -104,11 +104,11 @@ def inspect(install, external_roots, dynamic_reader=dynamic_entries, expected_ma
             dependency = next(iter(matches))
             dependencies[name] = identify(dependency)
             pending.append(dependency)
-        records[identity] = dict(sha256=sha256(path), needed=dependencies,
-                                 search_paths=entries['search_paths'])
-    return dict(schema_version=1, evidence_scope='static_elf_dependency_availability',
-                elf_machine=expected_machine, runtime_tested=False, activation_authorized=False,
-                artifacts={key: records[key] for key in sorted(records)})
+        records[identity] = {'sha256': sha256(path), 'needed': dependencies,
+                             'search_paths': entries['search_paths']}
+    return {'schema_version': 1, 'evidence_scope': 'static_elf_dependency_availability',
+            'elf_machine': expected_machine, 'runtime_tested': False, 'activation_authorized': False,
+            'artifacts': {key: records[key] for key in sorted(records)}}
 
 
 def main():

@@ -30,11 +30,18 @@ class ReleaseArtifactVerificationTest(unittest.TestCase):
         # Synthetic bundle fixtures are headers, not executable ARM binaries.
         # Actual ELF parsing is exercised independently in test_runtime_libraries.
         del sdk
-        return dict(schema_version=1, evidence_scope="static_elf_dependency_availability",
-                    elf_machine=183, runtime_tested=False, activation_authorized=False,
-                    artifacts={"install/" + name: dict(sha256=BUILDER.sha256_file(install / name),
-                                                       needed={}, search_paths=[])
-                               for name in BUILDER.REQUIRED_ARM64_FILES})
+        return {
+            'schema_version': 1,
+            'evidence_scope': "static_elf_dependency_availability",
+            'elf_machine': 183, 'runtime_tested': False, 'activation_authorized': False,
+            'artifacts': {
+                "install/" + name: {
+                    'sha256': BUILDER.sha256_file(install / name),
+                    'needed': {}, 'search_paths': [],
+                }
+                for name in BUILDER.REQUIRED_ARM64_FILES
+            },
+        }
 
     def test_native_release_round_trip(self):
         with tempfile.TemporaryDirectory() as temporary:

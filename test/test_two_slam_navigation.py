@@ -19,7 +19,7 @@ from geometry_msgs.msg import PoseWithCovarianceStamped, TransformStamped, Twist
 from nav_msgs.msg import OccupancyGrid
 from nav2_msgs.action import NavigateToPose
 from rclpy.action import ActionClient
-from rclpy.qos import QoSProfile, DurabilityPolicy
+from rclpy.qos import DurabilityPolicy, QoSProfile
 from std_srvs.srv import Trigger
 from tf2_msgs.msg import TFMessage
 
@@ -45,6 +45,7 @@ def saved_map_digest(path):
 
 
 class MappingProbe(Probe):
+
     def __init__(self, domain, navigation):
         super().__init__(domain)
         durable = QoSProfile(depth=10, durability=DurabilityPolicy.TRANSIENT_LOCAL)
@@ -156,7 +157,7 @@ def main():
     def ownership():
         result = {}
         for topic in ['/map', '/tf', '/clock']:
-            gids = [set(bytes(e.endpoint_gid).hex() for e in p.node.get_publishers_info_by_topic(topic))
+            gids = [{bytes(e.endpoint_gid).hex() for e in p.node.get_publishers_info_by_topic(topic)}
                     for p in probes]
             assert all(gids) and gids[0].isdisjoint(gids[1]), (topic, gids)
             if topic != '/tf':
