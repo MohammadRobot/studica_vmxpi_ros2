@@ -1,0 +1,2 @@
+# Candidate /etc/tmpfiles.d/studica-minimal.conf; expire inactive ROS logs.
+d /var/log/studica-minimal 0750 root root 7d

@@ -1,0 +1,48 @@
+{
+  "schema": "studica.robot-configuration/1",
+  "evidence_scope": "offline_configuration",
+  "device_id": "classroom-01",
+  "domain_id": 78,
+  "environment": "simulation",
+  "profile_id": "class_2wd",
+  "configuration_sha256": "ca67ab0cb34f5d9a55116748c096005f5065285a0e1391a12032788a96c59036",
+  "profile_sha256": "28106d48cc8005ac11ed0451976ae529feff23fb38d6e3c13f773e2422068ffb",
+  "calibration_sha256": "80ea59c9cd81e796cd9330ecdc0532cc783b2d4f0c6bdbbd5441897dc6ec895c",
+  "software": {
+    "ros_distro": "humble",
+    "runtime_revision": null,
+    "installed_artifact_sha256": null
+  },
+  "drive": {
+    "layout": "diff",
+    "controller_type": "diff_drive_controller/DiffDriveController",
+    "joints": [
+      "left_wheel_joint",
+      "right_wheel_joint"
+    ],
+    "motors": [
+      {
+        "slot": "left_front",
+        "channel": 2
+      },
+      {
+        "slot": "right_front",
+        "channel": 0
+      }
+    ]
+  },
+  "sensors": {
+    "imu": "configured",
+    "lidar": "configured",
+    "camera": "disabled"
+  },
+  "interfaces": {
+    "/cmd_vel": "geometry_msgs/msg/Twist",
+    "/odom": "nav_msgs/msg/Odometry",
+    "/imu": "sensor_msgs/msg/Imu",
+    "/scan": "sensor_msgs/msg/LaserScan"
+  },
+  "clock": "simulation",
+  "qualification": "unqualified",
+  "motion_authorized": false
+}

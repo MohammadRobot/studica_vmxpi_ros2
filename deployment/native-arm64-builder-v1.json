@@ -1,0 +1,18 @@
+{
+  "profile": "studica-native-arm64-builder-v1",
+  "platform": {
+    "architecture": "arm64",
+    "os_id": "ubuntu",
+    "version_id": "22.04",
+    "ros_distro": "humble"
+  },
+  "execution": {
+    "workers": 1,
+    "device_access": "none",
+    "activation": false
+  },
+  "artifact_policy": {
+    "activation_authorized": false,
+    "channel": "development"
+  }
+}

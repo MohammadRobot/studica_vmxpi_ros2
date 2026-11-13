@@ -949,7 +949,7 @@ bool VmxSystemHardware::stop_all_motors()
     if (control_mode_ == MotorControlMode::VELOCITY_PID) {
       success = titan_driver_->TrySetTargetVelocity(static_cast<uint8_t>(motor), 0.0f) && success;
     } else {
-      titan_driver_->SetSpeed(static_cast<uint8_t>(motor), 0.0);
+      success = titan_driver_->TrySetSpeed(static_cast<uint8_t>(motor), 0.0) && success;
     }
   }
   return success;
@@ -1392,8 +1392,7 @@ hardware_interface::return_type VmxSystemHardware::write(
     }
     const double duty = std::clamp(
       (command_rad_s / max_wheel_angular_velocity_rad_s_) * speed_scale_, -1.0, 1.0);
-    titan_driver_->SetSpeed(static_cast<uint8_t>(motor), duty);
-    return true;
+    return titan_driver_->TrySetSpeed(static_cast<uint8_t>(motor), duty);
   };
 
   bool write_success = true;

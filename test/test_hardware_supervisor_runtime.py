@@ -9,6 +9,7 @@ import os
 from pathlib import Path
 import subprocess
 import sys
+import tempfile
 import time
 
 from ament_index_python.packages import get_package_prefix
@@ -113,6 +114,8 @@ def main():
     os.environ["ROS_DOMAIN_ID"] = str(140 + os.getpid() % 40)
     prefix = Path(get_package_prefix("studica_vmxpi_ros2"))
     executable = prefix / "lib" / "studica_vmxpi_ros2" / "safety_supervisor_node"
+    temporary = tempfile.TemporaryDirectory(prefix="studica-maintenance-test-")
+    maintenance = Path(temporary.name) / "maintenance"
     process = subprocess.Popen(
         [
             str(executable),
@@ -121,6 +124,8 @@ def main():
             "hardware_mode:=true",
             "-p",
             "publish_rate_hz:=50.0",
+            "-p",
+            f"maintenance_lock_file:={maintenance}",
         ],
         stdout=subprocess.PIPE,
         stderr=subprocess.STDOUT,
@@ -174,6 +179,35 @@ def main():
             2.0,
             publish_enabled_command,
         )
+
+        # PC command loss while hardware enable messages continue must latch.
+        spin_until(node, lambda: node.state == "FAULT"
+                   and abs(node.output.twist.linear.x) < 1.0e-9,
+                   2.0, lambda: node.safety_publisher.publish(enabled))
+        spin_for(node, 0.4, publish_enabled_command)
+        assert node.state == "FAULT"
+        assert abs(node.output.twist.linear.x) < 1.0e-9
+        spin_until(node, lambda: node.reason == "HARDWARE_READY_LOCAL_ENABLE_OFF",
+                   2.0, lambda: node.safety_publisher.publish(ready))
+        spin_until(node, lambda: node.state == "ARMED", 2.0,
+                   lambda: node.safety_publisher.publish(enabled))
+        spin_until(node, lambda: node.output.twist.linear.x > 0.01,
+                   2.0, publish_enabled_command)
+
+        maintenance.touch()
+        spin_until(node, lambda: node.state == "READY_DISARMED"
+                   and node.reason == "MAINTENANCE_INHIBIT"
+                   and abs(node.output.twist.linear.x) < 1.0e-9,
+                   2.0, publish_enabled_command)
+        maintenance.unlink()
+        spin_for(node, 0.3, publish_enabled_command)
+        assert node.state == "READY_DISARMED"
+        assert abs(node.output.twist.linear.x) < 1.0e-9
+        # Release and a fresh enable are still required after maintenance.
+        spin_until(node, lambda: node.reason == "HARDWARE_READY_LOCAL_ENABLE_OFF",
+                   2.0, lambda: node.safety_publisher.publish(ready))
+        spin_until(node, lambda: node.state == "ARMED", 2.0,
+                   lambda: node.safety_publisher.publish(enabled))
 
         spin_until(node, node.disarm_client.service_is_ready, 2.0)
         future = node.disarm_client.call_async(Trigger.Request())
@@ -265,6 +299,7 @@ def main():
             lambda: node.safety_publisher.publish(ready),
         )
     finally:
+        temporary.cleanup()
         if node is not None:
             node.destroy_node()
         if rclpy.ok():

@@ -40,11 +40,12 @@ The initial installation layout is:
 ```text
 /opt/studica/releases/<version>/
 /opt/studica/current -> /opt/studica/releases/<version>/
-/var/lib/studica/update-state/
+/var/lib/studica/updates/
 /var/log/studica/ or bounded journald storage
 ```
 
-The release builder, not the robot, compiles source. The robot never runs
+Normal deployed runtimes receive prebuilt artifacts. A dedicated native ARM64
+builder (including a Pi during authorized maintenance) may compile source. The robot never runs
 `git pull` as an install or boot action.
 
 ## Development ARM64 bundle
@@ -53,6 +54,12 @@ The checked-in builder creates the first application artifact without
 installing or activating it. Build in a clean Ubuntu 22.04 arm64 hardware
 workspace using the pinned `hardware.repos` sources. Use a merged, copied
 install—not `--symlink-install`—and select the production filesystem profile:
+
+### Native builder candidate
+
+[Native build](NATIVE_BUILD.md) prepares a direct ARM64 build without Docker.
+`build_release_bundle.py --native` records native package provenance and retains
+the development activation block. The container builder below remains available.
 
 ### Isolated builder
 
@@ -195,7 +202,7 @@ external and internal checksums, provenance, platform, development channel,
 and activation denial, and extracts without following archive symlinks. It
 then atomically renames the payload to
 `/opt/studica/releases/<version>` and records the result beneath
-`/var/lib/studica/update-state/inactive-releases/`.
+`/var/lib/studica/updates/inactive-releases/`.
 
 The contract is `deployment/inactive-release-install-v1.json`. It explicitly
 preserves `/opt/studica/current` and the `previous-release` rollback state. It

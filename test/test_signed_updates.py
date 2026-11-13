@@ -213,3 +213,231 @@ def test_corrupt_staged_archive_is_rejected(tmp_path):
     with pytest.raises(UpdateError, match="changed after verification"):
         extract_verified_release("1.0.0", tmp_path / "state", tmp_path / "releases", public)
     assert not (tmp_path / "releases/1.0.0").exists()
+
+
+@pytest.mark.parametrize('document', [[], None, {'schema_version': True, 'state': 'PREPARED'}])
+def test_malformed_recovery_journal_never_changes_pointer(tmp_path, document):
+    state = tmp_path / 'state'
+    state.mkdir()
+    journal = state / 'activation.json'
+    journal.write_text(json.dumps(document))
+    current = tmp_path / 'current'
+    current.symlink_to(tmp_path / 'unchanged')
+    with pytest.raises(UpdateError, match='journal is invalid'):
+        recover_interrupted_activation(state, tmp_path / 'releases', current)
+    assert current.readlink() == tmp_path / 'unchanged'
+    assert journal.exists()
+
+
+def test_dangling_journal_blocks_recovery_and_new_activation(tmp_path):
+    state = tmp_path / 'state'
+    state.mkdir()
+    journal = state / 'activation.json'
+    journal.symlink_to(tmp_path / 'missing')
+    with pytest.raises(UpdateError, match='unsafe'):
+        recover_interrupted_activation(state, tmp_path / 'releases', tmp_path / 'current')
+    with pytest.raises(UpdateError, match='earlier activation'):
+        prepare_activation('2.0.0', state, tmp_path / 'releases',
+                           tmp_path / 'current', tmp_path / 'releases/2.0.0')
+    assert journal.is_symlink()
+
+
+@pytest.mark.parametrize('version', [None, 207, '../escape', '1.0.0', ''])
+def test_invalid_journal_version_rejected_before_pointer_change(tmp_path, version):
+    from studica_robot_platform.updates import finalize_activation
+    state, releases = tmp_path / 'state', tmp_path / 'releases'
+    previous, selected = releases / '1.0.0', releases / '2.0.0'
+    previous.mkdir(parents=True)
+    selected.mkdir()
+    current = tmp_path / 'current'
+    current.symlink_to(previous)
+    prepare_activation('2.0.0', state, releases, current, selected)
+    switch_current(current, selected)
+    journal = state / 'activation.json'
+    document = json.loads(journal.read_text())
+    document['version'] = version
+    journal.write_text(json.dumps(document))
+    evidence = journal.read_bytes()
+    with pytest.raises(UpdateError, match='journal is invalid'):
+        recover_interrupted_activation(state, releases, current)
+    with pytest.raises(UpdateError, match='journal is invalid'):
+        finalize_activation(state, 'ACTIVE_HEALTHY')
+    assert current.resolve() == selected
+    assert journal.read_bytes() == evidence
+    assert not (state / 'history').exists()
+
+
+@pytest.mark.parametrize('boundary', ['prepared', 'switched', 'history', 'finalized'])
+def test_process_exit_recovery_boundaries(tmp_path, boundary):
+    """Real child exits and filesystem journals; no ROS or service operations."""
+    import os
+    import subprocess
+    import sys
+
+    state, releases = tmp_path / 'state', tmp_path / 'releases'
+    previous, selected = releases / '1.0.0', releases / '2.0.0'
+    previous.mkdir(parents=True)
+    selected.mkdir()
+    current = tmp_path / 'current'
+    current.symlink_to(previous)
+    source = Path(__file__).resolve().parents[1]
+    child = '''
+import os
+from pathlib import Path
+import sys
+from studica_robot_platform import updates as u
+root, boundary = Path(sys.argv[1]), sys.argv[2]
+state, releases, current = root / 'state', root / 'releases', root / 'current'
+u.prepare_activation('2.0.0', state, releases, current, releases / '2.0.0')
+if boundary == 'prepared':
+    os._exit(73)
+u.switch_current(current, releases / '2.0.0')
+if boundary == 'switched':
+    os._exit(73)
+write = u._atomic_json
+def interrupted_write(path, *args, **kwargs):
+    write(path, *args, **kwargs)
+    if path.parent.name == 'history':
+        os._exit(73)
+if boundary == 'history':
+    u._atomic_json = interrupted_write
+u.finalize_activation(state, 'ACTIVE_HEALTHY')
+os._exit(73)
+'''
+    result = subprocess.run(
+        [sys.executable, '-c', child, str(tmp_path), boundary],
+        env=dict(os.environ, PYTHONPATH=str(source)), capture_output=True, timeout=10)
+    assert result.returncode == 73, result.stderr.decode()
+    outcome = recover_interrupted_activation(state, releases, current)
+    expected = selected if boundary == 'finalized' else previous
+    assert current.resolve() == expected
+    assert not (state / 'activation.json').exists()
+    history = [json.loads(path.read_text()) for path in (state / 'history').glob('*.json')]
+    if boundary == 'finalized':
+        assert outcome == 'no interrupted activation'
+        assert [item['state'] for item in history] == ['ACTIVE_HEALTHY']
+    else:
+        assert 'rolled back interrupted activation' in outcome
+        assert any(item['state'] == 'ROLLED_BACK_INTERRUPTED' for item in history)
+    before = {path.name: path.read_bytes() for path in (state / 'history').glob('*.json')}
+    assert recover_interrupted_activation(state, releases, current) == 'no interrupted activation'
+    assert before == {path.name: path.read_bytes() for path in (state / 'history').glob('*.json')}
+
+
+@pytest.mark.parametrize('status', [[], None])
+def test_invalid_staged_status_retains_activation_journal(tmp_path, status):
+    from studica_robot_platform.updates import finalize_activation
+    state, releases = tmp_path / 'state', tmp_path / 'releases'
+    previous, selected = releases / '1.0.0', releases / '2.0.0'
+    previous.mkdir(parents=True)
+    selected.mkdir()
+    current = tmp_path / 'current'
+    current.symlink_to(previous)
+    prepare_activation('2.0.0', state, releases, current, selected)
+    status_path = state / 'staged/2.0.0/status.json'
+    status_path.parent.mkdir(parents=True)
+    status_path.write_text(json.dumps(status))
+    with pytest.raises(UpdateError, match='staged activation status is invalid'):
+        finalize_activation(state, 'ACTIVE_HEALTHY')
+    assert (state / 'activation.json').exists()
+    assert not (state / 'history').exists()
+    assert json.loads(status_path.read_text()) == status
+
+
+@pytest.mark.parametrize('outcome', ['ACTIVE_HEALTHY', 'ROLLED_BACK_FAILED',
+                                     'ROLLED_BACK_INTERRUPTED'])
+@pytest.mark.parametrize('boundary', ['terminal', 'unlock', 'unlock_synced', 'receipt_removed'])
+def test_completion_receipt_survives_process_exit(tmp_path, outcome, boundary):
+    import os
+    import subprocess
+    import sys
+    from studica_robot_platform.updates import (
+        complete_activation_cleanup, validate_maintenance_lock)
+
+    source = Path(__file__).resolve().parents[1]
+    child = '''
+import os
+from pathlib import Path
+import sys
+from studica_robot_platform import updates as u
+root, outcome, boundary = Path(sys.argv[1]), sys.argv[2], sys.argv[3]
+state, releases, current = root / 'state', root / 'releases', root / 'current'
+old, new, lock = releases / 'old', releases / 'new', root / 'maintenance'
+old.mkdir(parents=True)
+new.mkdir()
+current.symlink_to(old)
+u.prepare_activation('new', state, releases, current, new)
+u.create_maintenance_lock(state, lock)
+if outcome == 'ACTIVE_HEALTHY':
+    u.switch_current(current, new)
+u.finalize_activation(state, outcome, retain_completion=True)
+if boundary == 'terminal':
+    os._exit(73)
+unlink, sync = Path.unlink, u._sync_directory
+def interrupted_unlink(path, *args, **kwargs):
+    unlink(path, *args, **kwargs)
+    if ((boundary == 'unlock' and path == lock)
+            or (boundary == 'receipt_removed' and path == state / 'activation.json')):
+        os._exit(73)
+def interrupted_sync(path):
+    sync(path)
+    if boundary == 'unlock_synced' and path == lock.parent:
+        os._exit(73)
+Path.unlink, u._sync_directory = interrupted_unlink, interrupted_sync
+u.complete_activation_cleanup(state, releases, current, lock)
+raise AssertionError('boundary not reached')
+'''
+    result = subprocess.run(
+        [sys.executable, '-c', child, str(tmp_path), outcome, boundary],
+        env=dict(os.environ, PYTHONPATH=str(source)), capture_output=True, timeout=10)
+    assert result.returncode == 73, result.stderr.decode()
+    state, releases = tmp_path / 'state', tmp_path / 'releases'
+    current, lock = tmp_path / 'current', tmp_path / 'maintenance'
+    history_before = {p.name: p.read_bytes() for p in (state / 'history').glob('*.json')}
+    validate_maintenance_lock(state, lock)
+    recovered = recover_interrupted_activation(state, releases, current, retain_completion=True)
+    if recovered != 'no interrupted activation':
+        complete_activation_cleanup(state, releases, current, lock)
+    assert current.resolve() == releases / ('new' if outcome == 'ACTIVE_HEALTHY' else 'old')
+    assert not lock.exists()
+    assert not (state / 'activation.json').exists()
+    assert history_before == {p.name: p.read_bytes() for p in (state / 'history').glob('*.json')}
+    assert recover_interrupted_activation(
+        state, releases, current, retain_completion=True) == 'no interrupted activation'
+
+
+@pytest.mark.parametrize('damage', ['wrong_lock', 'empty_lock', 'wrong_pointer', 'bad_receipt',
+                                    'symlink_receipt', 'symlink_lock'])
+def test_completion_cleanup_rejects_unbound_evidence(tmp_path, damage):
+    from studica_robot_platform.updates import (
+        create_maintenance_lock, complete_activation_cleanup, finalize_activation)
+    state, releases = tmp_path / 'state', tmp_path / 'releases'
+    old, new = releases / 'old', releases / 'new'
+    old.mkdir(parents=True)
+    new.mkdir()
+    current, lock = tmp_path / 'current', tmp_path / 'maintenance'
+    current.symlink_to(old)
+    prepare_activation('new', state, releases, current, new)
+    create_maintenance_lock(state, lock)
+    switch_current(current, new)
+    finalize_activation(state, 'ACTIVE_HEALTHY', retain_completion=True)
+    journal = state / 'activation.json'
+    if damage == 'wrong_lock':
+        lock.write_text(json.dumps({'transaction_id': '0' * 32}))
+    elif damage == 'empty_lock':
+        lock.write_text('')
+    elif damage == 'wrong_pointer':
+        switch_current(current, old)
+    elif damage == 'bad_receipt':
+        journal.write_text('{}')
+    else:
+        target = journal if damage == 'symlink_receipt' else lock
+        saved = tmp_path / 'saved'
+        target.rename(saved)
+        target.symlink_to(saved)
+    before = current.readlink()
+    with pytest.raises(UpdateError):
+        complete_activation_cleanup(state, releases, current, lock)
+    assert current.readlink() == before
+    assert lock.exists()
+    assert journal.exists()

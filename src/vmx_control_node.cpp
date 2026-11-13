@@ -75,6 +75,13 @@ int main(int argc, char ** argv)
     "the control lifecycle.");
 
   const bool use_sim_time = controller_manager->get_parameter_or("use_sim_time", false);
+  if (use_sim_time || controller_manager->get_update_rate() == 0) {
+    RCLCPP_ERROR(controller_manager->get_logger(),
+      "VMX hardware requires wall-clock ROS stamps and a positive update rate");
+    controller_manager.reset();
+    rclcpp::shutdown();
+    return 1;
+  }
   const bool has_realtime = realtime_tools::has_realtime_kernel();
   const bool lock_memory = controller_manager->get_parameter_or<bool>("lock_memory", has_realtime);
   if (lock_memory) {
@@ -98,7 +105,7 @@ int main(int argc, char ** argv)
   std::atomic_bool control_loop_running {true};
   std::atomic_bool executor_running {true};
   std::thread control_thread(
-    [controller_manager, thread_priority, use_sim_time, &control_loop_running]() {
+    [controller_manager, thread_priority, &control_loop_running]() {
       if (!realtime_tools::configure_sched_fifo(thread_priority)) {
         RCLCPP_WARN(
           controller_manager->get_logger(),
@@ -112,27 +119,27 @@ int main(int argc, char ** argv)
 
       const auto period =
       std::chrono::nanoseconds(1'000'000'000 / controller_manager->get_update_rate());
-      const auto controller_now =
-      std::chrono::nanoseconds(controller_manager->now().nanoseconds());
-      std::chrono::time_point<std::chrono::system_clock, std::chrono::nanoseconds>
-      next_iteration_time {controller_now};
-      rclcpp::Time previous_time = controller_manager->now();
+      auto previous_iteration = std::chrono::steady_clock::now();
+      auto next_iteration_time = previous_iteration;
 
       while (control_loop_running.load(std::memory_order_acquire) && rclcpp::ok()) {
         const auto current_time = controller_manager->now();
-        const auto measured_period = current_time - previous_time;
-        previous_time = current_time;
+        const auto iteration = std::chrono::steady_clock::now();
+        const auto measured_period = rclcpp::Duration(
+          std::chrono::duration_cast<std::chrono::nanoseconds>(iteration - previous_iteration));
+        previous_iteration = iteration;
 
         controller_manager->read(current_time, measured_period);
         controller_manager->update(current_time, measured_period);
         controller_manager->write(current_time, measured_period);
 
         next_iteration_time += period;
-        if (use_sim_time) {
-          controller_manager->get_clock()->sleep_until(current_time + period);
-        } else {
-          std::this_thread::sleep_until(next_iteration_time);
+        // Do not burst through missed cycles or wait on a wall-clock adjustment.
+        const auto finished = std::chrono::steady_clock::now();
+        if (next_iteration_time < finished) {
+          next_iteration_time = finished + period;
         }
+        std::this_thread::sleep_until(next_iteration_time);
       }
     });
 

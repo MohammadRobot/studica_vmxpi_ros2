@@ -29,9 +29,9 @@ def validate_domain_id(value: int) -> int:
 
 
 def dds_port_range(domain_id: int) -> str:
-    """Unicast discovery/data ports for Cyclone participant indices 0..32."""
+    """Unicast discovery/data ports for Cyclone participant indices 0..50."""
     first = 7410 + 250 * validate_domain_id(domain_id)
-    return f"{first}:{first + 65}"
+    return f"{first}:{first + 101}"
 
 
 def configure_domain(root: Path, domain_id: int) -> None:
@@ -130,7 +130,7 @@ def render_cyclonedds(companion_address: Optional[str]) -> str:
     </General>
     <Discovery>
       <ParticipantIndex>auto</ParticipantIndex>
-      <MaxAutoParticipantIndex>32</MaxAutoParticipantIndex>
+      <MaxAutoParticipantIndex>50</MaxAutoParticipantIndex>
       <Peers AddLocalhost="true">
 {peer}      </Peers>
     </Discovery>

@@ -10,13 +10,17 @@ from ament_index_python.packages import get_package_prefix, get_package_share_di
 from launch import LaunchDescription
 from launch.actions import (
     IncludeLaunchDescription,
+    EmitEvent,
     LogInfo,
     OpaqueFunction,
+    RegisterEventHandler,
     SetEnvironmentVariable,
     SetLaunchConfiguration,
     TimerAction,
 )
 from launch.conditions import IfCondition, UnlessCondition
+from launch.event_handlers import OnProcessExit
+from launch.events import Shutdown
 from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch.substitutions import (
     Command,
@@ -64,6 +68,8 @@ def _set_runtime_controller_file(context, *args, **kwargs):
     control_rate_hz = None
     actions = []
     if use_hardware:
+        if _is_true(LaunchConfiguration("use_sim_time").perform(context)):
+            raise ValueError("physical hardware requires use_sim_time:=false")
         control_rate_hz = LaunchConfiguration("hardware_control_rate_hz").perform(context).strip()
         actions.append(LogInfo(msg=["Hardware ros2_control rate: ", control_rate_hz, " Hz"]))
         actions.append(
@@ -123,6 +129,13 @@ def _maybe_add_delayed_rviz(context, *args, **kwargs):
     )
     # Gazebo wheel/odom TF can appear only after controllers are active.
     return [TimerAction(period=delay, actions=[rviz])]
+
+
+def _hardware_spawner_exited(event, context):
+    del context
+    if event.returncode != 0:
+        return [EmitEvent(event=Shutdown(reason="hardware controller spawner failed"))]
+    return []
 
 
 def generate_launch_description():
@@ -898,8 +911,31 @@ def generate_launch_description():
         condition=IfCondition(use_foxglove),
     )
 
+    # Critical owner loss tears down the complete hardware session. systemd
+    # can then restart it disarmed; never respawn a controller independently.
+    hardware_supervision = [
+        RegisterEventHandler(
+            OnProcessExit(target_action=process, on_exit=[EmitEvent(event=Shutdown(
+                reason="critical hardware process exited: " + name))]),
+            condition=IfCondition(use_hardware),
+        ) for name, process in [
+            ("controller_manager", vmx_control_node),
+            ("safety_supervisor", safety_supervisor_node),
+            ("robot_state_publisher", node_robot_state_publisher),
+            ("odometry_filter", hardware_odometry_filter),
+        ]
+    ]
+    hardware_supervision += [
+        RegisterEventHandler(
+            OnProcessExit(target_action=process, on_exit=_hardware_spawner_exited),
+            condition=IfCondition(use_hardware),
+        ) for process in [joint_state_broadcaster_spawner, imu_sensor_broadcaster_spawner,
+                          robot_controller_spawner]
+    ]
+
     nodes = [
         OpaqueFunction(function=_set_runtime_controller_file),
+        *hardware_supervision,
         SetEnvironmentVariable("LD_LIBRARY_PATH", sanitized_ld_library_path),
         # Fix Gazebo Harmonic blank 3D viewport on NVIDIA GPUs: default FBO/PBO render-to-texture
         # mode fails silently; Copy mode works reliably across driver versions.

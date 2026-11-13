@@ -1,0 +1,8 @@
+{
+  "schema_version": 1,
+  "device_id": "studica-173",
+  "domain_id": 78,
+  "robot_profile": "stack_4wd",
+  "use_lidar": true,
+  "use_camera": false
+}

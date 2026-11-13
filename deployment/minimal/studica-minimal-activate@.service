@@ -1,0 +1,12 @@
+[Unit]
+Description=Activate reviewed minimal runtime release %i
+Conflicts=shutdown.target
+
+[Service]
+Type=oneshot
+User=root
+EnvironmentFile=/etc/studica/minimal.env
+ExecStart=/bin/bash -c 'source /opt/ros/humble/setup.bash && source /opt/studica/current/install/setup.bash && exec ros2 run studica_vmxpi_ros2 studica_update_agent.py --runtime minimal activate "$${1}"' studica-update %i
+TimeoutStartSec=240
+NoNewPrivileges=yes
+UMask=0077

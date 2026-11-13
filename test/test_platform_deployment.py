@@ -87,7 +87,7 @@ def test_orchestrator_configures_only_a_routable_companion_peer(tmp_path: Path):
     assert '<Peer Address="192.0.2.20"' in cyclone.read_text()
     assert "studica-peer-apply.timer" in calls[-1]
     assert controller.companion_transport(True)["ok"]
-    assert "10160:10225" in calls[-1]
+    assert "10160:10261" in calls[-1]
     assert (tmp_path / "transport/companion").is_file()
     assert controller.companion_transport(False)["ok"]
     assert not (tmp_path / "transport/companion").exists()

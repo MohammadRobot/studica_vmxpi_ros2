@@ -1,5 +1,7 @@
 # Documentation
 
+Start here: [Beginner ROS 2 manual](BEGINNER_MANUAL.md) — standard commands for simulation, joystick, SLAM and navigation.
+
 Start with simulation and follow the course in order. Hardware, PID tuning,
 networking, and custom profiles are intentionally separated from the beginner
 path.
@@ -36,6 +38,16 @@ one-worker ARM64 compilation without Docker.
 | [Networking](NETWORKING.md) | Generated Cyclone DDS profiles for simulation, Wi-Fi, Ethernet, and Foxglove |
 | [Advanced profiles](PROFILE_AUTHORING.md) | 2WD, mecanum, omni, and custom robot configuration |
 | [Instructor guide](INSTRUCTOR_GUIDE.md) | Classroom preparation and physical acceptance tests |
+
+## Current local implementation
+
+- [Production progress](PRODUCTION_PROGRESS.md): configuration composition and remaining gates.
+- [RoboHiTec handoff](ROBOHITEC_HANDOFF.md): proposed configuration contract and fixtures.
+
+- [ROS 2 developer guide](ROS2_DEVELOPER_GUIDE.md): interfaces, builds and examples.
+- [Minimal runtime candidate](MINIMAL_RUNTIME.md): startup, readiness and updates.
+- [Production acceptance](PRODUCTION_ACCEPTANCE.md): qualification evidence and resource sampling.
+- [2026-11-10 audit](ROS2_AUDIT_2026-11-10.md): findings, evidence and remaining gates.
 
 ## Production engineering
 

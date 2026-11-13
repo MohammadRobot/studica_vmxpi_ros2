@@ -164,6 +164,39 @@ class SetupContractTest(unittest.TestCase):
             )
             self.assertNotIn("GZ_VERSION", peer_environment)
 
+    def test_beginner_sim_default_and_explicit_robot_domain(self):
+        with tempfile.TemporaryDirectory() as directory:
+            result = subprocess.run(
+                [str(CYCLONEDDS_SETUP), "sim", "--name", "beginner_sim",
+                 "--output-dir", directory], capture_output=True, text=True)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertIn("ROS_DOMAIN_ID=20", Path(
+                directory, "studica_beginner_sim.env").read_text())
+            for mode, options in [("peer", []), ("sim", ["--domain-id", "101"]),
+                                  ("sim", ["--domain-id", "-1"])]:
+                before = {p.name: p.read_bytes() for p in Path(directory).iterdir()}
+                result = subprocess.run(
+                    [str(CYCLONEDDS_SETUP), mode, "--output-dir", directory, *options],
+                    capture_output=True, text=True)
+                self.assertEqual(result.returncode, 2)
+                self.assertEqual(before, {p.name: p.read_bytes()
+                                          for p in Path(directory).iterdir()})
+
+    def test_named_simulation_profiles_do_not_overwrite_each_other(self):
+        with tempfile.TemporaryDirectory() as directory:
+            for name, domain in [("sim_a", "20"), ("sim_b", "21")]:
+                result = subprocess.run(
+                    [str(CYCLONEDDS_SETUP), "sim", "--name", name, "--domain-id", domain,
+                     "--output-dir", directory], capture_output=True, text=True)
+                self.assertEqual(result.returncode, 0, result.stderr)
+                environment = Path(directory, f"studica_{name}.env").read_text()
+                self.assertIn(f"ROS_DOMAIN_ID={domain}", environment)
+                self.assertIn(f"cyclonedds_{name}.xml", environment)
+                xml = Path(directory, f"cyclonedds_{name}.xml").read_text()
+                self.assertIn('name="lo"', xml)
+                self.assertNotIn('name="eth0"', xml)
+                self.assertNotIn('name="wlan0"', xml)
+
 
 if __name__ == "__main__":
     unittest.main(argv=[sys.argv[0]])

@@ -1,6 +1,14 @@
 # Robot Manual
 
-Updated 2026-09-30 · Ubuntu 22.04 · ROS 2 Humble · Gazebo Harmonic
+For the new standard classroom workflow and all beginner commands, use the
+[Beginner ROS 2 manual](BEGINNER_MANUAL.md). This page preserves the historical
+domain-78 installation record; it does not migrate the running robot.
+
+Runtime record 2026-09-30; documentation reviewed 2026-11-10 · Ubuntu 22.04 · ROS 2 Humble · Gazebo Harmonic
+
+The newer [local engineering candidate](ROS2_DEVELOPER_GUIDE.md) is not deployed.
+The instructions below describe the recorded classroom install, not proof that
+this source tree is running on the Pi.
 
 The Pi runs hardware, sensors and odometry. The PC runs RViz, joystick, SLAM and
 Nav2. Remote driving, live RViz data, map saving and navigation movement have been
@@ -204,14 +212,13 @@ simulation arm service or simulated clock for the real robot.
 ```bash
 source /opt/ros/humble/setup.bash
 cd ~/studica_ws
-colcon build --symlink-install --packages-up-to studica_vmxpi_ros2 \
+colcon build --packages-up-to studica_vmxpi_ros2 \
   --cmake-args -DCMAKE_BUILD_TYPE=RelWithDebInfo
 source install/setup.bash
-colcon test --packages-select studica_vmxpi_ros2 --return-code-on-test-failure
-colcon test-result --verbose
 ```
 
-Fresh PC setup: [Installation](INSTALL.md).
+Fresh PC setup: [Installation](INSTALL.md). Run tests using the isolated
+[developer validation procedure](ROS2_DEVELOPER_GUIDE.md#pc-build-and-validation).
 
 **Robot:** follow [Direct native build](NATIVE_BUILD.md)—one worker, no Docker,
 separate build directory. Do not compile while driving or overwrite the tested

@@ -1,7 +1,19 @@
 # Studica ROS 2 Classroom Robot
-Learn ROS 2 by driving and programming one robot in simulation before touching real
-hardware. Lab 1 introduces terminal skills, and the ROS interfaces are identical
-for simulated `class_4wd` and physical `stack_4wd`.
+
+Start here: [Beginner ROS 2 manual](docs/BEGINNER_MANUAL.md) — standard commands for simulation, joystick, SLAM and navigation.
+Learn ROS 2 in simulation first. Lab 1 introduces terminal skills; `class_4wd` simulation and `stack_4wd` hardware share the ROS interfaces.
+
+## Local engineering candidate
+
+The [2026-11-12 production progress](docs/PRODUCTION_PROGRESS.md) adds offline
+device/profile/calibration composition and a [RoboHiTec contract handoff](docs/ROBOHITEC_HANDOFF.md).
+
+The 2026-11-10 implementation is **local and undeployed**. See the
+[developer guide](docs/ROS2_DEVELOPER_GUIDE.md),
+[minimal boot/update candidate](docs/MINIMAL_RUNTIME.md) and
+[audit with remaining qualification gates](docs/ROS2_AUDIT_2026-11-10.md).
+The deployment observations below describe the earlier recorded installation;
+they do not establish parity with this source tree.
 
 ## Robot manual — start here
 
@@ -23,14 +35,19 @@ Use the pinned dependencies; an older workspace may not match that build.
 ## One PC terminal for the current robot
 
 ```bash
-robot-pc drive
-# Or: robot-pc slam
-# Or: robot-pc navigation ~/studica_ws/project_maps/real_robot_map.yaml
+source /opt/ros/humble/setup.bash
+source ~/studica_ws/install/setup.bash
+source ~/.config/studica/robot-wifi.sh
+
+ros2 launch studica_vmxpi_ros2 remote.launch.py mode:=drive
+# Or: ros2 launch studica_vmxpi_ros2 remote.launch.py mode:=slam
+# Or: ros2 launch studica_vmxpi_ros2 remote.launch.py mode:=navigation \
+#       map:=$HOME/studica_ws/project_maps/my_room.yaml
 ```
 
 These mutually exclusive PC modes open RViz with joystick, SLAM, or Nav2.
 The robot runs one common runtime at power-on; no SSH mode switching is needed. Local Reset/Start is still required.
-See [setup, stop procedure and power-on limitation](docs/ROBOT_MANUAL.md#2-start-the-robot-session).
+See [setup, stop procedure and power-on limitation](docs/ROBOT_MANUAL.md#2-power-on-the-robot).
 The classroom native runtime starts at power-on with motion disabled; physical
 Reset/Start remains required. Full production qualification remains pending.
 
@@ -245,15 +262,15 @@ development, hardware, networking, troubleshooting, and instructor guides.
 
 ## Repository roles
 
-- `studica_robot_apps`: developer-owned behaviors, launch files, config, and tests
+- Student packages (for example `studica_robot_apps`) in `~/ros2_ws`: application behaviors and tests
 - `studica_vmxpi_ros2`: robot model, bringup, `ros2_control`, safety, and labs
 - `studica_robot_monitor`: diagnostics, `robot_check`, recordings, and guarded validation
 - `studica_drivers`: low-level VMXPi/Titan infrastructure
 - `studica_ros2_control`: optional accessory components for advanced projects
 - Orbbec and YDLidar repositories: unchanged vendor sensor drivers
 
-Developers normally edit only `studica_robot_apps`. The other repositories form
-the platform and its dependencies; see the [development workflow](docs/DEVELOPMENT.md).
+Student developers normally edit their application package. Platform engineers
+work in `~/studica_ws`; RoboHiTec engineers work in its separate repository; see the [development workflow](docs/DEVELOPMENT.md).
 
 ## Check a change
 

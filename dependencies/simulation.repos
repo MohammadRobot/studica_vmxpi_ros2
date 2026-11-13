@@ -2,7 +2,7 @@ repositories:
   studica_drivers:
     type: git
     url: https://github.com/MohammadRobot/studica_drivers.git
-    version: 0b45ad72aeaceeff2ed47e4429eac140d54a9d5c
+    version: c74b1faf7482d6fc28c2dcd45530306b95928f69
   studica_robot_monitor:
     type: git
     url: https://github.com/MohammadRobot/studica_robot_monitor.git

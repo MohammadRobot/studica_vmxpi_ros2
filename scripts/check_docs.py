@@ -17,9 +17,10 @@ def relative_links(markdown: Path):
     text = markdown.read_text(encoding="utf-8")
     for match in LINK.finditer(text):
         target = match.group(1).strip()
-        if target.startswith("<") and target.endswith(">"):
-            target = target[1:-1]
-        target = target.split(maxsplit=1)[0]
+        if target.startswith("<") and ">" in target:
+            target = target[1:target.index(">")]
+        else:
+            target = target.split(maxsplit=1)[0] if target else ""
         if not target or target.startswith(("#", "http://", "https://", "mailto:")):
             continue
         file_part = unquote(target.split("#", maxsplit=1)[0])

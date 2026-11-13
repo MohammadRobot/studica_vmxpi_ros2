@@ -8,8 +8,10 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 import gzip
 import hashlib
+import importlib.util
 import json
 import os
+import platform
 from pathlib import Path
 import re
 import shutil
@@ -39,6 +41,7 @@ REQUIRED_ARM64_FILES = (
     "lib/studica_vmxpi_ros2/safety_input_check",
     "lib/studica_vmxpi_ros2/safety_supervisor_node",
     "lib/studica_vmxpi_ros2/topic_adapter_node",
+    "lib/studica_vmxpi_ros2/vmx_control_node",
     "lib/ydlidar_ros2_driver/ydlidar_ros2_driver_node",
 )
 VMXPI_SDK_PROFILE = "studica-vmxpi-hal-cpp-content-v1"
@@ -610,6 +613,18 @@ def create_deterministic_archive(
                 add_deterministic_tree(archive, payload_root, epoch)
 
 
+def native_runtime_inventory(install_prefix: Path, sdk_root: Path) -> dict:
+    path = Path(__file__).with_name("inspect_runtime_libraries.py")
+    spec = importlib.util.spec_from_file_location("studica_runtime_inventory", path)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module.inspect(install_prefix, {
+        "ros": Path("/opt/ros/humble/lib"),
+        "system": Path("/usr/lib/aarch64-linux-gnu"),
+        "vmx": sdk_root / "lib/vmxpi",
+    })
+
+
 def build_release_bundle(
     source_root: Path,
     install_prefix: Path,
@@ -620,6 +635,7 @@ def build_release_bundle(
     epoch: int,
     builder_image_id: str,
     release_version: str | None = None,
+    native: bool = False,
 ) -> tuple[Path, Path]:
     source_root = source_root.resolve()
     install_prefix = install_prefix.resolve()
@@ -627,8 +643,15 @@ def build_release_bundle(
     output_dir = output_dir.resolve()
     if GIT_SHA_RE.fullmatch(commit) is None:
         raise BundleError("source commit must be a full 40-character Git SHA")
-    if IMAGE_ID_RE.fullmatch(builder_image_id) is None:
+    if not native and IMAGE_ID_RE.fullmatch(builder_image_id) is None:
         raise BundleError("builder image ID must be a full sha256 digest")
+    if native:
+        os_release = platform.freedesktop_os_release()
+        if (platform.machine() not in ("aarch64", "arm64")
+                or os_release.get("ID") != "ubuntu" or os_release.get("VERSION_ID") != "22.04"):
+            raise BundleError("native packaging requires Ubuntu 22.04 ARM64")
+        if builder_image_id:
+            raise BundleError("native builds must not claim a container image")
     if epoch < 0:
         raise BundleError("SOURCE_DATE_EPOCH must not be negative")
 
@@ -646,9 +669,10 @@ def build_release_bundle(
         raise BundleError("runtime package profile does not select Ubuntu 22.04/Humble ARM64")
     if profile.get("external_runtime_dependencies") != VMXPI_EXTERNAL_DEPENDENCY:
         raise BundleError("runtime package profile does not pin the VMXPi vendor SDK contract")
-    builder_profile_path = source_root / "deployment/arm64-builder-v1.json"
+    builder_profile_path = source_root / (
+        "deployment/native-arm64-builder-v1.json" if native else "deployment/arm64-builder-v1.json")
     builder_profile = read_json(builder_profile_path)
-    if (
+    if not native and (
         builder_profile.get("profile") != BUILDER_PROFILE_NAME
         or builder_profile.get("platform") != {
             "architecture": "arm64",
@@ -661,6 +685,14 @@ def build_release_bundle(
         != {"activation_authorized": False, "channel": "development"}
     ):
         raise BundleError("ARM64 builder profile does not match the release contract")
+    if native and builder_profile != {
+        "profile": "studica-native-arm64-builder-v1",
+        "platform": {"architecture": "arm64", "os_id": "ubuntu",
+                     "version_id": "22.04", "ros_distro": "humble"},
+        "execution": {"workers": 1, "device_access": "none", "activation": False},
+        "artifact_policy": {"activation_authorized": False, "channel": "development"},
+    }:
+        raise BundleError("native builder profile violates the development contract")
     application_version = package_version(source_root / "package.xml")
     release_version = release_version or f"{application_version}-dev.{commit[:12]}"
     if (
@@ -722,6 +754,9 @@ def build_release_bundle(
         staged_install = release_root / "install"
         shutil.copytree(install_prefix, staged_install, symlinks=True)
         pruned_build_artifacts = prune_build_only_files(staged_install)
+        if native:
+            write_json(metadata_root / "runtime-libraries.json",
+                       native_runtime_inventory(staged_install, vmxpi_sdk_root))
         install_file_count, install_bytes = tree_stats(staged_install)
 
         shutil.copy2(profile_path, metadata_root / "runtime-packages.json")
@@ -757,6 +792,7 @@ def build_release_bundle(
             "activation_strategy": "atomic-symlink",
             "current_link": "/opt/studica/current",
             "previous_release_state": "/var/lib/studica/update-state/previous-release",
+            "activation_journal": "/var/lib/studica/updates/activation.json",
             "health_check_timeout_sec": 120,
             "automatic_rollback": True,
             "activation_authorized": False,
@@ -777,11 +813,16 @@ def build_release_bundle(
             },
             "platform": profile["platform"],
             "hardware_profile": "stack_4wd",
-            "builder": {
+            "builder": ({
+                "profile": builder_profile["profile"],
+                "method": "native-colcon",
+                "architecture": "arm64",
+                "dpkg_inventory_sha256": sha256_file(metadata_root / "dpkg-inventory.tsv"),
+            } if native else {
                 "profile": builder_profile["profile"],
                 "base_image": builder_profile["base_image"]["reference"],
                 "image_id": builder_image_id,
-            },
+            }),
             "install": {
                 "layout": "merged-colcon",
                 "relative_prefix": "install",
@@ -804,6 +845,9 @@ def build_release_bundle(
             "sbom": "metadata/sbom.spdx.json",
             "rollback": "metadata/rollback.json",
         }
+        if native:
+            release_metadata["inputs"]["runtime_libraries_sha256"] = sha256_file(
+                metadata_root / "runtime-libraries.json")
         write_json(metadata_root / "release.json", release_metadata)
         (metadata_root / "DO_NOT_ACTIVATE").write_text(
             "Development artifact only. Physical drivetrain acceptance is blocked.\n",
@@ -861,7 +905,7 @@ def main() -> int:
     parser.add_argument("--release-version")
     parser.add_argument(
         "--builder-image-id",
-        required=True,
+        default="",
         help="immutable sha256 image ID reported by the isolated ARM64 builder",
     )
     parser.add_argument(
@@ -869,6 +913,7 @@ def main() -> int:
         type=int,
         help="override the Git commit time used for deterministic archive timestamps",
     )
+    parser.add_argument("--native", action="store_true", help="native ARM64; no container image")
     arguments = parser.parse_args()
     source_root = arguments.source_root.resolve()
     try:
@@ -889,6 +934,7 @@ def main() -> int:
             epoch=epoch,
             builder_image_id=arguments.builder_image_id,
             release_version=arguments.release_version,
+            native=arguments.native,
         )
     except (
         BundleError,

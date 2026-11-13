@@ -1,5 +1,8 @@
 # Networking and Cyclone DDS
 
+Start with the [beginner ROS 2 manual](BEGINNER_MANUAL.md) for standard environment
+variables and launch commands. This page covers instructor network preparation.
+
 For the current robot installation, tested status and complete start/stop commands,
 use the [Robot manual](ROBOT_MANUAL.md). It distinguishes the native tested
 installation from older workspace and managed-production examples below.
@@ -36,8 +39,8 @@ ros2 pkg prefix rmw_cyclonedds_cpp
 
 ## Inspect the selected network first
 
-Connect both machines to one trusted network. Use Wi-Fi on both or Ethernet on
-both; avoid changing routes during robot operation.
+Connect both machines to one trusted network. The PC may use Ethernet while robots use Wi-Fi through the same router/AP.
+Avoid changing routes during robot operation.
 
 For a production robot, the active NetworkManager Wi-Fi profile must explicitly
 disable power saving. Do not rely on the distribution or driver default: it can
@@ -135,7 +138,8 @@ cd "$HOME/studica_ws/src/studica_vmxpi_ros2"
 ```
 
 Use the same domain on both machines. Different classroom teams should use
-different domain IDs from `0` through `232`.
+different allocated domain IDs from `1` through `100`; domain `0` remains
+accepted for compatibility but is not recommended for classroom allocation.
 
 If a named profile already exists with another address, the tool refuses to
 overwrite it. Review the new route, then add `--force` deliberately. This is
@@ -225,6 +229,11 @@ Interface names vary. Never copy `enp0s31f6` or `eth0` without checking the
 actual machine.
 
 ## Firewall rules
+
+New developer, robot and companion configurations use participant indices 0–50.
+Existing deployed files/rules are not modified by a source update. An instructor
+must regenerate and qualify matching DDS profiles and firewall rules together
+when migrating from the older 0–32 production configuration.
 
 The generated peer profiles use explicit unicast peers and participant indices
 `0` through `50`; they do not require multicast. The helper prints the exact

@@ -2,6 +2,7 @@
 """Contracts for post-build development release artifact verification."""
 
 from copy import deepcopy
+from unittest.mock import patch
 import io
 import importlib.util
 from pathlib import Path
@@ -10,7 +11,7 @@ import tarfile
 import tempfile
 import unittest
 
-from test_release_bundle import COMMIT, ReleaseFixture
+from test_release_bundle import BUILDER, COMMIT, ReleaseFixture
 
 
 ROOT = Path(sys.argv[1]).resolve() if len(sys.argv) > 1 else Path(__file__).parents[1]
@@ -23,6 +24,58 @@ SPEC.loader.exec_module(VERIFIER)
 
 
 class ReleaseArtifactVerificationTest(unittest.TestCase):
+
+    @staticmethod
+    def fixture_inventory(install, sdk):
+        # Synthetic bundle fixtures are headers, not executable ARM binaries.
+        # Actual ELF parsing is exercised independently in test_runtime_libraries.
+        del sdk
+        return dict(schema_version=1, evidence_scope="static_elf_dependency_availability",
+                    elf_machine=183, runtime_tested=False, activation_authorized=False,
+                    artifacts={"install/" + name: dict(sha256=BUILDER.sha256_file(install / name),
+                                                       needed={}, search_paths=[])
+                               for name in BUILDER.REQUIRED_ARM64_FILES})
+
+    def test_native_release_round_trip(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            fixture = ReleaseFixture(temporary)
+            with patch.object(BUILDER.platform, "machine", return_value="aarch64"), \
+                    patch.object(BUILDER.platform, "freedesktop_os_release",
+                                 return_value={"ID": "ubuntu", "VERSION_ID": "22.04"}), \
+                    patch.object(BUILDER, "native_runtime_inventory", side_effect=self.fixture_inventory):
+                fixture.build(builder_image_id="", native=True)
+            VERIFIER.verify_release_artifacts(fixture.output, expected_commit=COMMIT)
+
+    def test_native_inventory_cannot_omit_files_or_claim_runtime_acceptance(self):
+        for fault in ("missing", "hash", "qualified"):
+            with self.subTest(fault=fault), tempfile.TemporaryDirectory() as temporary:
+                fixture = ReleaseFixture(temporary)
+
+                def inventory(install, sdk):
+                    value = self.fixture_inventory(install, sdk)
+                    key = next(iter(value["artifacts"]))
+                    if fault == "missing":
+                        del value["artifacts"][key]
+                    elif fault == "hash":
+                        value["artifacts"][key]["sha256"] = "0" * 64
+                    else:
+                        value["runtime_tested"] = True
+                    return value
+
+                with patch.object(BUILDER.platform, "machine", return_value="aarch64"), \
+                        patch.object(BUILDER.platform, "freedesktop_os_release",
+                                     return_value={"ID": "ubuntu", "VERSION_ID": "22.04"}), \
+                        patch.object(BUILDER, "native_runtime_inventory", side_effect=inventory):
+                    fixture.build(builder_image_id="", native=True)
+                with self.assertRaises(VERIFIER.VerificationError):
+                    VERIFIER.verify_release_artifacts(fixture.output)
+
+    def test_native_rejects_pc_packaging(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            fixture = ReleaseFixture(temporary)
+            with patch.object(BUILDER.platform, "machine", return_value="x86_64"):
+                with self.assertRaisesRegex(BUILDER.BundleError, "native packaging"):
+                    fixture.build(builder_image_id="", native=True)
 
     def test_valid_bundle_and_checksums_pass(self):
         with tempfile.TemporaryDirectory() as temporary:

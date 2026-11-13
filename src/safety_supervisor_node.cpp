@@ -1,6 +1,9 @@
 // Copyright (c) 2026 studica_vmxpi_ros2 contributors
 // SPDX-License-Identifier: Apache-2.0
 
+#include <cerrno>
+#include <sys/stat.h>
+
 #include <chrono>
 #include <cmath>
 #include <cstdint>
@@ -46,6 +49,8 @@ public:
       "safety_reason_topic", "/robot/safety_reason");
     frame_id_ = this->declare_parameter<std::string>("cmd_vel_frame_id", "base_link");
     hardware_mode_ = this->declare_parameter<bool>("hardware_mode", false);
+    maintenance_lock_file_ = this->declare_parameter<std::string>(
+      "maintenance_lock_file", hardware_mode_ ? "/var/lib/studica/activation-in-progress" : "");
     allow_software_arm_ = this->declare_parameter<bool>("allow_software_arm", false);
     command_timeout_ = this->declare_parameter<double>("command_timeout_sec", 0.25);
     hardware_state_timeout_ = this->declare_parameter<double>(
@@ -171,6 +176,9 @@ private:
               "in [0.1, 2.0], joystick_state_timeout_sec must be in [0.1, 0.5], and limits "
               "must be positive");
     }
+    if (hardware_mode_ && (maintenance_lock_file_.empty() || maintenance_lock_file_[0] != '/')) {
+      throw std::invalid_argument("hardware maintenance lock must be an absolute path");
+    }
     if (hardware_mode_ && allow_software_arm_) {
       throw std::invalid_argument("Software arming is forbidden in hardware mode");
     }
@@ -285,6 +293,14 @@ private:
   {
     std::lock_guard<std::mutex> lock(mutex_);
     const auto now = SteadyClock::now();
+    // A newly arrived packet must not hide a missed application deadline.
+    if (hardware_mode_ && !joystick_source_ && has_command_ &&
+      state_machine_.state() == safety::RobotState::ARMED &&
+      std::chrono::duration<double>(now - received_at_).count() > command_timeout_)
+    {
+      latchHardwareFault("APPLICATION_COMMAND_STALE");
+      return;
+    }
     if (joystick_source_ && !joystickEligible(now)) {
       return;
     }
@@ -345,6 +361,25 @@ private:
     publishReason(reason);
   }
 
+  bool inhibitForMaintenance()
+  {
+    if (!hardware_mode_) {
+      return false;
+    }
+    struct stat status {};
+    // A symlink, any existing object, or an inspection failure inhibits motion.
+    if (::lstat(maintenance_lock_file_.c_str(), &status) != 0 && errno == ENOENT) {
+      return false;
+    }
+    hardware_disarm_inhibit_ = true;
+    state_machine_.disarm();
+    resetJoystickForArm();
+    clearCommandAndStop();
+    publishState();
+    publishReason("MAINTENANCE_INHIBIT");
+    return true;
+  }
+
   void applyHardwareSafety(const safety::HardwareSafetyStatus & status)
   {
     if (!status.encoding_valid) {
@@ -364,6 +399,9 @@ private:
       current_state = state_machine_.state();
     }
 
+    if (inhibitForMaintenance()) {
+      return;
+    }
     if (status.gate_state != safety::HardwareGateState::ENABLED) {
       hardware_disarm_inhibit_ = false;
       if (current_state == safety::RobotState::ARMED) {
@@ -525,6 +563,9 @@ private:
 
   void evaluateAndPublish(SteadyClock::time_point now)
   {
+    if (inhibitForMaintenance()) {
+      return;
+    }
     const std::size_t publisher_count = this->count_publishers(active_input_topic_);
     if (joystick_source_ && joystick_deadman_gate_.active() && publisher_count != 1U) {
       stopJoystick(
@@ -535,6 +576,13 @@ private:
     const auto evaluation = safety::evaluate(
       state_machine_.state(), last_command_, has_command_, steadySeconds(received_at_),
       steadySeconds(now), publisher_count, command_timeout_, limits_);
+    if (hardware_mode_ && !joystick_source_ && has_command_ &&
+      state_machine_.state() == safety::RobotState::ARMED &&
+      evaluation.decision != safety::CommandDecision::ACCEPTED)
+    {
+      latchHardwareFault(std::string("APPLICATION_") + safety::decision_name(evaluation.decision));
+      return;
+    }
     if (
       joystick_source_ &&
       (evaluation.decision == safety::CommandDecision::STALE ||
@@ -612,6 +660,7 @@ private:
   std::string state_topic_;
   std::string reason_topic_;
   std::string frame_id_;
+  std::string maintenance_lock_file_;
   bool hardware_mode_{false};
   bool allow_software_arm_{false};
   bool joystick_source_{false};

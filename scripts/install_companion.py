@@ -96,7 +96,7 @@ def _write_cyclonedds(path: Path, peer: str) -> None:
     </General>
     <Discovery>
       <ParticipantIndex>auto</ParticipantIndex>
-      <MaxAutoParticipantIndex>32</MaxAutoParticipantIndex>
+      <MaxAutoParticipantIndex>50</MaxAutoParticipantIndex>
       <Peers AddLocalhost="true"><Peer Address="{peer}" /></Peers>
     </Discovery>
   </Domain>

@@ -111,7 +111,7 @@ class ReleaseFixture:
         lines = [f"{name}\t1.0-1\tarm64" for name in sorted(package_names)]
         self.inventory.write_text("\n".join(lines) + "\n", encoding="utf-8")
 
-    def build(self, output=None, builder_image_id=BUILDER_IMAGE_ID):
+    def build(self, output=None, builder_image_id=BUILDER_IMAGE_ID, native=False):
         return BUILDER.build_release_bundle(
             source_root=ROOT,
             install_prefix=self.install,
@@ -122,6 +122,7 @@ class ReleaseFixture:
             epoch=EPOCH,
             builder_image_id=builder_image_id,
             release_version=RELEASE_VERSION,
+            native=native,
         )
 
 

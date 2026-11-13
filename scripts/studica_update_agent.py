@@ -19,6 +19,9 @@ from std_srvs.srv import Trigger
 from studica_vmxpi_ros2.msg import PlatformStatus
 from studica_robot_platform.updates import (
     UpdateError,
+    create_maintenance_lock,
+    validate_maintenance_lock,
+    complete_activation_cleanup,
     extract_verified_release,
     finalize_activation,
     prepare_activation,
@@ -34,14 +37,19 @@ RELEASES_ROOT = Path("/opt/studica/releases")
 MAINTENANCE_LOCK = Path("/var/lib/studica/activation-in-progress")
 
 
-def _wait_disarmed(timeout: float, request_disarm: bool) -> bool:
+def _wait_disarmed(timeout: float, request_disarm: bool, runtime="managed") -> bool:
+    if runtime == "minimal":
+        from studica_robot_platform.minimal_health import observe
+        return observe(timeout)[0]
     rclpy.init()
     node = Node("studica_update_safety_gate")
     latest = None
+    received_at = None
 
     def status_callback(message):
-        nonlocal latest
+        nonlocal latest, received_at
         latest = message
+        received_at = time.monotonic()
 
     node.create_subscription(PlatformStatus, "/robot/platform/status", status_callback, 10)
     client = node.create_client(Trigger, "/robot/disarm")
@@ -60,6 +68,7 @@ def _wait_disarmed(timeout: float, request_disarm: bool) -> bool:
         rclpy.spin_once(node, timeout_sec=0.1)
         if (
             latest is not None
+            and time.monotonic() - received_at <= 1.5
             and latest.safety_state == "READY_DISARMED"
             and not latest.armed
             and latest.mode_name == "IDLE"
@@ -74,20 +83,31 @@ def _wait_disarmed(timeout: float, request_disarm: bool) -> bool:
 
 
 def _systemctl(verb: str, unit: str) -> None:
-    result = subprocess.run(
-        ["/usr/bin/systemctl", verb, unit],
-        check=False,
-        capture_output=True,
-        text=True,
-        timeout=60,
-    )
+    try:
+        result = subprocess.run(
+            ["/usr/bin/systemctl", verb, unit],
+            check=False,
+            capture_output=True,
+            text=True,
+            timeout=60,
+        )
+    except (OSError, subprocess.SubprocessError) as error:
+        raise UpdateError(f"systemctl {verb} {unit} failed: {error}") from error
     if result.returncode != 0:
         raise UpdateError((result.stderr or result.stdout).strip()[:512])
 
 
-def activate(version: str, state_root: Path, public_key: Path) -> None:
-    if not _wait_disarmed(15.0, request_disarm=False):
+def activate(version: str, state_root: Path, public_key: Path, runtime="managed") -> None:
+    if runtime not in {"minimal", "managed"}:
+        raise UpdateError("unknown runtime")
+    unit = "studica-minimal.service" if runtime == "minimal" else "studica-robot.target"
+
+    def health(timeout, request_disarm=False):
+        return _wait_disarmed(timeout, request_disarm=request_disarm, runtime=runtime)
+    if not health(15.0, request_disarm=False):
         raise UpdateError("activation requires IDLE and READY_DISARMED")
+    if MAINTENANCE_LOCK.exists() or MAINTENANCE_LOCK.is_symlink():
+        raise UpdateError("an existing maintenance lock requires recovery")
     current = CURRENT_RELEASE
     releases_root = RELEASES_ROOT
     release = extract_verified_release(
@@ -96,21 +116,29 @@ def activate(version: str, state_root: Path, public_key: Path) -> None:
     previous = prepare_activation(
         version, state_root, releases_root, current, release
     )
+    create_maintenance_lock(state_root, MAINTENANCE_LOCK)
     try:
-        MAINTENANCE_LOCK.touch(mode=0o644, exist_ok=False)
-        if not _wait_disarmed(15.0, request_disarm=False):
+        if not health(15.0, request_disarm=False):
             raise UpdateError("robot left IDLE/READY_DISARMED during staging")
-        _systemctl("stop", "studica-robot.target")
+        _systemctl("stop", unit)
         switch_current(current, release)
-        _systemctl("start", "studica-robot.target")
-        if not _wait_disarmed(60.0, request_disarm=False):
+        _systemctl("start", unit)
+        if not health(60.0, request_disarm=False):
             raise UpdateError("new release did not reach READY_DISARMED")
-        finalize_activation(state_root, "ACTIVE_HEALTHY")
-        MAINTENANCE_LOCK.unlink(missing_ok=True)
+        finalize_activation(state_root, "ACTIVE_HEALTHY", retain_completion=True)
     except Exception as error:
+        # A terminal receipt may already have committed even if fsync failed.
+        # Keep inhibition and let stopped-runtime recovery validate the outcome.
+        from studica_robot_platform.updates import _read_activation_journal
+        try:
+            _read_activation_journal(state_root / "activation.json", terminal=True)
+        except UpdateError:
+            pass
+        else:
+            raise UpdateError("completion cleanup requires recovery") from error
         rollback_errors = []
         try:
-            _systemctl("stop", "studica-robot.target")
+            _systemctl("stop", unit)
         except UpdateError as rollback_error:
             rollback_errors.append(str(rollback_error))
         if rollback_errors:
@@ -124,15 +152,16 @@ def activate(version: str, state_root: Path, public_key: Path) -> None:
         if rollback_errors:
             raise UpdateError("could not restore previous pointer; recovery journal retained") from error
         try:
-            _systemctl("start", "studica-robot.target")
-            if not _wait_disarmed(30.0, request_disarm=False):
+            _systemctl("start", unit)
+            if not health(30.0, request_disarm=False):
                 raise UpdateError("previous release did not recover READY_DISARMED")
         except UpdateError as rollback_error:
             rollback_errors.append(str(rollback_error))
         if not rollback_errors:
             try:
-                finalize_activation(state_root, "ROLLED_BACK_FAILED", str(error))
-                MAINTENANCE_LOCK.unlink(missing_ok=True)
+                finalize_activation(state_root, "ROLLED_BACK_FAILED", str(error),
+                                    retain_completion=True)
+                complete_activation_cleanup(state_root, releases_root, current, MAINTENANCE_LOCK)
             except UpdateError as rollback_error:
                 rollback_errors.append(str(rollback_error))
         if rollback_errors:
@@ -141,6 +170,25 @@ def activate(version: str, state_root: Path, public_key: Path) -> None:
                 + "; ".join(rollback_errors)
             ) from error
         raise
+    complete_activation_cleanup(state_root, releases_root, current, MAINTENANCE_LOCK)
+
+
+def recover(state_root: Path, runtime="managed") -> str:
+    """Recover only recorded transactions, retaining unexplained inhibition."""
+    if runtime not in {"minimal", "managed"}:
+        raise UpdateError("unknown runtime")
+    unit = "studica-minimal.service" if runtime == "minimal" else "studica-robot.target"
+    active = subprocess.run(
+        ["/usr/bin/systemctl", "show", "--property=ActiveState", "--value", unit],
+        check=True, capture_output=True, text=True, timeout=10)
+    if active.stdout.strip() not in {"inactive", "failed"}:
+        raise UpdateError("recovery requires the runtime to be stopped")
+    validate_maintenance_lock(state_root, MAINTENANCE_LOCK)
+    result = recover_interrupted_activation(
+        state_root, RELEASES_ROOT, CURRENT_RELEASE, retain_completion=True)
+    if result != "no interrupted activation":
+        complete_activation_cleanup(state_root, RELEASES_ROOT, CURRENT_RELEASE, MAINTENANCE_LOCK)
+    return result
 
 
 def main() -> int:
@@ -156,6 +204,7 @@ def main() -> int:
         type=Path,
         default=Path("/etc/studica/update-manifest-url"),
     )
+    parser.add_argument("--runtime", choices=["managed", "minimal"], default="managed")
     subparsers = parser.add_subparsers(dest="command", required=True)
     subparsers.add_parser("check")
     subparsers.add_parser("status")
@@ -182,19 +231,12 @@ def main() -> int:
         elif options.command == "activate":
             if os.geteuid() != 0:
                 raise UpdateError("activation must run as root")
-            activate(options.version, options.state_root, options.public_key)
+            activate(options.version, options.state_root, options.public_key, options.runtime)
         else:
             if os.geteuid() != 0:
                 raise UpdateError("activation recovery must run as root")
-            print(
-                recover_interrupted_activation(
-                    options.state_root,
-                    Path("/opt/studica/releases"),
-                    Path("/opt/studica/current"),
-                )
-            )
-            MAINTENANCE_LOCK.unlink(missing_ok=True)
-    except (OSError, ValueError, UpdateError) as error:
+            print(recover(options.state_root, options.runtime))
+    except (OSError, ValueError, UpdateError, subprocess.SubprocessError) as error:
         print(f"update failed: {error}", file=sys.stderr)
         return 1
     finally:

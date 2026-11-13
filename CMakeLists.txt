@@ -205,7 +205,12 @@ ament_target_dependencies(
 pluginlib_export_plugin_description_file(hardware_interface studica_vmxpi_ros2.xml)
 
 # INSTALL
-install(PROGRAMS scripts/studica scripts/robot-pc scripts/navigation_override.py DESTINATION lib/${PROJECT_NAME})
+install(PROGRAMS scripts/studica scripts/robot-pc scripts/navigation_override.py
+  scripts/studica_minimal_runtime scripts/studica_minimal_status.py
+  scripts/studica_configuration.py
+  scripts/studica_resource_sampler.py
+  DESTINATION lib/${PROJECT_NAME})
+install(DIRECTORY deployment/minimal DESTINATION share/${PROJECT_NAME}/deployment)
 install(FILES deployment/sessions.example.json DESTINATION share/${PROJECT_NAME}/deployment)
 install(
   DIRECTORY hardware/include/
@@ -332,6 +337,14 @@ else()
     DIRECTORY deployment/systemd deployment/config web
     DESTINATION share/${PROJECT_NAME}/deployment
   )
+endif()
+
+if(NOT STUDICA_PRODUCTION_INSTALL)
+  add_executable(developer_example_cpp src/developer_example.cpp)
+  ament_target_dependencies(developer_example_cpp rclcpp geometry_msgs nav_msgs)
+  target_compile_features(developer_example_cpp PUBLIC cxx_std_17)
+  install(TARGETS developer_example_cpp DESTINATION lib/${PROJECT_NAME})
+  install(PROGRAMS scripts/developer_example.py DESTINATION lib/${PROJECT_NAME})
 endif()
 
 add_executable(topic_adapter_node src/topic_adapter_node.cpp)
@@ -524,6 +537,12 @@ if(BUILD_TESTING)
       ${CMAKE_CURRENT_SOURCE_DIR}
   )
   ament_add_test(
+    validate_documentation_links
+    GENERATE_RESULT_FOR_RETURN_CODE_ZERO
+    COMMAND ${Python3_EXECUTABLE} -m pytest -q
+      ${CMAKE_CURRENT_SOURCE_DIR}/test/test_check_docs.py
+  )
+  ament_add_test(
     validate_manual_override
     GENERATE_RESULT_FOR_RETURN_CODE_ZERO
     COMMAND ${Python3_EXECUTABLE} -m pytest -q
@@ -546,9 +565,20 @@ if(BUILD_TESTING)
       ${CMAKE_CURRENT_SOURCE_DIR}/test/test_platform_deployment.py
       ${CMAKE_CURRENT_SOURCE_DIR}/test/test_signed_updates.py
       ${CMAKE_CURRENT_SOURCE_DIR}/test/test_update_activation.py
+      ${CMAKE_CURRENT_SOURCE_DIR}/test/test_minimal_runtime.py
+      ${CMAKE_CURRENT_SOURCE_DIR}/test/test_configuration.py
+      ${CMAKE_CURRENT_SOURCE_DIR}/test/test_runtime_libraries.py
+      ${CMAKE_CURRENT_SOURCE_DIR}/test/test_resource_sampler.py
+      ${CMAKE_CURRENT_SOURCE_DIR}/test/test_hardware_launch_guards.py
       ${CMAKE_CURRENT_SOURCE_DIR}/test/test_web_security.py
       ${CMAKE_CURRENT_SOURCE_DIR}/test/test_session_cli.py
       ${CMAKE_CURRENT_SOURCE_DIR}/test/test_companion_sessions.py
+  )
+  ament_add_test(
+    validate_developer_examples
+    GENERATE_RESULT_FOR_RETURN_CODE_ZERO
+    TIMEOUT 40
+    COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/test/test_developer_examples.py
   )
   ament_add_test(
     validate_session_domains

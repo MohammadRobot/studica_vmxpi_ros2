@@ -131,7 +131,13 @@ def validate_release_policy(
         raise VerificationError("release platform is not Ubuntu 22.04/Humble ARM64")
 
     builder = metadata.get("builder")
-    if (
+    native = isinstance(builder, dict) and builder.get("profile") == "studica-native-arm64-builder-v1"
+    if native:
+        if (builder.get("method") != "native-colcon" or builder.get("architecture") != "arm64"
+                or builder.get("dpkg_inventory_sha256") != metadata.get("inputs", {}).get(
+                    "dpkg_inventory_sha256") or "image_id" in builder):
+            raise VerificationError("native builder provenance is incomplete")
+    if not native and (
         not isinstance(builder, dict)
         or builder.get("profile") != BUILDER_PROFILE
         or IMAGE_ID_RE.fullmatch(str(builder.get("image_id", ""))) is None
@@ -303,6 +309,50 @@ def verify_release_artifacts(
             "vmxpi_sdk_inventory_sha256": "sdk_inventory",
             "arm64_builder_profile_sha256": "builder_profile",
         }
+        if metadata["builder"]["profile"] == "studica-native-arm64-builder-v1":
+            inventory_name = f"{release_root}/metadata/runtime-libraries.json"
+            if inventory_name not in members or not members[inventory_name].isfile():
+                raise VerificationError("native release has no runtime library inventory")
+            required["runtime_libraries"] = inventory_name
+            hash_contract["runtime_libraries_sha256"] = "runtime_libraries"
+            try:
+                inventory = json.loads(read_member(
+                    archive, members[inventory_name], maximum_bytes=MAX_METADATA_BYTES))
+            except (ValueError, UnicodeError) as error:
+                raise VerificationError("invalid runtime library inventory") from error
+            if (not isinstance(inventory, dict)
+                    or type(inventory.get("schema_version")) is not int
+                    or inventory.get("schema_version") != 1
+                    or inventory.get("evidence_scope") != "static_elf_dependency_availability"
+                    or inventory.get("elf_machine") != 183
+                    or inventory.get("runtime_tested") is not False
+                    or inventory.get("activation_authorized") is not False
+                    or not isinstance(inventory.get("artifacts"), dict)
+                    or not inventory["artifacts"]):
+                raise VerificationError("invalid runtime library inventory policy")
+            for identity, record in inventory["artifacts"].items():
+                safe_member_name(identity)
+                if (identity.split("/", 1)[0] not in {"install", "ros", "system", "vmx"}
+                        or not isinstance(record, dict)
+                        or SHA256_RE.fullmatch(str(record.get("sha256", ""))) is None
+                        or not isinstance(record.get("needed"), dict)
+                        or not isinstance(record.get("search_paths"), list)
+                        or any(not isinstance(target, str) or target not in inventory["artifacts"]
+                               for target in record["needed"].values())):
+                    raise VerificationError("invalid runtime library dependency record")
+                if identity.startswith("install/"):
+                    member = members.get(f"{release_root}/{identity}")
+                    if member is None or not member.isfile():
+                        raise VerificationError("inventoried runtime file is absent")
+                    with archive.extractfile(member) as stream:
+                        if sha256_stream(stream) != record["sha256"]:
+                            raise VerificationError("runtime library content mismatch")
+            for name, member in members.items():
+                if name.startswith(f"{release_root}/install/") and member.isfile():
+                    with archive.extractfile(member) as stream:
+                        if stream.read(4) == b"\x7fELF" and name.removeprefix(
+                                release_root + "/") not in inventory["artifacts"]:
+                            raise VerificationError("native ELF artifact is missing from inventory")
         for input_name, required_name in hash_contract.items():
             expected_input_digest = input_hashes.get(input_name)
             if (
@@ -348,11 +398,17 @@ def verify_release_artifacts(
         )
         if (
             not isinstance(builder_profile, dict)
-            or builder_profile.get("profile") != BUILDER_PROFILE
+            or builder_profile.get("profile") != metadata["builder"]["profile"]
             or builder_profile.get("artifact_policy")
             != {"activation_authorized": False, "channel": "development"}
             or not isinstance(builder_execution, dict)
-            or builder_execution.get("sdk_enabled_build_network") != "none"
+            or (builder_profile.get("profile") == BUILDER_PROFILE
+                and builder_execution.get("sdk_enabled_build_network") != "none")
+            or (builder_profile.get("profile") == "studica-native-arm64-builder-v1"
+                and (builder_execution != {"workers": 1, "device_access": "none", "activation": False}
+                     or builder_profile.get("platform") != {
+                         "architecture": "arm64", "os_id": "ubuntu",
+                         "ros_distro": "humble", "version_id": "22.04"}))
         ):
             raise VerificationError("embedded ARM64 builder profile is invalid")
         if (

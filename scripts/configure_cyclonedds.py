@@ -109,7 +109,8 @@ def _parse_arguments() -> argparse.Namespace:
     parser.add_argument("--local-address", help="IPv4 address assigned to this computer")
     parser.add_argument("--peer-address", help="IPv4 address of the other computer")
     parser.add_argument("--interface", help="Selected local interface, for example wlan0 or eth0")
-    parser.add_argument("--domain-id", type=int, default=1)
+    parser.add_argument("--domain-id", type=int,
+                        help="ROS domain 0..100; sim defaults to 20, peer requires an explicit value")
     parser.add_argument("--output-dir", type=Path, default=Path.home() / ".ros")
     parser.add_argument(
         "--skip-interface-check",
@@ -126,8 +127,13 @@ def _parse_arguments() -> argparse.Namespace:
 
 def main() -> int:
     args = _parse_arguments()
-    if not 0 <= args.domain_id <= 232:
-        print("ERROR: --domain-id must be between 0 and 232", file=sys.stderr)
+    if args.domain_id is None:
+        if args.mode == "peer":
+            print("ERROR: peer requires --domain-id matching the robot", file=sys.stderr)
+            return 2
+        args.domain_id = 20
+    if not 0 <= args.domain_id <= 100:
+        print("ERROR: --domain-id must be between 0 and 100", file=sys.stderr)
         return 2
 
     name = args.name or ("sim" if args.mode == "sim" else "")

@@ -31,7 +31,7 @@ jobs:
         uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
         with:
           repository: MohammadRobot/studica_drivers
-          ref: 0b45ad72aeaceeff2ed47e4429eac140d54a9d5c
+          ref: c74b1faf7482d6fc28c2dcd45530306b95928f69
           path: ros2_ws/src/studica_drivers
 
       - name: Checkout studica_ros2_control dependency
@@ -109,7 +109,10 @@ jobs:
           source ros2_ws/install/setup.bash
           cd ros2_ws
           set +e
-          colcon test \
+          unshare --user --map-root-user --net bash --noprofile --norc -c '
+            ip link set lo up
+            exec "$@"
+          ' studica-tests colcon test \
             --event-handlers console_direct+ \
             --return-code-on-test-failure \
             --packages-select \

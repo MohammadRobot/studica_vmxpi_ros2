@@ -1,0 +1,28 @@
+[Unit]
+Description=Studica minimal hardware runtime (local physical enable required)
+After=local-fs.target studica-minimal-recovery.service
+Requires=studica-minimal-recovery.service
+Conflicts=studica-classroom.service studica-hardware.service studica-robot.target studica-training-lidar.service studica-training-camera.service
+StartLimitIntervalSec=120
+StartLimitBurst=3
+
+[Service]
+Type=simple
+User=root
+EnvironmentFile=/etc/studica/minimal.env
+ExecStart=/opt/studica/current/install/lib/studica_vmxpi_ros2/studica_minimal_runtime
+# ROS launch may exit successfully after a critical child's Shutdown event.
+Restart=always
+RestartSec=5
+KillSignal=SIGINT
+KillMode=control-group
+TimeoutStopSec=15
+LogsDirectory=studica-minimal
+Environment=ROS_LOG_DIR=/var/log/studica-minimal
+UMask=0027
+NoNewPrivileges=yes
+LogRateLimitIntervalSec=30
+LogRateLimitBurst=200
+
+[Install]
+WantedBy=multi-user.target

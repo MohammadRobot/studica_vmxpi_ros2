@@ -57,10 +57,25 @@ def test_provisioning_preserves_peer_and_uses_unique_hostname(tmp_path):
     configure_domain(tmp_path, 11)
     assert environment.read_text().count("ROS_DOMAIN_ID=") == 1
     assert "ROS_DOMAIN_ID=11" in environment.read_text()
-    assert dds_port_range(11) == "10160:10225"
+    assert dds_port_range(11) == "10160:10261"
 
 
 @pytest.mark.parametrize("domain", [-1, 101, True])
 def test_invalid_domains_are_rejected(domain):
     with pytest.raises(ProvisioningError):
         dds_port_range(domain)
+
+
+def test_robot_participant_capacity_matches_developer_templates():
+    import xml.etree.ElementTree as ET
+    from studica_robot_platform.provisioning import render_cyclonedds
+    root = Path(__file__).resolve().parents[1]
+    namespace = {'dds': 'https://cdds.io/config'}
+    sources = [render_cyclonedds('192.0.2.10')]
+    for name in ('cyclonedds_sim.xml', 'cyclonedds_peer.xml.in'):
+        sources.append((root / 'bringup/config/network' / name).read_text())
+    for source in sources:
+        count = int(ET.fromstring(source).find('.//dds:MaxAutoParticipantIndex', namespace).text)
+        first, last = map(int, dds_port_range(10).split(':'))
+        assert count == 50
+        assert last - first == 2 * count + 1

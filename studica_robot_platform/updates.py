@@ -13,6 +13,7 @@ import shutil
 import tarfile
 import tempfile
 import time
+import uuid
 from typing import Any, BinaryIO, Optional
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
@@ -387,7 +388,7 @@ def prepare_activation(
     if VERSION.fullmatch(version) is None:
         raise UpdateError("unsafe activation version")
     journal = state_root / "activation.json"
-    if journal.exists():
+    if journal.exists() or journal.is_symlink():
         raise UpdateError("an earlier activation still requires recovery")
     if not current.is_symlink():
         raise UpdateError("current release pointer is not a symlink")
@@ -401,6 +402,7 @@ def prepare_activation(
             "schema_version": 1,
             "version": version,
             "state": "PREPARED",
+            "transaction_id": uuid.uuid4().hex,
             "previous_release": str(previous),
             "selected_release": str(selected),
             "created_at_ns": time.time_ns(),
@@ -409,8 +411,39 @@ def prepare_activation(
     return previous
 
 
+def _read_activation_journal(journal: Path, terminal=False) -> dict[str, Any]:
+    """Validate rollback intent completely before changing pointers or status."""
+    if journal.is_symlink() or not journal.is_file():
+        raise UpdateError("activation journal is unavailable")
+    try:
+        document = json.loads(journal.read_text(encoding="utf-8"))
+        if (not isinstance(document, dict)
+                or type(document.get("schema_version")) is not int
+                or document.get("schema_version") != 1
+                or document.get("state") not in (
+                    {"ACTIVE_HEALTHY", "ROLLED_BACK_FAILED", "ROLLED_BACK_INTERRUPTED"}
+                    if terminal else {"PREPARED"})):
+            raise ValueError("unsupported journal state")
+        transaction = document.get("transaction_id")
+        if transaction is not None and (not isinstance(transaction, str)
+                                        or re.fullmatch(r"[0-9a-f]{32}", transaction) is None):
+            raise ValueError("invalid transaction ID")
+        version = document["version"]
+        if not isinstance(version, str) or VERSION.fullmatch(version) is None:
+            raise ValueError("unsafe journal version")
+        for field in ("previous_release", "selected_release"):
+            value = document[field]
+            if not isinstance(value, str) or not Path(value).is_absolute():
+                raise ValueError("release paths must be absolute")
+        if Path(document["selected_release"]).name != version:
+            raise ValueError("journal version does not match selected release")
+    except (OSError, KeyError, TypeError, ValueError) as error:
+        raise UpdateError("activation journal is invalid") from error
+    return document
+
+
 def finalize_activation(
-    state_root: Path, outcome: str, detail: str = ""
+    state_root: Path, outcome: str, detail: str = "", *, retain_completion=False
 ) -> dict[str, Any]:
     """Move an activation journal into immutable update history."""
     accepted = {
@@ -421,15 +454,8 @@ def finalize_activation(
     if outcome not in accepted:
         raise UpdateError("unsupported activation outcome")
     journal = state_root / "activation.json"
-    if journal.is_symlink() or not journal.is_file():
-        raise UpdateError("activation journal is unavailable")
-    try:
-        document = json.loads(journal.read_text(encoding="utf-8"))
-        version = str(document["version"])
-    except (OSError, KeyError, TypeError, json.JSONDecodeError) as error:
-        raise UpdateError("activation journal is invalid") from error
-    if VERSION.fullmatch(version) is None:
-        raise UpdateError("activation journal version is unsafe")
+    document = _read_activation_journal(journal)
+    version = document["version"]
     document.update(
         {
             "state": outcome,
@@ -442,7 +468,9 @@ def finalize_activation(
         status_stat = status_path.stat()
         try:
             status = json.loads(status_path.read_text(encoding="utf-8"))
-        except (OSError, json.JSONDecodeError) as error:
+            if not isinstance(status, dict):
+                raise ValueError("status must be an object")
+        except (OSError, ValueError) as error:
             raise UpdateError("staged activation status is invalid") from error
         status.update(
             {
@@ -461,24 +489,35 @@ def finalize_activation(
     os.chmod(history, 0o700)
     history_path = history / f"{document['completed_at_ns']}-{version}.json"
     _atomic_json(history_path, document)
-    journal.unlink()
-    _sync_directory(state_root)
+    if retain_completion:
+        _atomic_json(journal, document)
+    else:
+        journal.unlink()
+        _sync_directory(state_root)
     return document
 
 
 def recover_interrupted_activation(
-    state_root: Path, releases_root: Path, current: Path
+    state_root: Path, releases_root: Path, current: Path, *, retain_completion=False
 ) -> str:
     """Rollback a release switch left incomplete by power or process loss."""
     journal = state_root / "activation.json"
+    if journal.is_symlink():
+        raise UpdateError("activation journal is unsafe")
     if not journal.exists():
         return "no interrupted activation"
-    if journal.is_symlink() or not journal.is_file():
+    if not journal.is_file():
         raise UpdateError("activation journal is unsafe")
+    if retain_completion:
+        try:
+            completed = _read_activation_journal(journal, terminal=True)
+        except UpdateError:
+            pass  # The ordinary PREPARED validator below must still accept it.
+        else:
+            _validate_completed_pointer(completed, releases_root, current)
+            return "completed activation cleanup pending"
     try:
-        document = json.loads(journal.read_text(encoding="utf-8"))
-        if document.get("schema_version") != 1 or document.get("state") != "PREPARED":
-            raise ValueError("unsupported journal state")
+        document = _read_activation_journal(journal)
         previous = _direct_release(
             Path(str(document["previous_release"])), releases_root
         )
@@ -498,5 +537,59 @@ def recover_interrupted_activation(
         state_root,
         "ROLLED_BACK_INTERRUPTED",
         "boot recovered an incomplete activation",
+        retain_completion=retain_completion,
     )
     return f"rolled back interrupted activation to {previous.name}"
+
+
+def create_maintenance_lock(state_root: Path, lock: Path) -> None:
+    """Bind inhibition to the prepared transaction before any service change."""
+    document = _read_activation_journal(state_root / "activation.json")
+    if not document.get("transaction_id"):
+        raise UpdateError("new activation requires a transaction ID")
+    with lock.open("x", encoding="utf-8") as stream:
+        os.fchmod(stream.fileno(), 0o644)
+        json.dump({"transaction_id": document["transaction_id"]}, stream)
+        stream.flush()
+        os.fsync(stream.fileno())
+    _sync_directory(lock.parent)
+
+
+def validate_maintenance_lock(state_root: Path, lock: Path) -> None:
+    """Reject stale/unrelated locks before rollback or completion cleanup."""
+    if lock.is_symlink():
+        raise UpdateError("unsafe maintenance lock; manual investigation required")
+    if not lock.exists():
+        return
+    journal = state_root / "activation.json"
+    try:
+        try:
+            document = _read_activation_journal(journal)
+        except UpdateError:
+            document = _read_activation_journal(journal, terminal=True)
+        raw = lock.read_text(encoding="utf-8")
+        binding = json.loads(raw)
+        if (not isinstance(binding, dict) or not document.get("transaction_id")
+                or binding.get("transaction_id") != document["transaction_id"]):
+            raise ValueError("transaction mismatch")
+    except (OSError, ValueError, UpdateError) as error:
+        raise UpdateError("unexplained maintenance lock; manual investigation required") from error
+
+
+def _validate_completed_pointer(document: dict, releases_root: Path, current: Path) -> None:
+    field = "selected_release" if document["state"] == "ACTIVE_HEALTHY" else "previous_release"
+    expected = _direct_release(Path(document[field]), releases_root)
+    if not current.is_symlink() or _direct_release(current, releases_root) != expected:
+        raise UpdateError("current release does not match completed activation")
+
+
+def complete_activation_cleanup(state_root: Path, releases_root: Path,
+                                current: Path, lock: Path) -> None:
+    """Durably remove inhibition before deleting its terminal transaction receipt."""
+    document = _read_activation_journal(state_root / "activation.json", terminal=True)
+    _validate_completed_pointer(document, releases_root, current)
+    validate_maintenance_lock(state_root, lock)
+    lock.unlink(missing_ok=True)
+    _sync_directory(lock.parent)
+    (state_root / "activation.json").unlink()
+    _sync_directory(state_root)

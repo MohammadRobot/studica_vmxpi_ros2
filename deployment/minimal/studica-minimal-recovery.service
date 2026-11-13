@@ -1,0 +1,16 @@
+[Unit]
+Description=Recover interrupted minimal runtime update before hardware startup
+After=local-fs.target
+Before=studica-minimal.service
+
+[Service]
+Type=oneshot
+User=root
+EnvironmentFile=/etc/studica/minimal.env
+# This separately provisioned runtime must survive a broken selected release.
+# Never fall back to /opt/studica/current for recovery.
+ExecStart=/bin/bash -c 'source /opt/ros/humble/setup.bash && source /opt/studica/maintenance/install/setup.bash && exec ros2 run studica_vmxpi_ros2 studica_update_agent.py --runtime minimal recover'
+RemainAfterExit=yes
+TimeoutStartSec=30
+NoNewPrivileges=yes
+UMask=0077

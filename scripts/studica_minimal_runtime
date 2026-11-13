@@ -1,0 +1,9 @@
+#!/usr/bin/env bash
+# Candidate runtime. Configuration and calibration live outside the release.
+set -eo pipefail
+release_root="${STUDICA_RELEASE_ROOT:-/opt/studica/current}"
+source /opt/ros/humble/setup.bash
+source "${release_root}/install/setup.bash"
+export LD_LIBRARY_PATH="/usr/local/lib/vmxpi:${release_root}/vendor/ydlidar_sdk/lib:${LD_LIBRARY_PATH:-}"
+export STUDICA_PROFILE_ROOT=/etc/studica/profiles
+exec python3 -m studica_robot_platform.minimal_runtime "$@"

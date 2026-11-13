@@ -392,12 +392,16 @@ build_and_validate() {
   colcon test-result --test-result-base "${workspace}/build" \
     --delete-yes >/dev/null 2>&1 || true
 
-  # Installation validation is local-only and must not inherit an operator's
-  # Ethernet-specific Cyclone profile. Runtime networking remains untouched.
+  # Installation validation needs an actual loopback-only network namespace,
+  # not only a domain/localhost setting. Refuse rather than fall back to the LAN.
+  # Runtime networking remains untouched.
   env -u CYCLONEDDS_URI \
     RMW_IMPLEMENTATION=rmw_cyclonedds_cpp \
     ROS_LOCALHOST_ONLY=1 \
-    colcon --log-base "${workspace}/log" test \
+    unshare --user --map-root-user --net bash --noprofile --norc -c '
+      ip link set lo up
+      exec "$@"
+    ' studica-tests colcon --log-base "${workspace}/log" test \
     --base-paths "${workspace}/src" \
     --build-base "${workspace}/build" \
     --install-base "${workspace}/install" \

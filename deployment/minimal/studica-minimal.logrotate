@@ -1,0 +1,11 @@
+# Candidate /etc/logrotate.d/studica-minimal; daily rotation with size trigger.
+/var/log/studica-minimal/*.log /var/log/studica-minimal/*/*.log {
+    daily
+    maxsize 10M
+    rotate 2
+    missingok
+    notifempty
+    compress
+    copytruncate
+    su root root
+}

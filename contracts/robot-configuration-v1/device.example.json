@@ -1,0 +1,9 @@
+{
+  "schema_version": 1,
+  "device_id": "classroom-01",
+  "domain_id": 78,
+  "robot_profile": "stack_4wd",
+  "environment": "hardware",
+  "use_lidar": true,
+  "use_camera": false
+}
